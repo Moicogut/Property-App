@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Building2, 
   LayoutDashboard, 
@@ -26,15 +26,21 @@ import {
   MapPin,
   ChevronDown,
   XCircle,
-  FileText
+  FileText,
+  LogOut,
+  Shield,
 } from "lucide-react";
 
-import { Lead, Property, PipelineStage } from "@/src/types/property";
+import { Lead, Property, PipelineStage, AppUser, AppView } from "@/src/types/property";
 import { ChatDrawer } from "@/src/components/chat/ChatDrawer";
 import { RagInventoryView } from "@/src/components/rag/RagInventoryView";
 import { NewLeadModal } from "@/src/components/modals/NewLeadModal";
 import { AppointmentModal } from "@/src/components/modals/AppointmentModal";
 import { PdfFichaModal } from "@/src/components/modals/PdfFichaModal";
+import { LoginPage } from "@/src/components/auth/LoginPage";
+import { SuperAdminPanel } from "@/src/components/admin/SuperAdminPanel";
+import { getCurrentUser, onAuthStateChange, signOut } from "@/src/lib/auth";
+
 
 // Initial seed properties with city tags
 const initialProperties: Property[] = [
@@ -221,7 +227,54 @@ const initialLeads: Lead[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat" | "settings">("pipeline");
+  // ── Auth State ─────────────────────────────────────────────────────────────
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentView, setCurrentView] = useState<AppView>("pipeline");
+
+  // Rehidratar sesión activa al montar y suscribirse a cambios
+  useEffect(() => {
+    getCurrentUser().then((user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+    const unsubscribe = onAuthStateChange((user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut();
+    setCurrentUser(null);
+    setCurrentView("pipeline");
+  };
+
+  // ── Loading splash ──────────────────────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0F172A] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center font-black text-white text-2xl shadow-xl mx-auto mb-3 animate-pulse">P</div>
+          <p className="text-slate-400 text-sm">Cargando Property OS...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Auth Guard: mostrar Login si no hay sesión activa ───────────────────────
+  if (!currentUser) {
+    return <LoginPage onAuthSuccess={(user) => { setCurrentUser(user); setCurrentView("pipeline"); }} />;
+  }
+
+  // ── Admin Guard: mostrar SuperAdmin Panel ───────────────────────────────────
+  if (currentView === "admin") {
+    return <SuperAdminPanel currentUser={currentUser} onLogout={handleLogout} />;
+  }
+
+  // ── Tabs de navegación (con el tipo AppView correcto) ───────────────────────
+  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [properties, setProperties] = useState<Property[]>(initialProperties);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -426,6 +479,33 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* SuperAdmin Access (only shown for superadmin role) */}
+          {currentUser.role === "superadmin" && (
+            <button
+              onClick={() => setCurrentView("admin")}
+              className="flex items-center gap-1.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-700/40 px-3 py-2 rounded-lg text-xs font-bold transition-all"
+              title="Panel SuperAdmin"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">SuperAdmin</span>
+            </button>
+          )}
+
+          {/* User & Logout */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+            <div className="hidden md:block text-right">
+              <p className="text-[11px] font-bold text-white leading-none">{currentUser.fullName}</p>
+              <p className="text-[10px] text-slate-500">{currentUser.role}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Cerrar Sesión"
+              className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
 
         </div>

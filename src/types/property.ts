@@ -6,6 +6,20 @@ export type PipelineStage =
   | 'EN_NEGOCIACION'
   | 'CERRADO';
 
+/** Roles de usuario en el sistema multi-tenant */
+export type UserRole = 'superadmin' | 'agency_admin' | 'agent';
+
+/** Vista activa en el SPA — controla el routing sin librerías externas */
+export type AppView = 'login' | 'pipeline' | 'rag' | 'dashboard' | 'chat' | 'admin';
+
+/** Usuario autenticado de Supabase Auth */
+export interface AppUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+}
+
 export type PaymentMethod =
   | 'CREDITO_VIS'
   | 'CREDITO_BANCARIO'

@@ -27,10 +27,27 @@ export const organizations = pgTable("organizations", {
 // 2. Tabla Users
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  organizationId: uuid("organization_id").references(() => organizations.id),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
-  role: text("role", { enum: ["ADMIN", "AGENT", "MANAGER"] }).default("AGENT").notNull(),
+  // superadmin: acceso global | agency_admin: gestiona su org | agent: operativo
+  role: text("role", { enum: ["superadmin", "agency_admin", "agent"] }).default("agent").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3. Tabla Leads Piloto — capturas desde la Landing Page (sin autenticación requerida)
+export const leadsPiloto = pgTable("leads_piloto", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fullName: text("full_name").notNull(),
+  email: text("email").notNull(),
+  company: text("company"),             // Nombre de la agencia inmobiliaria
+  city: text("city"),                   // Ciudad de operación
+  phone: text("phone"),
+  message: text("message"),
+  utmSource: text("utm_source"),        // Para tracking de campañas
+  status: text("status", { enum: ["NUEVO", "CONTACTADO", "DEMO_AGENDADA", "CONVERTIDO"] })
+    .default("NUEVO")
+    .notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
