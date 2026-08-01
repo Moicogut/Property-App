@@ -232,6 +232,26 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState<AppView>("pipeline");
 
+  // ── Tabs de navegación (con el tipo AppView correcto) ───────────────────────
+  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [properties, setProperties] = useState<Property[]>(initialProperties);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  
+  // UI Controls
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [leadForAppointment, setLeadForAppointment] = useState<Lead | null>(null);
+  const [leadForPdf, setLeadForPdf] = useState<Lead | null>(null);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCity, setSelectedCity] = useState<string>("TODAS");
+  const [visOnlyFilter, setVisOnlyFilter] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   // Rehidratar sesión activa al montar y suscribirse a cambios
   useEffect(() => {
     getCurrentUser().then((user) => {
@@ -272,26 +292,6 @@ export default function App() {
   if (currentView === "admin") {
     return <SuperAdminPanel currentUser={currentUser} onLogout={handleLogout} />;
   }
-
-  // ── Tabs de navegación (con el tipo AppView correcto) ───────────────────────
-  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
-  const [leads, setLeads] = useState<Lead[]>(initialLeads);
-  const [properties, setProperties] = useState<Property[]>(initialProperties);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  
-  // UI Controls
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
-  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
-  const [leadForAppointment, setLeadForAppointment] = useState<Lead | null>(null);
-  const [leadForPdf, setLeadForPdf] = useState<Lead | null>(null);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCity, setSelectedCity] = useState<string>("TODAS");
-  const [visOnlyFilter, setVisOnlyFilter] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
 
   // Handlers
   const handleOpenChat = (lead: Lead) => {
