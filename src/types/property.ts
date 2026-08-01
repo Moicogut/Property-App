@@ -1,0 +1,91 @@
+export type PipelineStage =
+  | 'NUEVO'
+  | 'EN_CALIFICACION'
+  | 'CALIFICADO_VISITA_PENDIENTE'
+  | 'VISITA_REALIZADA'
+  | 'EN_NEGOCIACION'
+  | 'CERRADO';
+
+export type PaymentMethod =
+  | 'CREDITO_VIS'
+  | 'CREDITO_BANCARIO'
+  | 'CONTADO'
+  | 'POR_DEFINIR';
+
+export interface Property {
+  id: string;
+  organizationId: string;
+  title: string;
+  city: string;
+  zone: string;
+  priceUsd: number;
+  bedrooms: number;
+  bathrooms: number;
+  areaSqm: number;
+  acceptsSocialHousing: boolean; // Compatible VIS / ASFI
+  status: 'AVAILABLE' | 'RESERVED' | 'SOLD';
+  rawDescription: string;
+  featuresJson?: Record<string, unknown>;
+  imageUrl?: string;
+  vectorIndexed?: boolean;
+  vectorDimensions?: number;
+}
+
+export interface Lead {
+  id: string;
+  organizationId: string;
+  phoneNumber: string;
+  fullName: string;
+  pipelineStage: PipelineStage;
+  budgetMaxUsd: number;
+  paymentMethod: PaymentMethod;
+  hasDownPayment: boolean; // Insignia Aporte Propio
+  downPaymentPercent: number; // e.g. 15% or 20%
+  downPaymentBank?: string; // e.g. "Banco BCP", "Banco Mercantil"
+  preferredZone: string;
+  propertyInterestId?: string;
+  matchedProperty?: Property;
+  assignedAgentId?: string;
+  aiSummary: string;
+  aiPaused: boolean;
+  intentScore: number; // e.g. 95 (Hot Lead)
+  createdAt: string;
+}
+
+export interface FinancialQualification {
+  maxBudgetUsd: number;
+  paymentMethod: PaymentMethod;
+  hasDownPayment: boolean;
+  downPaymentPercent: number;
+  bankName?: string;
+  isVisQualified: boolean;
+  score: number;
+  summary: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  leadId: string;
+  sender: 'lead' | 'ai_sofia' | 'agent';
+  text: string;
+  timestamp: string;
+}
+
+export interface EvolutionWebhookPayload {
+  event: string;
+  instance: string;
+  data: {
+    key: {
+      remoteJid: string;
+      fromMe: boolean;
+      id: string;
+    };
+    pushName?: string;
+    message?: {
+      conversation?: string;
+      extendedTextMessage?: {
+        text?: string;
+      };
+    };
+  };
+}

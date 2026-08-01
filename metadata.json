@@ -1,0 +1,6 @@
+{
+  "name": "Property OS - Real Estate AI CRM & RAG",
+  "description": "Plataforma SaaS B2B Inmobiliaria con CRM Kanban, Filtro Crediticio en WhatsApp y Motor RAG de Inventario.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
