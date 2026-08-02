@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
+import { supabase } from "./src/lib/supabase";
 
 async function startServer() {
   const app = express();
@@ -9,144 +10,120 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Memory Mock Store for API requests
-  const memoryStore = {
-    leads: [
-      {
-        id: "lead-1",
-        fullName: "Juan Pérez",
-        phoneNumber: "+591 71234567",
-        pipelineStage: "NUEVO",
-        budgetMaxUsd: 85000,
-        paymentMethod: "CREDITO_VIS",
-        hasDownPayment: true,
-        downPaymentPercent: 15,
-        preferredZone: "Equipetrol Norte",
-        aiSummary: "Calificado: 15% aporte propio verificado BCP.",
-        aiPaused: false,
-        intentScore: 95
-      },
-      {
-        id: "lead-2",
-        fullName: "María Delgado",
-        phoneNumber: "+591 78912345",
-        pipelineStage: "EN_CALIFICACION",
-        budgetMaxUsd: 120000,
-        paymentMethod: "CREDITO_VIS",
-        hasDownPayment: true,
-        downPaymentPercent: 15,
-        preferredZone: "Urubó",
-        aiSummary: "Calificando crédito ASFI en Condominio Urubó.",
-        aiPaused: false,
-        intentScore: 72
-      }
-    ],
-    properties: [
-      {
-        id: "prop-1",
-        title: "Smart Tower 2D",
-        city: "Santa Cruz",
-        zone: "Equipetrol Norte",
-        priceUsd: 82000,
-        acceptsSocialHousing: true,
-        status: "AVAILABLE",
-        vectorIndexed: true,
-        vectorDimensions: 1536
-      },
-      {
-        id: "prop-2",
-        title: "Residencia Jardines del Sur",
-        city: "La Paz",
-        zone: "Zona Sur",
-        priceUsd: 145000,
-        acceptsSocialHousing: true,
-        status: "AVAILABLE",
-        vectorIndexed: true,
-        vectorDimensions: 1536
-      }
-    ]
-  };
-
   // 1. API Health Check
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "online",
       system: "PROPERTY OS - Real Estate AI CRM & RAG",
       evolutionApiStatus: "CONNECTED",
-      pgvectorEngine: "READY (1536d)",
+      pgvectorEngine: "READY (1536d RPC)",
     });
   });
 
-  // 2. WhatsApp Evolution API Webhook Endpoint
-  app.post("/api/whatsapp/webhook", async (req, res) => {
-    try {
-      // Validate API Key if configured
-      const expectedKey = process.env.EVOLUTION_API_KEY;
-      if (expectedKey) {
-        const incomingKey = req.headers["apikey"] || req.headers["authorization"]?.toString().replace("Bearer ", "");
-        if (incomingKey !== expectedKey) {
-          console.warn("[Server] ❌ Webhook request with invalid API Key rejected.");
-          res.status(401).json({ error: "Unauthorized" });
-          return;
+  // 2. WhatsApp Evolution API Webhook Endpoint — GET (verification ping)
+  app.get("/api/whatsapp/webhook", (_req, res) => {
+    res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "PropertyOS-Sofia" });
+  });
+
+  // 2b. WhatsApp Evolution API Webhook Endpoint — POST
+  app.post("/api/whatsapp/webhook", (req, res) => {
+    // ── Log de entrada INMEDIATO — antes de cualquier validación ──────────────
+    console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
+    console.log("📥 [WEBHOOK ENTRY] Raw body:", JSON.stringify(req.body));
+
+    // Responder 200 INMEDIATAMENTE para evitar timeouts / reintentos de Evolution API
+    res.status(200).json({ status: "EVENT_RECEIVED" });
+
+    // ── Procesamiento asíncrono fire-and-forget ───────────────────────────────
+    (async () => {
+      try {
+        // Validación de API Key SOFT — no bloquea si la variable no está configurada
+        const expectedKey = process.env.EVOLUTION_API_KEY;
+        if (expectedKey) {
+          const incomingKey =
+            (req.headers["apikey"] as string) ||
+            (req.headers["x-api-key"] as string) ||
+            req.headers["authorization"]?.toString().replace("Bearer ", "");
+          if (incomingKey && incomingKey !== expectedKey) {
+            console.warn(`[Server] ❌ API Key inválida. Recibida: "${incomingKey}" | Esperada: "${expectedKey.slice(0, 6)}..."`);
+            return;
+          }
         }
+
+        const result = await processWebhookMessage(req.body, {
+          evolutionApiUrl: process.env.EVOLUTION_API_URL,
+          evolutionApiKey: process.env.EVOLUTION_API_KEY,
+          evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
+        });
+        console.log("[Server] ✅ Webhook procesado:", result.status, "| lead:", result.phoneNumber);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Internal Server Error";
+        console.error("[Server] ❌ Error procesando webhook:", message);
       }
+    })();
+  });
 
-      const result = await processWebhookMessage(req.body, {
-        evolutionApiUrl: process.env.EVOLUTION_API_URL,
-        evolutionApiKey: process.env.EVOLUTION_API_KEY,
-        evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-      });
-      res.json(result);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Internal Server Error";
-      console.error("[Server] Error in /api/whatsapp/webhook:", message);
-      res.status(500).json({ error: message });
+
+  // 3. API Leads GET / POST (Single Source of Truth: Supabase PostgreSQL)
+  app.get("/api/leads", async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*, matchedProperty:properties(*)")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      res.json({ success: true, count: data?.length || 0, leads: data || [] });
+    } catch (err: any) {
+      console.error("[Server] Error fetching leads from Supabase:", err);
+      res.status(500).json({ success: false, error: err?.message || "Error fetching leads" });
     }
   });
 
-  // 3. API Leads GET / POST
-  app.get("/api/leads", (_req, res) => {
+  app.post("/api/leads", async (req, res) => {
     try {
-      res.json({ success: true, count: memoryStore.leads.length, leads: memoryStore.leads });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Error processing leads" });
-    }
-  });
+      const { data, error } = await supabase
+        .from("leads")
+        .insert([req.body])
+        .select()
+        .single();
 
-  app.post("/api/leads", (req, res) => {
-    try {
-      const newLead = {
-        id: `lead-${Date.now()}`,
-        ...req.body,
-        createdAt: new Date().toISOString()
-      };
-      memoryStore.leads.unshift(newLead);
-      res.json({ success: true, lead: newLead });
+      if (error) throw error;
+      res.json({ success: true, lead: data });
     } catch (err: any) {
+      console.error("[Server] Error creating lead in Supabase:", err);
       res.status(500).json({ success: false, error: err?.message || "Error creating lead" });
     }
   });
 
-  // 4. API Properties GET / POST (RAG Vectors)
-  app.get("/api/properties", (_req, res) => {
+  // 4. API Properties GET / POST (Supabase pgvector)
+  app.get("/api/properties", async (_req, res) => {
     try {
-      res.json({ success: true, count: memoryStore.properties.length, properties: memoryStore.properties });
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      res.json({ success: true, count: data?.length || 0, properties: data || [] });
     } catch (err: any) {
+      console.error("[Server] Error fetching properties from Supabase:", err);
       res.status(500).json({ success: false, error: err?.message || "Error fetching properties" });
     }
   });
 
-  app.post("/api/properties", (req, res) => {
+  app.post("/api/properties", async (req, res) => {
     try {
-      const newProp = {
-        id: `prop-${Date.now()}`,
-        vectorIndexed: true,
-        vectorDimensions: 1536,
-        ...req.body
-      };
-      memoryStore.properties.unshift(newProp);
-      res.json({ success: true, property: newProp });
+      const { data, error } = await supabase
+        .from("properties")
+        .insert([req.body])
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json({ success: true, property: data });
     } catch (err: any) {
+      console.error("[Server] Error creating property in Supabase:", err);
       res.status(500).json({ success: false, error: err?.message || "Error adding property" });
     }
   });
