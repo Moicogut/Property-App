@@ -1,9 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
-// Inicializar cliente Supabase
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+const supabaseUrl =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  "";
+const supabaseKey =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  "";
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -12,50 +18,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "POST") {
-    // Validar API Key si existe
-    const expectedKey = process.env.EVOLUTION_API_KEY;
-    if (expectedKey) {
-      const incomingKey =
-        (req.headers["apikey"] as string) ||
-        (req.headers["x-api-key"] as string) ||
-        req.headers["authorization"]?.toString().replace("Bearer ", "");
+    // Imprimir todo el body entrante en Vercel Logs para diagnóstico
+    console.log("RAW BODY RECEIVED:", JSON.stringify(req.body, null, 2));
 
-      if (incomingKey && incomingKey !== expectedKey) {
-        console.warn(`[Webhook] ❌ API Key inválida.`);
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-    }
-
-    // Responder 200 OK inmediatamente a Evolution API
     res.status(200).json({ status: "EVENT_RECEIVED" });
 
-    // Procesar el mensaje
     try {
       const data = req.body?.data;
       const key = data?.key;
 
-      // Filtrar para ignorar mensajes enviados por el propio bot
-      if (key?.fromMe) return;
-
-      const messageText =
-        data?.message?.conversation ||
-        data?.message?.extendedTextMessage?.text;
+      // Extraer número de teléfono y mensaje
       const rawPhone = key?.remoteJid?.split("@")[0] || "";
       const pushName = data?.pushName || "Cliente WhatsApp";
+      const messageText =
+        data?.message?.conversation ||
+        data?.message?.extendedTextMessage?.text ||
+        data?.message?.imageMessage?.caption ||
+        "";
 
-      if (!messageText || !rawPhone) return;
+      if (!rawPhone || !messageText) {
+        console.warn("[Webhook] Petición omitida: falta número o mensaje.");
+        return;
+      }
 
-      console.log(`💬 [Webhook] Nuevo mensaje de ${pushName} (${rawPhone}): "${messageText}"`);
+      console.log(`💬 Procesando mensaje de ${pushName} (${rawPhone}): "${messageText}"`);
 
-      // 1. Guardar o actualizar el Lead en Supabase
-      const { data: existingLead } = await supabase
+      // Guardar o actualizar en Supabase
+      const { data: existingLead, error: selectError } = await supabase
         .from("leads")
         .select("*")
         .eq("phone", rawPhone)
-        .single();
+        .maybeSingle();
+
+      if (selectError) {
+        console.error("[Supabase Error Select]:", selectError.message);
+      }
 
       if (!existingLead) {
-        await supabase.from("leads").insert([
+        const { error: insertError } = await supabase.from("leads").insert([
           {
             name: pushName,
             phone: rawPhone,
@@ -65,21 +65,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             created_at: new Date().toISOString()
           }
         ]);
-        console.log(`✅ [Supabase] Nuevo lead creado para ${pushName}`);
+        if (insertError) console.error("[Supabase Error Insert]:", insertError.message);
+        else console.log(`✅ Lead guardado exitosamente para ${pushName}`);
       } else {
-        await supabase
+        const { error: updateError } = await supabase
           .from("leads")
           .update({
             requirements: messageText,
             updated_at: new Date().toISOString()
           })
           .eq("id", existingLead.id);
-        console.log(`🔄 [Supabase] Lead actualizado: ${existingLead.id}`);
+        if (updateError) console.error("[Supabase Error Update]:", updateError.message);
+        else console.log(`🔄 Lead actualizado: ${existingLead.id}`);
       }
-
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Internal Error";
-      console.error("[Webhook] ❌ Error en el procesamiento:", message);
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      console.error("[Webhook Error]:", msg);
     }
     return;
   }
