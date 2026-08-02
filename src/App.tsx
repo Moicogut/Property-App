@@ -42,7 +42,9 @@ import { SuperAdminPanel } from "@/src/components/admin/SuperAdminPanel";
 import { getCurrentUser, onAuthStateChange, signOut } from "@/src/lib/auth";
 
 
-// Initial seed properties with city tags
+import { supabase } from "@/src/lib/supabase";
+
+// Initial seed properties with city tags (usado como fallback visual de carga inicial)
 const initialProperties: Property[] = [
   {
     id: "prop-1",
@@ -60,61 +62,10 @@ const initialProperties: Property[] = [
     imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA",
     vectorIndexed: true,
     vectorDimensions: 1536,
-  },
-  {
-    id: "prop-2",
-    organizationId: "org-1",
-    title: "Residencia Jardines del Sur",
-    city: "La Paz",
-    zone: "Zona Sur",
-    priceUsd: 145000,
-    bedrooms: 3,
-    bathrooms: 3,
-    areaSqm: 180,
-    acceptsSocialHousing: true,
-    status: "AVAILABLE",
-    rawDescription: "Residencia soleada en Achumani Zona Sur con garaje y solarium. Apta para crédito de vivienda social.",
-    imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCYJU0S00GPmbGAajxzcXQNHnjnc8ulDjxL4MBMnvkxwxWkj2C5to5EcoW-fwuaOn6rw5JGdFKpa-c48rQ4D2-dP3Advpg0C94wROZfKe77aF0CyQZivV6MwDlDE4KjSvnoJicHDGJWsBV1uPLvPdxcHe_jfZLzOfhtCQKlkE5Mq40tFlo5IOqvHG88Zfhetq6CYb9Hg0Rs5-Ar0hcPMEG3ok6N6-DKqegGfsQu66t57pabLFX_REcsfA",
-    vectorIndexed: true,
-    vectorDimensions: 1536,
-  },
-  {
-    id: "prop-3",
-    organizationId: "org-1",
-    title: "Condominio Cala Cala 3D",
-    city: "Cochabamba",
-    zone: "Cala Cala",
-    priceUsd: 95000,
-    bedrooms: 3,
-    bathrooms: 2,
-    areaSqm: 110,
-    acceptsSocialHousing: true,
-    status: "AVAILABLE",
-    rawDescription: "Amplio departamento en zona residencial Cala Cala Cochabamba. Crédito VIS BCP pre-aprobado.",
-    imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuAa43ZWx_LxVoUAtNpS2fx6P0r6gpr0hOzB-G0gu3MAys8ppClBP0dARjvpssksYEHZ3lootGG7m68roTeubhBjZxpgobrTH1kUuvuA33lzhuL3vDoDqUgPIIMbOHlMoAj8cfR5St7Do9DYvJIv4oyO_iIJLlpaNFpbPCNI8rnDkHOWYz_pj2DMmmJsUP7mzdf9-Eg8CkbYOqN8fVjsZ6o-xiNlMcFr9bYUk2U-ihmnwAg4Wp0tOQrLeg",
-    vectorIndexed: true,
-    vectorDimensions: 1536,
-  },
-  {
-    id: "prop-4",
-    organizationId: "org-1",
-    title: "Casa Quinta Urubó G3",
-    city: "Santa Cruz",
-    zone: "Urubó",
-    priceUsd: 120000,
-    bedrooms: 3,
-    bathrooms: 3,
-    areaSqm: 210,
-    acceptsSocialHousing: true,
-    status: "AVAILABLE",
-    rawDescription: "Hermosa casa estilo chalet en condominio cerrado en el Urubó. Financiamiento bancario disponible.",
-    imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuCYJU0S00GPmbGAajxzcXQNHnjnc8ulDjxL4MBMnvkxwxWkj2C5to5EcoW-fwuaOn6rw5JGdFKpa-c48rQ4D2-dP3Advpg0C94wROZfKe77aF0CyQZivV6MwDlDE4KjSvnoJicHDGJWsBV1uPLvPdxcHe_jfZLzOfhtCQKlkE5Mq40tFlo5IOqvHG88Zfhetq6CYb9Hg0Rs5-Ar0hcPMEG3ok6N6-DKqegGfsQu66t57pabLFX_REcsfA",
-    vectorIndexed: true,
-    vectorDimensions: 1536,
   }
 ];
 
-// Initial seed leads for Kanban
+// Initial seed leads for Kanban (usado como fallback visual)
 const initialLeads: Lead[] = [
   {
     id: "lead-1",
@@ -134,95 +85,6 @@ const initialLeads: Lead[] = [
     aiPaused: false,
     intentScore: 95,
     createdAt: "Hace 12m",
-  },
-  {
-    id: "lead-2",
-    organizationId: "org-1",
-    fullName: "María Delgado",
-    phoneNumber: "+591 78912345",
-    pipelineStage: "EN_CALIFICACION",
-    budgetMaxUsd: 120000,
-    paymentMethod: "CREDITO_VIS",
-    hasDownPayment: true,
-    downPaymentPercent: 15,
-    downPaymentBank: "Banco Mercantil",
-    preferredZone: "Urubó",
-    propertyInterestId: "prop-4",
-    matchedProperty: initialProperties[3],
-    aiSummary: "Preguntó por Casa Quinta Urubó. Confirmó 15% de cuota inicial ($18,000 USD).",
-    aiPaused: false,
-    intentScore: 72,
-    createdAt: "Hace 25m",
-  },
-  {
-    id: "lead-3",
-    organizationId: "org-1",
-    fullName: "Roberto Gómez",
-    phoneNumber: "+591 69011223",
-    pipelineStage: "CALIFICADO_VISITA_PENDIENTE",
-    budgetMaxUsd: 95000,
-    paymentMethod: "CREDITO_VIS",
-    hasDownPayment: true,
-    downPaymentPercent: 20,
-    downPaymentBank: "Banco Ganadero",
-    preferredZone: "Cala Cala",
-    propertyInterestId: "prop-3",
-    matchedProperty: initialProperties[2],
-    aiSummary: "Visita agendada para mañana a las 10:00 AM en Condominio Cala Cala.",
-    aiPaused: false,
-    intentScore: 89,
-    createdAt: "Hace 2h",
-  },
-  {
-    id: "lead-4",
-    organizationId: "org-1",
-    fullName: "Andrés Roca",
-    phoneNumber: "+591 70099887",
-    pipelineStage: "VISITA_REALIZADA",
-    budgetMaxUsd: 145000,
-    paymentMethod: "CREDITO_BANCARIO",
-    hasDownPayment: true,
-    downPaymentPercent: 20,
-    downPaymentBank: "Banco Mercantil",
-    preferredZone: "Zona Sur",
-    propertyInterestId: "prop-2",
-    matchedProperty: initialProperties[1],
-    aiSummary: "Visita realizada en La Paz Achumani. Le gustó la orientación solar.",
-    aiPaused: true,
-    intentScore: 92,
-    createdAt: "Ayer",
-  },
-  {
-    id: "lead-5",
-    organizationId: "org-1",
-    fullName: "Fernando Camacho",
-    phoneNumber: "+591 71055667",
-    pipelineStage: "EN_NEGOCIACION",
-    budgetMaxUsd: 220000,
-    paymentMethod: "CONTADO",
-    hasDownPayment: true,
-    downPaymentPercent: 100,
-    preferredZone: "Equipetrol",
-    aiSummary: "Oferta presentada al propietario: $215,000 USD al contado.",
-    aiPaused: true,
-    intentScore: 96,
-    createdAt: "Hace 3 días",
-  },
-  {
-    id: "lead-6",
-    organizationId: "org-1",
-    fullName: "Monica Vaca",
-    phoneNumber: "+591 72088990",
-    pipelineStage: "CERRADO",
-    budgetMaxUsd: 185000,
-    paymentMethod: "CREDITO_BANCARIO",
-    hasDownPayment: true,
-    downPaymentPercent: 30,
-    preferredZone: "Zona Sur",
-    aiSummary: "Cierre exitoso. Minuta de compraventa firmada en notaría.",
-    aiPaused: true,
-    intentScore: 100,
-    createdAt: "Hace 1 semana",
   }
 ];
 
@@ -232,7 +94,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState<AppView>("pipeline");
 
-  // ── Tabs de navegación (con el tipo AppView correcto) ───────────────────────
+  // ── Tabs de navegación ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [properties, setProperties] = useState<Property[]>(initialProperties);
@@ -252,17 +114,131 @@ export default function App() {
   const [visOnlyFilter, setVisOnlyFilter] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Rehidratar sesión activa al montar y suscribirse a cambios
+  // Función de carga dinámica de Leads desde Supabase
+  const loadLeadsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*, matchedProperty:properties(*)")
+        .order("created_at", { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const mappedLeads: Lead[] = data.map((l: any) => ({
+          id: l.id,
+          organizationId: l.organization_id || "org-1",
+          fullName: l.full_name || "Lead WhatsApp",
+          phoneNumber: l.phone_number,
+          pipelineStage: l.pipeline_stage || "NUEVO",
+          budgetMaxUsd: Number(l.budget_max_usd || 85000),
+          paymentMethod: l.payment_method || "CREDITO_VIS",
+          hasDownPayment: l.has_down_payment ?? true,
+          downPaymentPercent: l.down_payment_percent || 20,
+          downPaymentBank: l.down_payment_bank || "Banco BCP",
+          preferredZone: l.preferred_zone || "Equipetrol",
+          matchedProperty: l.matchedProperty ? {
+            id: l.matchedProperty.id,
+            organizationId: l.matchedProperty.organization_id,
+            title: l.matchedProperty.title,
+            city: l.matchedProperty.city,
+            zone: l.matchedProperty.zone,
+            priceUsd: Number(l.matchedProperty.price_usd),
+            bedrooms: l.matchedProperty.bedrooms,
+            bathrooms: l.matchedProperty.bathrooms,
+            areaSqm: Number(l.matchedProperty.area_sqm),
+            acceptsSocialHousing: l.matchedProperty.accepts_social_housing,
+            status: l.matchedProperty.status,
+            rawDescription: l.matchedProperty.raw_description,
+            imageUrl: l.matchedProperty.image_url,
+            vectorIndexed: true,
+            vectorDimensions: 1536,
+          } : undefined,
+          aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
+          aiPaused: l.ai_paused ?? false,
+          intentScore: l.intent_score || 85,
+          createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setLeads(mappedLeads);
+      }
+    } catch (e) {
+      console.warn("[App] Error cargando leads desde Supabase DB:", e);
+    }
+  };
+
+  // Función de carga dinámica de Propiedades desde Supabase
+  const loadPropertiesFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        // Exponer el error completo para diagnóstico en Vercel Logs / DevTools
+        console.error("[App] Supabase error cargando properties:", JSON.stringify(error));
+        return;
+      }
+
+      // Actualizar siempre el estado (incluso si data=[] para limpiar el seed inicial)
+      const mappedProps: Property[] = (data ?? []).map((p: any) => ({
+        id: p.id,
+        organizationId: p.organization_id || "org-1",
+        title: p.title,
+        city: p.city,
+        zone: p.zone,
+        priceUsd: Number(p.price_usd),
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        areaSqm: Number(p.area_sqm),
+        acceptsSocialHousing: p.accepts_social_housing,
+        status: p.status,
+        rawDescription: p.raw_description,
+        imageUrl: p.image_url,
+        vectorIndexed: true,
+        vectorDimensions: 1536,
+      }));
+      console.log(`[App] ${mappedProps.length} propiedades cargadas desde Supabase.`);
+      setProperties(mappedProps);
+    } catch (e) {
+      console.error("[App] Excepción cargando propiedades desde Supabase DB:", e);
+    }
+  };
+
+  // Rehidratar sesión activa y configurar Supabase Realtime Subscription
   useEffect(() => {
+    // Las propiedades son datos públicos — cargar siempre, sin depender de sesión
+    loadPropertiesFromSupabase();
+
     getCurrentUser().then((user) => {
       setCurrentUser(user);
       setAuthLoading(false);
+      if (user) {
+        loadLeadsFromSupabase();
+      }
     });
+
     const unsubscribe = onAuthStateChange((user) => {
       setCurrentUser(user);
       setAuthLoading(false);
+      if (user) {
+        loadLeadsFromSupabase();
+        // Recargar properties también cuando cambia la sesión (en caso de RLS auth-gated)
+        loadPropertiesFromSupabase();
+      }
     });
-    return unsubscribe;
+
+    // ⚡ Supabase Realtime Subscription para la tabla `leads`
+    const channel = supabase
+      .channel("realtime-leads-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (_payload) => {
+        console.log("⚡ Supabase Realtime update detectado en tabla leads — recargando Kanban en vivo...");
+        loadLeadsFromSupabase();
+      })
+      .subscribe();
+
+    return () => {
+      unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLogout = async () => {
