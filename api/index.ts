@@ -1,7 +1,7 @@
 import app from "../server";
 
 export default function handler(req: any, res: any) {
-  // Asegura que req.url mantenga el prefijo /api si Vercel lo remueve
+  // Garantizar que la ruta no rompa el router de Express en Serverless
   if (!req.url.startsWith("/api")) {
     req.url = `/api${req.url}`;
   }

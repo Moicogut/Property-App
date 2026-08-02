@@ -17,60 +17,61 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// 2. WhatsApp Evolution API Webhook Endpoint - GET & POST
-// Handlers universales para que funcionen con o sin el prefijo /api que añade Vercel
-const handleWebhookGet = (_req: express.Request, res: express.Response) => {
-  return res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
-};
+// 2. WhatsApp Evolution API Webhook Endpoint - GET & POST (All routes)
+app.all(["/api/whatsapp/webhook", "/whatsapp/webhook"], (req, res) => {
+  // Manejo de petición GET (Health Check del Webhook)
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
+  }
 
-const handleWebhookPost = (req: express.Request, res: express.Response) => {
-  // ── Log de entrada INMEDIATO ───────────────────────────────────────────────
-  console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
-  console.log("📥 [WEBHOOK ENTRY] Raw body:", JSON.stringify(req.body));
+  // Manejo de petición POST (Mensajes entrantes de Evolution API)
+  if (req.method === "POST") {
+    console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
+    console.log("📥 [WEBHOOK ENTRY] Raw body:", JSON.stringify(req.body));
 
-  // Responder 200 INMEDIATAMENTE a Evolution API
-  res.status(200).json({ status: "EVENT_RECEIVED" });
+    // Responder 200 INMEDIATAMENTE a Evolution API
+    res.status(200).json({ status: "EVENT_RECEIVED" });
 
-  // ── Procesamiento asíncrono en segundo plano ─────────────────────────────
-  (async () => {
-    try {
-      const expectedKey = process.env.EVOLUTION_API_KEY;
-      if (expectedKey) {
-        const incomingKey =
-          (req.headers["apikey"] as string) ||
-          (req.headers["x-api-key"] as string) ||
-          req.headers["authorization"]?.toString().replace("Bearer ", "");
-        if (incomingKey && incomingKey !== expectedKey) {
-          console.warn(
-            `[Server] ❌ API Key inválida. Recibida: "${incomingKey}"`
-          );
-          return;
+    // Procesamiento en segundo plano
+    (async () => {
+      try {
+        const expectedKey = process.env.EVOLUTION_API_KEY;
+        if (expectedKey) {
+          const incomingKey =
+            (req.headers["apikey"] as string) ||
+            (req.headers["x-api-key"] as string) ||
+            req.headers["authorization"]?.toString().replace("Bearer ", "");
+          if (incomingKey && incomingKey !== expectedKey) {
+            console.warn(
+              `[Server] ❌ API Key inválida. Recibida: "${incomingKey}"`
+            );
+            return;
+          }
         }
+
+        const result = await processWebhookMessage(req.body, {
+          evolutionApiUrl: process.env.EVOLUTION_API_URL,
+          evolutionApiKey: process.env.EVOLUTION_API_KEY,
+          evolutionInstance:
+            process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
+        });
+        console.log(
+          "[Server] ✅ Webhook procesado:",
+          result.status,
+          "| lead:",
+          result.phoneNumber
+        );
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Internal Server Error";
+        console.error("[Server] ❌ Error procesando webhook:", message);
       }
+    })();
+    return;
+  }
 
-      const result = await processWebhookMessage(req.body, {
-        evolutionApiUrl: process.env.EVOLUTION_API_URL,
-        evolutionApiKey: process.env.EVOLUTION_API_KEY,
-        evolutionInstance:
-          process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-      });
-      console.log(
-        "[Server] ✅ Webhook procesado:",
-        result.status,
-        "| lead:",
-        result.phoneNumber
-      );
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Internal Server Error";
-      console.error("[Server] ❌ Error procesando webhook:", message);
-    }
-  })();
-};
-
-// Registrar ambas variantes de ruta para evitar el error 405 en Vercel
-app.get(["/api/whatsapp/webhook", "/whatsapp/webhook"], handleWebhookGet);
-app.post(["/api/whatsapp/webhook", "/whatsapp/webhook"], handleWebhookPost);
+  return res.status(405).json({ error: "Method Not Allowed" });
+});
 
 // 3. API Leads GET / POST (Supabase PostgreSQL)
 app.get("/api/leads", async (_req, res) => {
