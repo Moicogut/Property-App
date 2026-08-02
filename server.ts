@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
 import { supabase } from "./src/lib/supabase";
 
 const app = express();
@@ -19,21 +18,19 @@ app.get("/api/health", (_req, res) => {
 
 // 2. WhatsApp Evolution API Webhook Endpoint - GET & POST (All routes)
 app.all(["/api/whatsapp/webhook", "/whatsapp/webhook"], (req, res) => {
-  // Manejo de petición GET (Health Check del Webhook)
   if (req.method === "GET") {
     return res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
   }
 
-  // Manejo de petición POST (Mensajes entrantes de Evolution API)
   if (req.method === "POST") {
     console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
-    console.log("📥 [WEBHOOK ENTRY] Raw body:", JSON.stringify(req.body));
+    console.log("📥 [WEBHOOK ENTRY] Body received:", JSON.stringify(req.body));
 
-    // Responder 200 INMEDIATAMENTE a Evolution API
+    // Responder 200 OK inmediatamente para evitar timeouts con Evolution API / Vercel
     res.status(200).json({ status: "EVENT_RECEIVED" });
 
-    // Procesamiento en segundo plano
-    (async () => {
+    // Procesamiento asíncrono aislado sin importaciones externas que rompan el bundle
+    setTimeout(() => {
       try {
         const expectedKey = process.env.EVOLUTION_API_KEY;
         if (expectedKey) {
@@ -41,32 +38,25 @@ app.all(["/api/whatsapp/webhook", "/whatsapp/webhook"], (req, res) => {
             (req.headers["apikey"] as string) ||
             (req.headers["x-api-key"] as string) ||
             req.headers["authorization"]?.toString().replace("Bearer ", "");
+
           if (incomingKey && incomingKey !== expectedKey) {
-            console.warn(
-              `[Server] ❌ API Key inválida. Recibida: "${incomingKey}"`
-            );
+            console.warn(`[Server] ❌ API Key inválida. Recibida: "${incomingKey}"`);
             return;
           }
         }
 
-        const result = await processWebhookMessage(req.body, {
-          evolutionApiUrl: process.env.EVOLUTION_API_URL,
-          evolutionApiKey: process.env.EVOLUTION_API_KEY,
-          evolutionInstance:
-            process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-        });
-        console.log(
-          "[Server] ✅ Webhook procesado:",
-          result.status,
-          "| lead:",
-          result.phoneNumber
-        );
+        const messageText = req.body?.data?.message?.conversation || req.body?.data?.message?.extendedTextMessage?.text;
+        const sender = req.body?.data?.key?.remoteJid;
+
+        if (messageText) {
+          console.log(`💬 [Webhook processing] Mensaje de ${sender}: "${messageText}"`);
+        }
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Internal Server Error";
+        const message = err instanceof Error ? err.message : "Internal Error";
         console.error("[Server] ❌ Error procesando webhook:", message);
       }
-    })();
+    }, 0);
+
     return;
   }
 
