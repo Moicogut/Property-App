@@ -17,12 +17,12 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// 2. WhatsApp Evolution API Webhook Endpoint — GET (verification ping)
+// 2. WhatsApp Evolution API Webhook Endpoint - GET
 app.get("/api/whatsapp/webhook", (_req, res) => {
-  res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "PropertyOS-Sofia" });
+  res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
 });
 
-// 2b. WhatsApp Evolution API Webhook Endpoint — POST
+// 2b. WhatsApp Evolution API Webhook Endpoint - POST
 app.post("/api/whatsapp/webhook", (req, res) => {
   // ── Log de entrada INMEDIATO — antes de cualquier validación ──────────────
   console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
@@ -42,7 +42,9 @@ app.post("/api/whatsapp/webhook", (req, res) => {
           (req.headers["x-api-key"] as string) ||
           req.headers["authorization"]?.toString().replace("Bearer ", "");
         if (incomingKey && incomingKey !== expectedKey) {
-          console.warn(`[Server] ❌ API Key inválida. Recibida: "${incomingKey}" | Esperada: "${expectedKey.slice(0, 6)}..."`);
+          console.warn(
+            `[Server] ❌ API Key inválida. Recibida: "${incomingKey}" | Esperada: "${expectedKey.slice(0, 6)}..."`
+          );
           return;
         }
       }
@@ -50,11 +52,18 @@ app.post("/api/whatsapp/webhook", (req, res) => {
       const result = await processWebhookMessage(req.body, {
         evolutionApiUrl: process.env.EVOLUTION_API_URL,
         evolutionApiKey: process.env.EVOLUTION_API_KEY,
-        evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
+        evolutionInstance:
+          process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
       });
-      console.log("[Server] ✅ Webhook procesado:", result.status, "| lead:", result.phoneNumber);
+      console.log(
+        "[Server] ✅ Webhook procesado:",
+        result.status,
+        "| lead:",
+        result.phoneNumber
+      );
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Internal Server Error";
+      const message =
+        err instanceof Error ? err.message : "Internal Server Error";
       console.error("[Server] ❌ Error procesando webhook:", message);
     }
   })();
@@ -135,14 +144,12 @@ if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
 } else {
   const distPath = path.join(process.cwd(), "dist");
   app.use(express.static(distPath));
-  // In Vercel, serverless function will only handle `/api/*` requests, Vite static routing is handled by vercel.json rewrites.
   app.get("*", (_req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
 
 const PORT = process.env.PORT || 3000;
-// If not running in Vercel Serverless environment, start the listener.
 if (!process.env.VERCEL) {
   app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`🚀 Property OS Full-Stack Server running on http://0.0.0.0:${PORT}`);

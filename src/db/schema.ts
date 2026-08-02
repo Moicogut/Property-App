@@ -16,6 +16,14 @@ export const vector = customType<{ data: number[] }>({
   },
 });
 
+// 0. Tabla AppConfig (Configuración dinámicas de Proveedor de Embeddings)
+export const appConfig = pgTable("app_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  embeddingProvider: text("embedding_provider", { enum: ["openai", "gemini"] }).default("openai").notNull(),
+  embeddingModel: text("embedding_model").default("text-embedding-3-small").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // 1. Tabla Organizations
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
