@@ -170,7 +170,7 @@ export default function App() {
       const { data, error } = await supabase
         .from("properties")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("id", { ascending: false });
 
       if (error) {
         // Exponer el error completo para diagnóstico en Vercel Logs / DevTools

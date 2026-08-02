@@ -98,7 +98,7 @@ app.get("/api/properties", async (_req, res) => {
     const { data, error } = await supabase
       .from("properties")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("id", { ascending: false });
 
     if (error) throw error;
     res.json({ success: true, count: data?.length || 0, properties: data || [] });
