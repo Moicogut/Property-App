@@ -17,24 +17,23 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// 2. WhatsApp Evolution API Webhook Endpoint - GET
-app.get("/api/whatsapp/webhook", (_req, res) => {
-  res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
-});
+// 2. WhatsApp Evolution API Webhook Endpoint - GET & POST
+// Handlers universales para que funcionen con o sin el prefijo /api que añade Vercel
+const handleWebhookGet = (_req: express.Request, res: express.Response) => {
+  return res.status(200).json({ status: "WEBHOOK_ACTIVE", service: "Property OS" });
+};
 
-// 2b. WhatsApp Evolution API Webhook Endpoint - POST
-app.post("/api/whatsapp/webhook", (req, res) => {
-  // ── Log de entrada INMEDIATO — antes de cualquier validación ──────────────
+const handleWebhookPost = (req: express.Request, res: express.Response) => {
+  // ── Log de entrada INMEDIATO ───────────────────────────────────────────────
   console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(req.headers));
   console.log("📥 [WEBHOOK ENTRY] Raw body:", JSON.stringify(req.body));
 
-  // Responder 200 INMEDIATAMENTE para evitar timeouts / reintentos de Evolution API
+  // Responder 200 INMEDIATAMENTE a Evolution API
   res.status(200).json({ status: "EVENT_RECEIVED" });
 
-  // ── Procesamiento asíncrono fire-and-forget ───────────────────────────────
+  // ── Procesamiento asíncrono en segundo plano ─────────────────────────────
   (async () => {
     try {
-      // Validación de API Key SOFT — no bloquea si la variable no está configurada
       const expectedKey = process.env.EVOLUTION_API_KEY;
       if (expectedKey) {
         const incomingKey =
@@ -43,7 +42,7 @@ app.post("/api/whatsapp/webhook", (req, res) => {
           req.headers["authorization"]?.toString().replace("Bearer ", "");
         if (incomingKey && incomingKey !== expectedKey) {
           console.warn(
-            `[Server] ❌ API Key inválida. Recibida: "${incomingKey}" | Esperada: "${expectedKey.slice(0, 6)}..."`
+            `[Server] ❌ API Key inválida. Recibida: "${incomingKey}"`
           );
           return;
         }
@@ -67,9 +66,13 @@ app.post("/api/whatsapp/webhook", (req, res) => {
       console.error("[Server] ❌ Error procesando webhook:", message);
     }
   })();
-});
+};
 
-// 3. API Leads GET / POST (Single Source of Truth: Supabase PostgreSQL)
+// Registrar ambas variantes de ruta para evitar el error 405 en Vercel
+app.get(["/api/whatsapp/webhook", "/whatsapp/webhook"], handleWebhookGet);
+app.post(["/api/whatsapp/webhook", "/whatsapp/webhook"], handleWebhookPost);
+
+// 3. API Leads GET / POST (Supabase PostgreSQL)
 app.get("/api/leads", async (_req, res) => {
   try {
     const { data, error } = await supabase
@@ -133,7 +136,7 @@ app.post("/api/properties", async (req, res) => {
   }
 });
 
-// 5. Vite Middleware Setup (only if not running inside serverless Vercel)
+// 5. Vite Middleware Setup (desarrollo local vs producción Vercel)
 if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
   createViteServer({
     server: { middlewareMode: true },
