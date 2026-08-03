@@ -1,7 +1,9 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
+import { supabaseServer } from "./src/lib/supabase-server";
+import { EmbeddingFactory } from "./src/lib/embeddings";
 
 async function startServer() {
   const app = express();
@@ -9,76 +11,18 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Memory Mock Store for API requests
-  const memoryStore = {
-    leads: [
-      {
-        id: "lead-1",
-        fullName: "Juan Pérez",
-        phoneNumber: "+591 71234567",
-        pipelineStage: "NUEVO",
-        budgetMaxUsd: 85000,
-        paymentMethod: "CREDITO_VIS",
-        hasDownPayment: true,
-        downPaymentPercent: 15,
-        preferredZone: "Equipetrol Norte",
-        aiSummary: "Calificado: 15% aporte propio verificado BCP.",
-        aiPaused: false,
-        intentScore: 95
-      },
-      {
-        id: "lead-2",
-        fullName: "María Delgado",
-        phoneNumber: "+591 78912345",
-        pipelineStage: "EN_CALIFICACION",
-        budgetMaxUsd: 120000,
-        paymentMethod: "CREDITO_VIS",
-        hasDownPayment: true,
-        downPaymentPercent: 15,
-        preferredZone: "Urubó",
-        aiSummary: "Calificando crédito ASFI en Condominio Urubó.",
-        aiPaused: false,
-        intentScore: 72
-      }
-    ],
-    properties: [
-      {
-        id: "prop-1",
-        title: "Smart Tower 2D",
-        city: "Santa Cruz",
-        zone: "Equipetrol Norte",
-        priceUsd: 82000,
-        acceptsSocialHousing: true,
-        status: "AVAILABLE",
-        vectorIndexed: true,
-        vectorDimensions: 1536
-      },
-      {
-        id: "prop-2",
-        title: "Residencia Jardines del Sur",
-        city: "La Paz",
-        zone: "Zona Sur",
-        priceUsd: 145000,
-        acceptsSocialHousing: true,
-        status: "AVAILABLE",
-        vectorIndexed: true,
-        vectorDimensions: 1536
-      }
-    ]
-  };
-
   // 1. API Health Check
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "online",
-      system: "PROPERTY OS - Real Estate AI CRM & RAG",
+      system: "Property OS V2 - Real Estate AI CRM & RAG",
       evolutionApiStatus: "CONNECTED",
-      pgvectorEngine: "READY (1536d)",
+      pgvectorEngine: "READY (768d)",
     });
   });
 
   // 2. WhatsApp Evolution API Webhook Endpoint
-  app.post("/api/whatsapp/webhook", async (req, res) => {
+  app.post("/api/whatsapp/webhook", async (req: Request, res: Response): Promise<void> => {
     try {
       // Validate API Key if configured
       const expectedKey = process.env.EVOLUTION_API_KEY;
@@ -104,54 +48,111 @@ async function startServer() {
     }
   });
 
-  // 3. API Leads GET / POST
-  app.get("/api/leads", (_req, res) => {
+  // 3. API Leads GET / POST (Supabase)
+  app.get("/api/leads", async (_req: Request, res: Response) => {
     try {
-      res.json({ success: true, count: memoryStore.leads.length, leads: memoryStore.leads });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Error processing leads" });
+      const { data, error } = await supabaseServer
+        .from("leads")
+        .select(`*, matchedProperty:properties(*)`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw new Error(error.message);
+      res.json({ success: true, count: data?.length || 0, leads: data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error fetching leads";
+      res.status(500).json({ success: false, error: msg });
     }
   });
 
-  app.post("/api/leads", (req, res) => {
+  app.post("/api/leads", async (req: Request, res: Response) => {
     try {
-      const newLead = {
-        id: `lead-${Date.now()}`,
-        ...req.body,
-        createdAt: new Date().toISOString()
+      // Obtenemos una organización válida para asociar (en un SaaS real, vendría del token auth)
+      const { data: orgs } = await supabaseServer.from("organizations").select("id").limit(1);
+      const orgId = orgs?.[0]?.id || null;
+
+      const { data, error } = await supabaseServer
+        .from("leads")
+        .insert({
+          organization_id: orgId,
+          ...req.body
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      res.json({ success: true, lead: data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error creating lead";
+      res.status(500).json({ success: false, error: msg });
+    }
+  });
+
+  // 4. API Properties GET / POST (Supabase + Vector Embedding)
+  app.get("/api/properties", async (_req: Request, res: Response) => {
+    try {
+      const { data, error } = await supabaseServer
+        .from("properties")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (error) throw new Error(error.message);
+      res.json({ success: true, count: data?.length || 0, properties: data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error fetching properties";
+      res.status(500).json({ success: false, error: msg });
+    }
+  });
+
+  app.post("/api/properties", async (req: Request, res: Response) => {
+    try {
+      const { data: orgs } = await supabaseServer.from("organizations").select("id").limit(1);
+      const orgId = orgs?.[0]?.id || null;
+
+      const body = req.body;
+      let embeddingStr = null;
+
+      // Generar el vector (el Factory ya decide si es Gemini o OpenAI según app_config)
+      if (body.rawDescription) {
+        try {
+          const provider = await EmbeddingFactory.getProvider();
+          const vector = await provider.generateEmbedding(body.rawDescription);
+          embeddingStr = JSON.stringify(vector);
+        } catch (embedErr) {
+          console.warn("[Server] No se pudo generar embedding:", embedErr);
+        }
+      }
+
+      const payload = {
+        organization_id: orgId,
+        title: body.title,
+        city: body.city,
+        zone: body.zone,
+        price_usd: body.priceUsd,
+        bedrooms: body.bedrooms,
+        bathrooms: body.bathrooms,
+        area_sqm: body.areaSqm,
+        accepts_social_housing: body.acceptsSocialHousing,
+        status: body.status || "AVAILABLE",
+        raw_description: body.rawDescription,
+        image_url: body.imageUrl,
+        ...(embeddingStr && { embedding: embeddingStr })
       };
-      memoryStore.leads.unshift(newLead);
-      res.json({ success: true, lead: newLead });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Error creating lead" });
+
+      const { data, error } = await supabaseServer
+        .from("properties")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+      res.json({ success: true, property: data });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error adding property";
+      res.status(500).json({ success: false, error: msg });
     }
   });
 
-  // 4. API Properties GET / POST (RAG Vectors)
-  app.get("/api/properties", (_req, res) => {
-    try {
-      res.json({ success: true, count: memoryStore.properties.length, properties: memoryStore.properties });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Error fetching properties" });
-    }
-  });
-
-  app.post("/api/properties", (req, res) => {
-    try {
-      const newProp = {
-        id: `prop-${Date.now()}`,
-        vectorIndexed: true,
-        vectorDimensions: 1536,
-        ...req.body
-      };
-      memoryStore.properties.unshift(newProp);
-      res.json({ success: true, property: newProp });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Error adding property" });
-    }
-  });
-
-  // 5. Vite Middleware Setup
+  // 5. Vite Middleware Setup (Frontend)
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -167,8 +168,8 @@ async function startServer() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🚀 Property OS Full-Stack Server running on http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Property OS V2 Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch(console.error);

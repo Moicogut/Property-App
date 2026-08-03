@@ -161,7 +161,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
             <div className="text-[10px] text-slate-600 space-y-1">
               <div className="flex justify-between"><span>Agencias activas</span><span className="text-emerald-400 font-bold">{Object.values(agencyStatuses).filter(s => s === "ACTIVA").length}</span></div>
               <div className="flex justify-between"><span>Total leads</span><span className="text-white font-bold">{mockGlobalMetrics.totalLeads}</span></div>
-              <div className="flex justify-between"><span>Vectores 1536d</span><span className="text-emerald-400 font-bold">{mockGlobalMetrics.vectorsIndexed.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span>Vectores 768d</span><span className="text-emerald-400 font-bold">{mockGlobalMetrics.vectorsIndexed.toLocaleString()}</span></div>
             </div>
           </div>
         </aside>

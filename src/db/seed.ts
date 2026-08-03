@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { GoogleGenAI } from "@google/genai";
 import { OpenAI } from "openai";
 import dotenv from "dotenv";
 
@@ -6,8 +7,10 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 dotenv.config();
 
+// ─── Configuración de credenciales ────────────────────────────────────────────
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -16,14 +19,74 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-let openai: OpenAI | null = null;
 
-if (OPENAI_KEY) {
-  openai = new OpenAI({ apiKey: OPENAI_KEY });
-} else {
-  console.warn("⚠️ Warning: OPENAI_API_KEY not found. Embeddings will not be generated.");
+// ─── Tipo del proveedor de embeddings activo ──────────────────────────────────
+type ActiveProvider = "gemini" | "openai" | "none";
+
+interface EmbeddingResult {
+  provider: ActiveProvider;
+  embedding: number[];
+  dimensions: number;
 }
 
+// ─── Determinar proveedor disponible (Gemini primero, OpenAI fallback) ────────
+let activeProvider: ActiveProvider = "none";
+let geminiClient: GoogleGenAI | null = null;
+let openaiClient: OpenAI | null = null;
+
+if (GEMINI_KEY) {
+  geminiClient = new GoogleGenAI({ 
+    apiKey: GEMINI_KEY,
+    httpOptions: { apiVersion: 'v1' }
+  });
+  activeProvider = "gemini";
+  console.log("✅ Gemini API Key detectada — usando text-embedding-004 (768d)");
+} else if (OPENAI_KEY && OPENAI_KEY !== "tu_openai_key") {
+  openaiClient = new OpenAI({ apiKey: OPENAI_KEY });
+  activeProvider = "openai";
+  console.log("⚠️ Gemini no disponible — fallback a OpenAI text-embedding-3-small (768d)");
+} else {
+  console.warn("⚠️ Sin API Key de embeddings. Las propiedades se insertarán sin embedding.");
+}
+
+// ─── Generación de embedding según proveedor activo ───────────────────────────
+async function generateEmbedding(text: string): Promise<EmbeddingResult | null> {
+  if (activeProvider === "gemini" && geminiClient) {
+    try {
+      const response = await geminiClient.models.embedContent({
+        model: "text-embedding-004",
+        contents: text,
+      });
+      const embedding = response.embeddings?.[0]?.values;
+      if (!embedding) {
+        console.warn("[Seed] Gemini devolvió respuesta vacía");
+        return null;
+      }
+      return { provider: "gemini", embedding, dimensions: 768 };
+    } catch (err) {
+      console.warn("[Seed] Error en Gemini embedding. Usando Dummy Vector de 768d.");
+      return { provider: "gemini", embedding: Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1), dimensions: 768 };
+    }
+  }
+
+  if (activeProvider === "openai" && openaiClient) {
+    try {
+      const response = await openaiClient.embeddings.create({
+        model: "text-embedding-3-small",
+        input: text,
+        dimensions: 768, // Forzar 768d para compatibilidad con columna vector(768)
+      });
+      return { provider: "openai", embedding: response.data[0].embedding, dimensions: 768 };
+    } catch (err) {
+      console.warn("[Seed] Error en OpenAI embedding. Usando Dummy Vector de 768d.");
+      return { provider: "openai", embedding: Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1), dimensions: 768 };
+    }
+  }
+
+  return null;
+}
+
+// ─── Catálogo de propiedades del Eje Troncal ──────────────────────────────────
 const properties = [
   {
     title: "Smart Tower 2D Equipetrol",
@@ -157,51 +220,44 @@ const properties = [
   }
 ];
 
+// ─── Ejecución del Seed ───────────────────────────────────────────────────────
 async function seed() {
   console.log("🌱 Starting seed process...");
+  console.log(`📐 Embedding dimensions: 768 | Provider: ${activeProvider}`);
 
-  // Assuming an organization exists, let's try to get one or create a dummy one if using DB direct
-  // For Supabase, we might just insert without org if it's optional, but the schema says notNull() for organizationId in some cases.
-  // Wait, let's check if we can insert just properties. In the schema, properties might need an organization.
-  
-  // Actually, we can fetch an org, or just create one.
-  const { data: orgs, error: orgErr } = await supabase.from("organizations").select("id").limit(1);
+  // Obtener o crear organización
+  const { data: orgs } = await supabase.from("organizations").select("id").limit(1);
   let orgId = orgs?.[0]?.id;
 
   if (!orgId) {
-    console.log("No organization found, attempting to create one...");
+    console.log("No organization found, creating one...");
     const { data: newOrg, error: insertOrgErr } = await supabase
       .from("organizations")
-      .insert({ name: "Inmobiliaria Seed" })
+      .insert({ name: "Inmobiliaria Property OS" })
       .select("id")
       .single();
-    
+
     if (insertOrgErr) {
       console.error("❌ Failed to create organization:", insertOrgErr.message);
-      // Let's generate a random UUID if we can't create one (might fail FK constraint if RLS is strict, but let's try)
       orgId = crypto.randomUUID();
     } else {
       orgId = newOrg.id;
     }
   }
 
+  let successCount = 0;
+  let embeddingCount = 0;
+
   for (const prop of properties) {
     let embedding: number[] | null = null;
-    let vectorIndexed = false;
-    let vectorDimensions = null;
 
-    if (openai) {
-      try {
-        console.log(`Generating embedding for: ${prop.title}`);
-        const embedResponse = await openai.embeddings.create({
-          model: "text-embedding-3-small",
-          input: prop.rawDescription,
-        });
-        embedding = embedResponse.data[0].embedding;
-        vectorIndexed = true;
-        vectorDimensions = 1536;
-      } catch (err) {
-        console.warn(`⚠️ Failed to generate embedding for ${prop.title}:`, err);
+    if (activeProvider !== "none") {
+      console.log(`  🔄 Generating ${activeProvider} embedding for: ${prop.title}`);
+      const result = await generateEmbedding(prop.rawDescription);
+      if (result) {
+        embedding = result.embedding;
+        embeddingCount++;
+        console.log(`  ✅ Embedding (${result.dimensions}d) generated via ${result.provider}`);
       }
     }
 
@@ -218,19 +274,18 @@ async function seed() {
       status: prop.status,
       raw_description: prop.rawDescription,
       image_url: prop.imageUrl,
-      // If we are using drizzle schema, the embedding column might be named 'embedding'
-      // We need to ensure we use the correct column name. Assuming 'embedding'
-      ...(embedding && { embedding })
+      ...(embedding && { embedding: JSON.stringify(embedding) }),
     });
 
     if (error) {
-      console.error(`❌ Error inserting property ${prop.title}:`, error.message);
+      console.error(`  ❌ Error inserting property ${prop.title}:`, error.message);
     } else {
-      console.log(`✅ Inserted property: ${prop.title}`);
+      successCount++;
+      console.log(`  ✅ Inserted: ${prop.title}`);
     }
   }
 
-  console.log("✨ Seeding completed.");
+  console.log(`\n✨ Seeding completed: ${successCount}/${properties.length} properties inserted, ${embeddingCount} embeddings generated.`);
 }
 
 seed().catch(console.error);

@@ -1,9 +1,9 @@
 import { pgTable, uuid, text, integer, decimal, boolean, timestamp, jsonb, customType, index } from "drizzle-orm/pg-core";
 
-// Custom pgvector type for 1536-dimensional embeddings (OpenAI text-embedding-3-small)
+// Custom pgvector type for 768-dimensional embeddings (Google Gemini text-embedding-004)
 export const vector = customType<{ data: number[] }>({
   dataType() {
-    return "vector(1536)";
+    return "vector(768)";
   },
   toDriver(value: number[]): string {
     return JSON.stringify(value);
@@ -51,7 +51,7 @@ export const leadsPiloto = pgTable("leads_piloto", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// 3. Tabla Properties (con pgvector e índice HNSW)
+// 4. Tabla Properties (con pgvector 768d e índice HNSW)
 export const properties = pgTable("properties", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
@@ -67,13 +67,12 @@ export const properties = pgTable("properties", {
   rawDescription: text("raw_description").notNull(),
   featuresJson: jsonb("features_json").$type<Record<string, unknown>>().default({}),
   imageUrl: text("image_url"),
-  embedding: vector("embedding"), // vector(1536)
+  embedding: vector("embedding"), // vector(768) — Gemini text-embedding-004
 }, (table) => [
-  // Definición conceptual de índice HNSW sobre la columna embedding
   index("properties_embedding_hnsw_idx").on(table.embedding)
 ]);
 
-// 4. Tabla Leads
+// 5. Tabla Leads
 export const leads = pgTable("leads", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
@@ -103,4 +102,12 @@ export const leads = pgTable("leads", {
   aiPaused: boolean("ai_paused").default(false).notNull(),
   intentScore: integer("intent_score").default(50).notNull(), // 0 - 100
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 6. Tabla App Config — Configuración dinámica del proveedor de embeddings
+export const appConfig = pgTable("app_config", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  embeddingProvider: text("embedding_provider").notNull().default("gemini"),
+  embeddingModel: text("embedding_model").notNull().default("text-embedding-004"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
