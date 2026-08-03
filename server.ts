@@ -5,11 +5,12 @@ import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
 import { supabaseServer } from "./src/lib/supabase-server";
 import { EmbeddingFactory } from "./src/lib/embeddings";
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
+// Inicialización segura de Supabase para evitar crash al arrancar la Serverless Function
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
 
   // 1. API Health Check
   app.get("/api/health", (_req, res) => {
@@ -20,6 +21,7 @@ async function startServer() {
       pgvectorEngine: "READY (768d)",
     });
   });
+});
 
   // 2. WhatsApp Evolution API Webhook Endpoint
   app.post("/api/whatsapp/webhook", async (req: Request, res: Response): Promise<void> => {

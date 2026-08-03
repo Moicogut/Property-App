@@ -61,7 +61,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentView, setCurrentView] = useState<AppView>("pipeline");
 
-  // ── Tabs de navegación (con el tipo AppView correcto) ───────────────────────
+  // ── Tabs de navegación ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -81,23 +81,137 @@ export default function App() {
   const [visOnlyFilter, setVisOnlyFilter] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Rehidratar sesión activa al montar y suscribirse a cambios
+  // Función de carga dinámica de Leads desde Supabase
+  const loadLeadsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*, matchedProperty:properties(*)")
+        .order("created_at", { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const mappedLeads: Lead[] = data.map((l: any) => ({
+          id: l.id,
+          organizationId: l.organization_id || "org-1",
+          fullName: l.full_name || "Lead WhatsApp",
+          phoneNumber: l.phone_number,
+          pipelineStage: l.pipeline_stage || "NUEVO",
+          budgetMaxUsd: Number(l.budget_max_usd || 85000),
+          paymentMethod: l.payment_method || "CREDITO_VIS",
+          hasDownPayment: l.has_down_payment ?? true,
+          downPaymentPercent: l.down_payment_percent || 20,
+          downPaymentBank: l.down_payment_bank || "Banco BCP",
+          preferredZone: l.preferred_zone || "Equipetrol",
+          matchedProperty: l.matchedProperty ? {
+            id: l.matchedProperty.id,
+            organizationId: l.matchedProperty.organization_id,
+            title: l.matchedProperty.title,
+            city: l.matchedProperty.city,
+            zone: l.matchedProperty.zone,
+            priceUsd: Number(l.matchedProperty.price_usd),
+            bedrooms: l.matchedProperty.bedrooms,
+            bathrooms: l.matchedProperty.bathrooms,
+            areaSqm: Number(l.matchedProperty.area_sqm),
+            acceptsSocialHousing: l.matchedProperty.accepts_social_housing,
+            status: l.matchedProperty.status,
+            rawDescription: l.matchedProperty.raw_description,
+            imageUrl: l.matchedProperty.image_url,
+            vectorIndexed: true,
+            vectorDimensions: 1536,
+          } : undefined,
+          aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
+          aiPaused: l.ai_paused ?? false,
+          intentScore: l.intent_score || 85,
+          createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setLeads(mappedLeads);
+      }
+    } catch (e) {
+      console.warn("[App] Error cargando leads desde Supabase DB:", e);
+    }
+  };
+
+  // Función de carga dinámica de Propiedades desde Supabase
+  const loadPropertiesFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (error) {
+        // Exponer el error completo para diagnóstico en Vercel Logs / DevTools
+        console.error("[App] Supabase error cargando properties:", JSON.stringify(error));
+        return;
+      }
+
+      // Actualizar siempre el estado (incluso si data=[] para limpiar el seed inicial)
+      const mappedProps: Property[] = (data ?? []).map((p: any) => ({
+        id: p.id,
+        organizationId: p.organization_id || "org-1",
+        title: p.title,
+        city: p.city,
+        zone: p.zone,
+        priceUsd: Number(p.price_usd),
+        bedrooms: p.bedrooms,
+        bathrooms: p.bathrooms,
+        areaSqm: Number(p.area_sqm),
+        acceptsSocialHousing: p.accepts_social_housing,
+        status: p.status,
+        rawDescription: p.raw_description,
+        imageUrl: p.image_url,
+        vectorIndexed: true,
+        vectorDimensions: 1536,
+      }));
+      console.log(`[App] ${mappedProps.length} propiedades cargadas desde Supabase.`);
+      setProperties(mappedProps);
+    } catch (e) {
+      console.error("[App] Excepción cargando propiedades desde Supabase DB:", e);
+    }
+  };
+
+  // Rehidratar sesión activa y configurar Supabase Realtime Subscription
   useEffect(() => {
+    // Las propiedades son datos públicos — cargar siempre, sin depender de sesión
+    loadPropertiesFromSupabase();
+
     getCurrentUser().then((user) => {
       setCurrentUser(user);
       if (user) {
         loadDataFromSupabase(setLeads, setProperties);
       }
       setAuthLoading(false);
+      if (user) {
+        loadLeadsFromSupabase();
+      }
     });
+
     const unsubscribe = onAuthStateChange((user) => {
       setCurrentUser(user);
       if (user) {
         loadDataFromSupabase(setLeads, setProperties);
       }
       setAuthLoading(false);
+      if (user) {
+        loadLeadsFromSupabase();
+        // Recargar properties también cuando cambia la sesión (en caso de RLS auth-gated)
+        loadPropertiesFromSupabase();
+      }
     });
-    return unsubscribe;
+
+    // ⚡ Supabase Realtime Subscription para la tabla `leads`
+    const channel = supabase
+      .channel("realtime-leads-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (_payload) => {
+        console.log("⚡ Supabase Realtime update detectado en tabla leads — recargando Kanban en vivo...");
+        loadLeadsFromSupabase();
+      })
+      .subscribe();
+
+    return () => {
+      unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Suscripción Realtime
