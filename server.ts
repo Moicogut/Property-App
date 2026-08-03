@@ -5,12 +5,11 @@ import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
 import { supabaseServer } from "./src/lib/supabase-server";
 import { EmbeddingFactory } from "./src/lib/embeddings";
 
-const app = express();
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
 
-// Inicialización segura de Supabase para evitar crash al arrancar la Serverless Function
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+async function startServer() {
+  const app = express();
+  app.use(express.json());
 
   // 1. API Health Check
   app.get("/api/health", (_req, res) => {
@@ -21,12 +20,10 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_A
       pgvectorEngine: "READY (768d)",
     });
   });
-});
 
   // 2. WhatsApp Evolution API Webhook Endpoint
   app.post("/api/whatsapp/webhook", async (req: Request, res: Response): Promise<void> => {
     try {
-      // Validate API Key if configured
       const expectedKey = process.env.EVOLUTION_API_KEY;
       if (expectedKey) {
         const incomingKey = req.headers["apikey"] || req.headers["authorization"]?.toString().replace("Bearer ", "");
@@ -68,7 +65,6 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_A
 
   app.post("/api/leads", async (req: Request, res: Response) => {
     try {
-      // Obtenemos una organización válida para asociar (en un SaaS real, vendría del token auth)
       const { data: orgs } = await supabaseServer.from("organizations").select("id").limit(1);
       const orgId = orgs?.[0]?.id || null;
 
@@ -113,7 +109,6 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_A
       const body = req.body;
       let embeddingStr = null;
 
-      // Generar el vector (el Factory ya decide si es Gemini o OpenAI según app_config)
       if (body.rawDescription) {
         try {
           const provider = await EmbeddingFactory.getProvider();
@@ -169,7 +164,7 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_A
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`🚀 Property OS V2 Server running on http://0.0.0.0:${PORT}`);
   });
 }

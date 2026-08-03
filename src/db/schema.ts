@@ -112,10 +112,3 @@ export const leads = pgTable("leads", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// 6. Tabla App Config — Configuración dinámica del proveedor de embeddings
-export const appConfig = pgTable("app_config", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  embeddingProvider: text("embedding_provider").notNull().default("gemini"),
-  embeddingModel: text("embedding_model").notNull().default("text-embedding-004"),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
