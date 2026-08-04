@@ -79,9 +79,10 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   };
 
   const filteredProperties = properties.filter((p) => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.zone.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.city.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = (p.title || "").toLowerCase().includes(q) || 
+                          (p.zone || "").toLowerCase().includes(q) ||
+                          (p.city || "").toLowerCase().includes(q);
     return matchesSearch;
   });
 
