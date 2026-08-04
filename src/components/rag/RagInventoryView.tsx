@@ -87,7 +87,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   });
 
   return (
-    <div className="p-6 space-y-6 bg-slate-50 min-h-full">
+    <div className="p-6 space-y-6 bg-slate-50 h-full overflow-y-auto">
       
       {/* Top Header */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
