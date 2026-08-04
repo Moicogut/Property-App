@@ -49,10 +49,65 @@ const loadDataFromSupabase = async (
   setProperties: React.Dispatch<React.SetStateAction<Property[]>>
 ) => {
   const { data: leadsData } = await supabase.from('leads').select('*, matchedProperty:properties(*)').order('created_at', { ascending: false });
-  if (leadsData) setLeads(leadsData as unknown as Lead[]);
+  if (leadsData) {
+    const mappedLeads: Lead[] = leadsData.map((l: any) => ({
+      id: l.id,
+      organizationId: l.organization_id || "org-1",
+      fullName: l.full_name || "Lead WhatsApp",
+      phoneNumber: l.phone_number,
+      pipelineStage: l.pipeline_stage || "NUEVO",
+      budgetMaxUsd: Number(l.budget_max_usd || 85000),
+      paymentMethod: l.payment_method || "CREDITO_VIS",
+      hasDownPayment: l.has_down_payment ?? true,
+      downPaymentPercent: l.down_payment_percent || 20,
+      downPaymentBank: l.down_payment_bank || "Banco BCP",
+      preferredZone: l.preferred_zone || "Equipetrol",
+      matchedProperty: l.matchedProperty ? {
+        id: l.matchedProperty.id,
+        organizationId: l.matchedProperty.organization_id,
+        title: l.matchedProperty.title,
+        city: l.matchedProperty.city,
+        zone: l.matchedProperty.zone,
+        priceUsd: Number(l.matchedProperty.price_usd),
+        bedrooms: l.matchedProperty.bedrooms,
+        bathrooms: l.matchedProperty.bathrooms,
+        areaSqm: Number(l.matchedProperty.area_sqm),
+        acceptsSocialHousing: l.matchedProperty.accepts_social_housing,
+        status: l.matchedProperty.status,
+        rawDescription: l.matchedProperty.raw_description,
+        imageUrl: l.matchedProperty.image_url,
+        vectorIndexed: true,
+        vectorDimensions: 1536,
+      } : undefined,
+      aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
+      aiPaused: l.ai_paused ?? false,
+      intentScore: l.intent_score || 85,
+      createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }));
+    setLeads(mappedLeads);
+  }
 
   const { data: propsData } = await supabase.from('properties').select('*').order('id', { ascending: false });
-  if (propsData) setProperties(propsData as Property[]);
+  if (propsData) {
+    const mappedProps: Property[] = propsData.map((p: any) => ({
+      id: p.id,
+      organizationId: p.organization_id || "org-1",
+      title: p.title,
+      city: p.city,
+      zone: p.zone,
+      priceUsd: Number(p.price_usd),
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      areaSqm: Number(p.area_sqm),
+      acceptsSocialHousing: p.accepts_social_housing,
+      status: p.status,
+      rawDescription: p.raw_description,
+      imageUrl: p.image_url,
+      vectorIndexed: true,
+      vectorDimensions: 1536,
+    }));
+    setProperties(mappedProps);
+  }
 };
 
 export default function App() {
