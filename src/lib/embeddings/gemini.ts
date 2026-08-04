@@ -3,7 +3,7 @@ import type { EmbeddingProvider } from "./types";
 
 export class GeminiEmbeddingProvider implements EmbeddingProvider {
   public readonly providerName = "gemini";
-  public readonly modelName = "text-embedding-004";
+  public readonly modelName = "gemini-embedding-2";
   public readonly dimensions = 768;
 
   private client: GoogleGenAI;
@@ -25,7 +25,11 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
         contents: text,
       });
 
-      const embedding = response.embeddings?.[0]?.values;
+      let embedding = response.embeddings?.[0]?.values;
+      
+      if (embedding && embedding.length > this.dimensions) {
+        embedding = embedding.slice(0, this.dimensions);
+      }
       
       if (!embedding || embedding.length !== this.dimensions) {
         throw new Error(`Gemini API retornó un embedding inválido (esperado ${this.dimensions}d, recibido ${embedding?.length}d)`);

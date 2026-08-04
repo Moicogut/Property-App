@@ -40,7 +40,7 @@ if (GEMINI_KEY) {
     httpOptions: { apiVersion: 'v1' }
   });
   activeProvider = "gemini";
-  console.log("✅ Gemini API Key detectada — usando text-embedding-004 (768d)");
+  console.log("✅ Gemini API Key detectada — usando gemini-embedding-2 (768d)");
 } else if (OPENAI_KEY && OPENAI_KEY !== "tu_openai_key") {
   openaiClient = new OpenAI({ apiKey: OPENAI_KEY });
   activeProvider = "openai";
@@ -54,10 +54,13 @@ async function generateEmbedding(text: string): Promise<EmbeddingResult | null> 
   if (activeProvider === "gemini" && geminiClient) {
     try {
       const response = await geminiClient.models.embedContent({
-        model: "text-embedding-004",
+        model: "gemini-embedding-2",
         contents: text,
       });
-      const embedding = response.embeddings?.[0]?.values;
+      let embedding = response.embeddings?.[0]?.values;
+      if (embedding && embedding.length > 768) {
+        embedding = embedding.slice(0, 768);
+      }
       if (!embedding) {
         console.warn("[Seed] Gemini devolvió respuesta vacía");
         return null;

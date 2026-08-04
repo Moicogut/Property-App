@@ -63,6 +63,7 @@ export const leadsPiloto = pgTable("leads_piloto", {
 export const properties = pgTable("properties", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  propertyCode: text("property_code").unique(),
   title: text("title").notNull(),
   city: text("city").notNull(),
   zone: text("zone").notNull(),
@@ -112,3 +113,27 @@ export const leads = pgTable("leads", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 6. Tabla Messages (Historial de chat WhatsApp)
+export const messages = pgTable("messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  leadId: uuid("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  sender: text("sender", { enum: ["lead", "ai_sofia", "agent"] }).notNull(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("messages_lead_id_idx").on(table.leadId)
+]);
+
+// 7. Tabla Appointments (Agenda de visitas)
+export const appointments = pgTable("appointments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  leadId: uuid("lead_id").references(() => leads.id, { onDelete: "cascade" }).notNull(),
+  propertyId: uuid("property_id").references(() => properties.id),
+  appointmentDate: timestamp("appointment_date", { withTimezone: true }).notNull(),
+  status: text("status", { enum: ["SCHEDULED", "COMPLETED", "CANCELED", "RESCHEDULED"] }).default("SCHEDULED").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("appointments_lead_id_idx").on(table.leadId),
+  index("appointments_date_idx").on(table.appointmentDate)
+]);

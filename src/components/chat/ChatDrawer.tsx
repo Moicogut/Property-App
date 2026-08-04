@@ -18,6 +18,7 @@ import {
 import { Lead, ChatMessage } from "@/src/types/property";
 import { AppointmentModal } from "@/src/components/modals/AppointmentModal";
 import { PdfFichaModal } from "@/src/components/modals/PdfFichaModal";
+import { supabase } from "@/src/lib/supabase";
 
 interface ChatDrawerProps {
   lead: Lead | null;
@@ -41,77 +42,86 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "msg-1",
-      leadId: lead.id,
-      sender: "lead",
-      text: `Hola, estoy interesado en opciones en ${lead.preferredZone || 'Equipetrol Norte'}. ¿Tienen departamentos compatibles con mi presupuesto de $${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD?`,
-      timestamp: "10:45 AM",
-    },
-    {
-      id: "msg-2",
-      leadId: lead.id,
-      sender: "ai_sofia",
-      text: `¡Hola ${lead.fullName}! Qué gusto saludarte de parte de Property OS. 👋 Sí, tenemos excelentes opciones en ${lead.preferredZone || 'Equipetrol Norte'} por $${lead.matchedProperty?.priceUsd?.toLocaleString() || '82,000'} USD. ¿Cuentas con el aporte propio inicial (10%-20%) para crédito de vivienda social (VIS)?`,
-      timestamp: "10:46 AM",
-    },
-    {
-      id: "msg-3",
-      leadId: lead.id,
-      sender: "lead",
-      text: lead.hasDownPayment 
-        ? `Sí, tengo el ${lead.downPaymentPercent}% de cuota inicial verificado en ${lead.downPaymentBank || 'Banco BCP'}.`
-        : "Aún estoy evaluando mi cuota inicial con el banco.",
-      timestamp: "10:48 AM",
-    },
-    {
-      id: "msg-4",
-      leadId: lead.id,
-      sender: "ai_sofia",
-      text: lead.hasDownPayment
-        ? "¡Excelente noticia! Con tu cuota inicial confirmada calificas directamente al crédito VIS de ASFI. ¿Te parece si agendamos una visita al proyecto?"
-        : "Perfecto, con la calculadora RAG de Sofía podemos simular tu plan de pagos ASFI.",
-      timestamp: "10:50 AM",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  const handleToggleAi = () => {
+  React.useEffect(() => {
+    if (!isOpen || !lead) return;
+
+    let intervalId: NodeJS.Timeout;
+
+    const fetchMessages = async () => {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("lead_id", lead.id)
+        .order("created_at", { ascending: true });
+
+      if (data && !error) {
+        const formatted = data.map((msg) => ({
+          id: msg.id,
+          leadId: msg.lead_id,
+          sender: msg.sender as any,
+          text: msg.text,
+          timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }));
+        setMessages(formatted);
+      }
+    };
+
+    fetchMessages();
+    
+    // Polling simple para "tiempo real"
+    intervalId = setInterval(fetchMessages, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [isOpen, lead]);
+
+  const handleToggleAi = async () => {
     const nextState = !aiActive;
     setAiActive(nextState);
     if (onToggleAiPause) {
       onToggleAiPause(lead.id, !nextState);
     }
+    // Pausar en BD de forma persistente
+    await supabase.from("leads").update({ ai_paused: !nextState }).eq("id", lead.id);
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
-      leadId: lead.id,
-      sender: aiActive ? "lead" : "agent",
-      text: inputText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
     const currentInput = inputText;
     setInputText("");
 
-    // Simulate AI response if AI is active
-    if (aiActive) {
-      setTimeout(() => {
-        const aiMsg: ChatMessage = {
-          id: `msg-ai-${Date.now()}`,
+    // Agregar visualmente el mensaje de inmediato (optimistic update)
+    const optimisticMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      leadId: lead.id,
+      sender: "agent",
+      text: currentInput,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    // Pausar la IA en UI porque un humano intervino
+    setAiActive(false);
+
+    try {
+      // Enviar a la API que insertará en Supabase y enviará por WhatsApp
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           leadId: lead.id,
-          sender: "ai_sofia",
-          text: `Entendido ${lead.fullName}. He registrado tu solicitud para el proyecto ${lead.matchedProperty?.title || 'Smart Tower 2D'}. ¿Te envío el documento de reserva o confirmamos la visita en calendario?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-      }, 900);
+          text: currentInput,
+        }),
+      });
+
+      if (!res.ok) {
+        console.error("Error enviando mensaje", await res.text());
+      }
+    } catch (err) {
+      console.error("Error en petición /send", err);
     }
   };
 

@@ -1,7 +1,7 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 03 de Agosto de 2026 (Property OS v2 Refactor)
-**Estado General:** Refactorización arquitectónica a PMV robusto y SaaS escalable (Completada).
+**Última actualización:** 04 de Agosto de 2026 (Property OS MVP Completo - Inicio de Fase de Campo)
+**Estado General:** Refactorización arquitectónica a MVP robusto, sistema SaaS con base sólida en Inteligencia Artificial y Function Calling (Agendador). Listo para pruebas de estrés.
 
 ---
 
@@ -9,43 +9,48 @@
 
 ### 🟢 Base de Datos & Auth (Supabase)
 * **Proyecto:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`).
-* **Extensiones:** `pgvector` activada con índices vectoriales **HNSW** para embeddings de **768d** (Migración a Gemini v2).
-* **Tablas:** `organizations`, `users`, `properties`, `leads`, `leads_piloto`, `app_config` (NUEVO).
-* **Configuración Auth:** 
-  * `Site URL` configurada en `https://property-app-ashen.vercel.app`.
-* **RPC RAG Nativo:** Creada función RPC `match_properties` que delega 100% de la similitud coseno a PostgreSQL.
+* **Extensiones:** `pgvector` activada con índices vectoriales **HNSW**.
+* **Tablas Core:** `organizations`, `users`, `properties`, `leads`, `app_config`, `appointments` (NUEVO).
+* **Configuración Auth:** `Site URL` configurada en `https://property-app-ashen.vercel.app`.
+* **RPC RAG Nativo:** Creada función RPC `match_properties` para delegar el cálculo de similitud coseno 100% a PostgreSQL.
+* **Seguridad Front-end:** Implementado Bypass de Row Level Security (RLS) en el panel de React usando forzosamente el JWT del `SERVICE_ROLE_KEY` para lectura limpia del pipeline en el Dashboard ejecutivo.
 
 ### 🟢 Servidor de Mensajería (Evolution API v2 en Railway)
 * **URL API:** `https://evolution-api-production-286c8.up.railway.app`
 * **Instancia:** `PropertyOS-Main`
 * **Número vinculado:** WhatsApp corporativo (`+591 78756107` / Moisés R. Gutierrez A.).
-* **Webhook:** Activo apuntando al backend Express `/api/whatsapp/webhook`.
-* **Procesamiento de IA:** Integrado el flujo de Gemini LLM ("Sofía") con contexto inyectado directo de Supabase vía RPC.
+* **Webhook:** Activo apuntando a la ruta del proyecto `/api/whatsapp/webhook`.
+* **Procesamiento de IA:** Integrado OpenAI y Gemini de forma intercambiable. (Actualmente operando estable con OpenAI para manejo de memoria y contexto).
+* **Retraso Cognitivo (Humano):** (NUEVO) Se añadió una función de *delay* aleatorio entre 5 y 15 segundos en el webhook antes de despachar mensajes, logrando una ilusión de "escribiendo..." humana.
 
-### 🟢 Backend (Node.js/Express)
-* **Refactor (Server & Webhook):** Se eliminó por completo el motor de base de datos en RAM (`memoryStore`) y el cálculo de similitud coseno local. 
-* **API Endpoints (`server.ts`):** Todos los endpoints (leads, properties, webhook) operan con transacciones en Supabase.
-* **Embeddings (Strategy Pattern):** Se implementó una fábrica en `src/lib/embeddings` que soporta `Google Gemini (text-embedding-004, 768d)` como proveedor primario y `OpenAI (text-embedding-3-small, 768d)` como fallback secundario. Configurable dinámicamente vía la tabla `app_config`.
+### 🟢 Motor Agéntico y Tools (Function Calling)
+* **Skill - Agendar Visita:** (NUEVO) El cerebro del bot ha sido dotado con la función `agendar_visita(fecha, hora)`. Cuando detecta que el usuario quiere agendar, llama a esta herramienta, guardando la cita en la tabla `appointments` y modificando el estatus del Lead a `VISITA_AGENDADA`.
 
-### 🟢 Frontend & Deploy (Vercel + Vite + React)
-* **Single Source of Truth:** La UI (`App.tsx`) ya no utiliza arrays locales de pruebas. Se nutre 100% mediante peticiones y un `useEffect` que carga `leads` y `properties` desde Supabase.
-* **Supabase Realtime:** Suscripción activa al canal de la tabla `leads` en `App.tsx` para refrescar la UI Kanban instantáneamente sin F5.
-* **SuperAdmin Panel:** Métricas actualizadas de 1536d a 768d para reflejar el uso de Gemini.
+### 🟢 Frontend & UI (Vercel + Vite + React)
+* **Single Source of Truth:** La UI (`App.tsx`) se nutre directamente desde Supabase en tiempo real.
+* **Kanban Completo:** Etapas sincronizadas que abarcan desde NUEVO hasta AGENDA y CERRADO.
+* **Acciones en Kanban:** Posibilidad de Editar Nombres de cliente (✏️) y Borrar leads y su historial (🗑️) mediante accesos rápidos en la tarjeta.
+* **Tarjetas Inteligentes:** Muestran un banner visual en color esmeralda cuando el cliente agendó una visita, indicando la fecha y hora.
+* **SuperAdmin Panel (KPIs):** Las métricas incluyen el conteo correcto de clientes en pipeline, ratio de autogestión y conteo de Citas VIS agendadas por la IA.
 
 ---
 
-## ⏳ 2. PENDIENTES Y HOJA DE RUTA (NEXT STEPS)
+## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (ETAPA DE CAMPO)
 
-### 🟡 Despliegue de Cambios (DB)
-* **Situación:** Se generó la migración `20260803_v2_gemini_768.sql` con el vector(768) e índices de Gemini.
-* **Acción para ejecución:** El administrador de DB debe ejecutar este SQL manualmente en el SQL Editor de Supabase en producción antes de correr el seeding (o si ya se corrió, verificar).
+El sistema ahora entra en fase de pruebas intensivas en campo, la hoja de ruta para las siguientes mejoras incluirá:
 
-### 🟡 Seeding V2 (Gemini)
-* Ejecutar el script `src/db/seed.ts` (asegurándose que exista `GEMINI_API_KEY` en el `.env`) para reinsertar las propiedades con embeddings 768d generados por Gemini en lugar de OpenAI.
+### 🟡 1. Afinado y Tuning del Prompt (Asesor Inmobiliario)
+* Auditar transcripciones de las pruebas de campo.
+* Ajustar el comportamiento del bot para que no pierda control bajo ataques o interrupciones de clientes.
+* Enseñar respuestas condicionales más refinadas basadas en el input del RAG (por ejemplo, si el cliente presiona para descuentos).
 
-### 🟡 Despliegue Vercel
-* Subir los cambios a GitHub/Vercel (push) para validar el build (`npm run build` ya testeado localmente mediante `npx tsc --noEmit`).
-* Configurar variables de entorno (`GEMINI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) en el panel de Vercel.
+### 🟡 2. Manejo de Errores y Timeouts en Webhook
+* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI (junto al retraso añadido de 15 seg) no generen Timeouts (error 504) en la instancia Evolution API.
+* Mover el disparo de WhatsApp a un Job asíncrono (Background o Queues) si Vercel aborta ejecuciones largas en la versión gratuita.
+
+### 🟡 3. UI/UX Mejoras Finales
+* Reemplazar los `window.prompt` de React por un UI Component nativo (Modales en Tailwind).
+* Incorporar una Vista de **Calendario en el Front-End**, consolidando la tabla `appointments` en formato semana/mes.
 
 ---
 
@@ -54,15 +59,15 @@
 ```env
 # Supabase
 VITE_SUPABASE_URL="https://lqagnlbygzurddkzbbwn.supabase.co"
-VITE_SUPABASE_ANON_KEY="eyJhbG..."
-SUPABASE_SERVICE_ROLE_KEY="eyJhbG..."
+VITE_SUPABASE_ANON_KEY="..."
+SUPABASE_SERVICE_ROLE_KEY="..."
 
-# Embeddings (Patrón Strategy)
-GEMINI_API_KEY="AIzaSy..."
-OPENAI_API_KEY="sk-proj-..."
+# Embeddings y LLM
+GEMINI_API_KEY="..."
+OPENAI_API_KEY="..."
 
 # Evolution API
 EVOLUTION_API_URL="https://evolution-api-production-286c8.up.railway.app"
-EVOLUTION_API_KEY="a2bf..."
+EVOLUTION_API_KEY="..."
 EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
 ```

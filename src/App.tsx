@@ -48,7 +48,8 @@ const loadDataFromSupabase = async (
   setLeads: React.Dispatch<React.SetStateAction<Lead[]>>,
   setProperties: React.Dispatch<React.SetStateAction<Property[]>>
 ) => {
-  const { data: leadsData } = await supabase.from('leads').select('*, matchedProperty:properties(*)').order('created_at', { ascending: false });
+  const { data: leadsData, error: leadsErr } = await supabase.from('leads').select('*, matchedProperty:properties(*), appointments(*)').order('created_at', { ascending: false });
+  console.log("[App] leadsData:", leadsData, "error:", leadsErr);
   if (leadsData) {
     const mappedLeads: Lead[] = leadsData.map((l: any) => ({
       id: l.id,
@@ -83,6 +84,7 @@ const loadDataFromSupabase = async (
       aiPaused: l.ai_paused ?? false,
       intentScore: l.intent_score || 85,
       createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      appointmentDate: l.appointments && l.appointments.length > 0 ? l.appointments[0].appointment_date : undefined,
     }));
     setLeads(mappedLeads);
   }
@@ -235,26 +237,17 @@ export default function App() {
 
     getCurrentUser().then((user) => {
       setCurrentUser(user);
-      if (user) {
-        loadDataFromSupabase(setLeads, setProperties);
-      }
+      // 🔥 Forzar carga en modo test (incluso sin sesión)
+      loadDataFromSupabase(setLeads, setProperties);
       setAuthLoading(false);
-      if (user) {
-        loadLeadsFromSupabase();
-      }
     });
 
     const unsubscribe = onAuthStateChange((user) => {
       setCurrentUser(user);
-      if (user) {
-        loadDataFromSupabase(setLeads, setProperties);
-      }
+      // 🔥 Forzar carga en modo test (incluso sin sesión)
+      loadDataFromSupabase(setLeads, setProperties);
+      loadPropertiesFromSupabase();
       setAuthLoading(false);
-      if (user) {
-        loadLeadsFromSupabase();
-        // Recargar properties también cuando cambia la sesión (en caso de RLS auth-gated)
-        loadPropertiesFromSupabase();
-      }
     });
 
     // ⚡ Supabase Realtime Subscription para la tabla `leads`
@@ -274,7 +267,6 @@ export default function App() {
 
   // Suscripción Realtime
   useEffect(() => {
-    if (!currentUser) return;
     const channel = supabase.channel('realtime-leads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
         // Al haber cualquier cambio en leads, recargar desde DB (para mantener simplicidad y uniones correctas)
@@ -289,6 +281,29 @@ export default function App() {
     await signOut();
     setCurrentUser(null);
     setCurrentView("pipeline");
+  };
+
+  const handleDeleteLead = async (leadId: string) => {
+    if (window.confirm("¿Estás seguro que deseas eliminar este cliente y todo su historial?")) {
+      const { error } = await supabase.from('leads').delete().eq('id', leadId);
+      if (!error) {
+        setLeads(prev => prev.filter(l => l.id !== leadId));
+      } else {
+        alert("Error eliminando lead: " + error.message);
+      }
+    }
+  };
+
+  const handleEditLead = async (lead: Lead) => {
+    const newName = window.prompt("Editar Nombre del Cliente", lead.fullName);
+    if (newName && newName !== lead.fullName) {
+      const { error } = await supabase.from('leads').update({ full_name: newName }).eq('id', lead.id);
+      if (!error) {
+        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, fullName: newName } : l));
+      } else {
+        alert("Error editando lead: " + error.message);
+      }
+    }
   };
 
   // ── Loading splash ──────────────────────────────────────────────────────────
@@ -734,9 +749,13 @@ export default function App() {
                             >
                               {lead.fullName}
                             </span>
-                            <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-0.5">
-                              {lead.intentScore} 🔥
-                            </span>
+                            <div className="flex gap-1">
+                              <button onClick={() => handleEditLead(lead)} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer transition-colors" title="Editar Nombre">✏️</button>
+                              <button onClick={() => handleDeleteLead(lead.id)} className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded cursor-pointer transition-colors" title="Eliminar Cliente">🗑️</button>
+                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-0.5">
+                                {lead.intentScore} 🔥
+                              </span>
+                            </div>
                           </div>
 
                           {/* Details */}
@@ -773,6 +792,7 @@ export default function App() {
                               <option value="NUEVO">Etapa: NUEVO</option>
                               <option value="EN_CALIFICACION">Etapa: EN CALIFICACIÓN</option>
                               <option value="CALIFICADO_VISITA_PENDIENTE">Etapa: CALIFICADO</option>
+                              <option value="VISITA_AGENDADA">Etapa: AGENDA</option>
                               <option value="VISITA_REALIZADA">Etapa: VISITA</option>
                               <option value="EN_NEGOCIACION">Etapa: NEGOCIACIÓN</option>
                               <option value="CERRADO">Etapa: CERRADO</option>
@@ -797,6 +817,13 @@ export default function App() {
                               📅 Visita
                             </button>
                           </div>
+
+                          {/* Cita Inteligente (Si existe) */}
+                          {lead.appointmentDate && (
+                            <div className="mt-2.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold py-1.5 px-2 rounded-md border border-emerald-100 flex items-center justify-center gap-1.5 shadow-sm">
+                              <span>📅 Cita: {new Date(lead.appointmentDate).toLocaleString()}</span>
+                            </div>
+                          )}
 
                         </div>
                       ))}
@@ -843,7 +870,7 @@ export default function App() {
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
                 <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Citas VIS Agendadas</span>
                 <p className="text-3xl font-extrabold text-emerald-600 mt-2">
-                  {leads.filter(l => l.pipelineStage === 'CALIFICADO_VISITA_PENDIENTE' || l.pipelineStage === 'VISITA_REALIZADA').length}
+                  {leads.filter(l => l.pipelineStage === 'CALIFICADO_VISITA_PENDIENTE' || l.pipelineStage === 'VISITA_REALIZADA' || l.pipelineStage === 'VISITA_AGENDADA').length}
                 </p>
                 <span className="text-xs text-slate-500 mt-1 block">15% Aporte propio verificado</span>
               </div>

@@ -20,6 +20,14 @@ export interface AppUser {
   role: UserRole;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  ai_keywords?: string;
+  gemini_api_key?: string;
+  whatsapp_instance_id?: string;
+}
+
 export type PaymentMethod =
   | 'CREDITO_VIS'
   | 'CREDITO_BANCARIO'
@@ -29,6 +37,7 @@ export type PaymentMethod =
 export interface Property {
   id: string;
   organizationId: string;
+  propertyCode?: string;
   title: string;
   city: string;
   zone: string;

@@ -16,6 +16,7 @@ import {
   LogOut,
   ChevronRight,
   Zap,
+  Bot,
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
 import { signOut } from "@/src/lib/auth";
@@ -57,7 +58,7 @@ const mockWebhookLogs = [
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout }) => {
-  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook">("agencies");
+  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config">("agencies");
   const [agencyStatuses, setAgencyStatuses] = useState<Record<string, "ACTIVA" | "PAUSADA">>(
     Object.fromEntries(mockAgencies.map((a) => [a.id, a.status]))
   );
@@ -89,6 +90,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
 
   const navItems = [
     { id: "agencies" as const, icon: Building2, label: "Gestor de Agencias" },
+    { id: "ai_config" as const, icon: Bot, label: "Configuración IA" },
     { id: "metrics"  as const, icon: Activity,  label: "Métricas de Consumo" },
     { id: "webhook"  as const, icon: Webhook,    label: "Config Webhook" },
   ];
@@ -380,6 +382,73 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SECTION 4: Configuración IA ── */}
+          {activeSection === "ai_config" && (
+            <div className="space-y-5 max-w-5xl">
+              <div>
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-emerald-400" />
+                  Configuración de Asistente IA (Sofía)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Gestiona las palabras clave y las API Keys de los modelos por cada agencia.
+                </p>
+              </div>
+
+              <div className="grid gap-4">
+                {mockAgencies.map((agency) => (
+                  <div key={agency.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">{agency.name}</h3>
+                        <p className="text-[11px] text-slate-400">ID: {agency.id}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                          Palabras Clave (Separadas por comas)
+                        </label>
+                        <input 
+                          type="text" 
+                          defaultValue="Departamento, Casa, Garsonier, Garaje, Tienda, almacen, Property"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                          placeholder="Ej: Departamento, Casa, Venta"
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Sofía solo intervendrá si el mensaje inicial contiene alguna de estas palabras.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                          Gemini API Key (Google AI)
+                        </label>
+                        <input 
+                          type="password" 
+                          defaultValue=""
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                          placeholder="AIzaSy..."
+                        />
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Si se deja en blanco, se utilizará la clave global del sistema.
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-5 rounded-lg transition-all flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4" />
+                          Guardar Configuración
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

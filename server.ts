@@ -24,14 +24,15 @@ async function startServer() {
   // 2. WhatsApp Evolution API Webhook Endpoint
   app.post("/api/whatsapp/webhook", async (req: Request, res: Response): Promise<void> => {
     try {
-      const expectedKey = process.env.EVOLUTION_API_KEY;
-      if (expectedKey) {
-        const incomingKey = req.headers["apikey"] || req.headers["authorization"]?.toString().replace("Bearer ", "");
-        if (incomingKey !== expectedKey) {
-          console.warn("[Server] ❌ Webhook request with invalid API Key rejected.");
-          res.status(401).json({ error: "Unauthorized" });
-          return;
-        }
+      const apiKey = req.headers["apikey"] || req.headers["x-api-key"] || req.query.apikey || req.headers["authorization"]?.toString().replace("Bearer ", "");
+      const expectedKey = process.env.WEBHOOK_SECRET || process.env.EVOLUTION_API_KEY;
+
+      if (process.env.NODE_ENV === "development") {
+        console.log("[Server Dev] Webhook recibido con Key:", apiKey);
+      } else if (expectedKey && apiKey !== expectedKey) {
+        console.warn("[Server] ❌ Webhook request with invalid API Key rejected.");
+        res.status(401).json({ error: "Unauthorized" });
+        return;
       }
 
       const result = await processWebhookMessage(req.body, {
