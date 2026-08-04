@@ -135,6 +135,9 @@ export default function App() {
   const [selectedCity, setSelectedCity] = useState<string>("TODAS");
   const [visOnlyFilter, setVisOnlyFilter] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  
+  // Responsive State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Función de carga dinámica de Leads desde Supabase
   const loadLeadsFromSupabase = async () => {
@@ -452,39 +455,47 @@ export default function App() {
     <div className="flex flex-col h-screen w-full bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden">
       
       {/* 1. TOP EXECUTIVE HEADER - "Professional Polish" Theme */}
-      <header className="h-16 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between px-6 shrink-0 z-30">
+      <header className="h-16 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between px-3 md:px-6 shrink-0 z-30">
         
         {/* Brand & Connection Status */}
-        <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-xl shadow-md">
+        <div className="flex items-center gap-3">
+          {/* Menú Hamburguesa Móvil */}
+          <button 
+            className="md:hidden text-slate-300 hover:text-white p-1"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <XCircle className="w-6 h-6" /> : <MoreHorizontal className="w-6 h-6" />}
+          </button>
+          
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-xl shadow-md hidden sm:flex">
             P
           </div>
-          <h1 className="text-white font-bold text-lg tracking-tight flex items-center gap-1.5">
+          <h1 className="text-white font-bold text-base md:text-lg tracking-tight flex items-center gap-1.5">
             PROPERTY <span className="text-slate-400 font-medium text-sm">OS</span>
           </h1>
 
-          <div className="ml-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-2">
+          <div className="ml-0 md:ml-2 px-2 md:px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-1.5 md:gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10B981]" />
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-              Evolution API: Conectado
+            <span className="text-[10px] md:text-xs font-semibold text-emerald-400 uppercase tracking-wider whitespace-nowrap">
+              Evo API
             </span>
           </div>
         </div>
 
         {/* Global Controls: Search, City Filter & Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           
-          {/* City Dropdown Filter */}
-          <div className="relative">
+          {/* City Dropdown Filter (Hidden on Mobile) */}
+          <div className="relative hidden lg:block">
             <select
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
               className="bg-slate-800 text-xs font-bold text-slate-200 rounded-lg py-2 pl-3 pr-8 border border-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none"
             >
-              <option value="TODAS">📍 Todas las Ciudades</option>
+              <option value="TODAS">📍 Todas</option>
               <option value="Santa Cruz">📍 Santa Cruz</option>
               <option value="La Paz">📍 La Paz</option>
-              <option value="Cochabamba">📍 Cochabamba</option>
+              <option value="Cochabamba">📍 CBB</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -510,10 +521,10 @@ export default function App() {
             <span className="hidden md:inline">+ Lead</span>
           </button>
 
-          {/* Ingesta RAG Primary Action Button */}
+          {/* Ingesta RAG Primary Action Button (Hidden on Mobile) */}
           <button
             onClick={() => setActiveTab("rag")}
-            className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-900/20"
+            className="hidden md:flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-900/20"
           >
             <Plus className="w-4 h-4" />
             <span>+ Ingesta RAG</span>
@@ -570,7 +581,7 @@ export default function App() {
             <button
               onClick={handleLogout}
               title="Cerrar Sesión"
-              className="p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
+              className="p-1.5 md:p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -580,8 +591,43 @@ export default function App() {
 
       </header>
 
+      {/* MOBILE MENU DRAWER */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex flex-col gap-4 animate-in slide-in-from-top z-20 shadow-xl">
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar leads, zona o teléfono..."
+              className="bg-slate-800 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 placeholder-slate-400 w-full outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+          </div>
+          
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="w-full bg-slate-800 text-xs font-bold text-slate-200 rounded-lg py-2 px-3 border border-slate-700 outline-none"
+          >
+            <option value="TODAS">📍 Todas las Ciudades</option>
+            <option value="Santa Cruz">📍 Santa Cruz</option>
+            <option value="La Paz">📍 La Paz</option>
+            <option value="Cochabamba">📍 Cochabamba</option>
+          </select>
+
+          <button
+            onClick={() => { setActiveTab("rag"); setIsMobileMenuOpen(false); }}
+            className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg text-xs font-semibold shadow-lg shadow-emerald-900/20 w-full"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Agregar al Inventario RAG</span>
+          </button>
+        </div>
+      )}
+
       {/* 2. SUB-BAR NAVIGATION / TABS */}
-      <div className="bg-[#0F172A] border-b border-slate-800 px-6 py-2 flex items-center justify-between shrink-0">
+      <div className="bg-[#0F172A] border-b border-slate-800 px-2 md:px-6 py-2 flex items-center justify-between shrink-0 overflow-x-auto custom-scrollbar">
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab("pipeline")}
@@ -658,12 +704,12 @@ export default function App() {
         {/* VIEW 1: KANBAN BOARD */}
         {activeTab === "pipeline" && (
           <div className="flex-1 flex flex-col min-w-0 bg-[#F1F5F9] h-full overflow-hidden">
-            <div className="p-4 flex gap-4 overflow-x-auto h-full custom-scrollbar">
+            <div className="p-4 flex gap-4 overflow-x-auto h-full custom-scrollbar snap-x snap-mandatory">
               {kanbanColumns.map((col) => {
                 const stageLeads = filteredLeads.filter((l) => l.pipelineStage === col.stage);
 
                 return (
-                  <div key={col.stage} className="flex-1 flex flex-col min-w-[200px] max-w-[280px]">
+                  <div key={col.stage} className="flex-1 flex flex-col min-w-[85vw] sm:min-w-[280px] max-w-[320px] snap-center shrink-0">
                     
                     {/* Column Header */}
                     <h3 className="text-xs font-bold text-slate-500 mb-3 flex items-center justify-between uppercase tracking-widest shrink-0">

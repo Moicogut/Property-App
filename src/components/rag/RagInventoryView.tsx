@@ -244,19 +244,19 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-100/80 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3.5">Miniatura</th>
-                <th className="px-6 py-3.5">Inmueble & Zona</th>
-                <th className="px-6 py-3.5">Precio (USD / BOB)</th>
-                <th className="px-6 py-3.5">Tipo / Sup.</th>
-                <th className="px-6 py-3.5">Compatibilidad VIS / ASFI</th>
-                <th className="px-6 py-3.5">Vector Status</th>
-                <th className="px-6 py-3.5 text-right">Acciones</th>
+                <th className="hidden md:table-cell px-3 md:px-6 py-3.5">Miniatura</th>
+                <th className="px-3 md:px-6 py-3.5">Inmueble & Zona</th>
+                <th className="px-3 md:px-6 py-3.5">Precio</th>
+                <th className="hidden sm:table-cell px-3 md:px-6 py-3.5">Tipo / Sup.</th>
+                <th className="hidden lg:table-cell px-3 md:px-6 py-3.5">Compat. VIS</th>
+                <th className="hidden xl:table-cell px-3 md:px-6 py-3.5">Vector Status</th>
+                <th className="px-3 md:px-6 py-3.5 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-sm">
               {filteredProperties.map((prop) => (
                 <tr key={prop.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="px-6 py-4">
+                  <td className="hidden md:table-cell px-3 md:px-6 py-4">
                     <div className="w-16 h-12 rounded-lg bg-slate-200 overflow-hidden border border-slate-300">
                       <img 
                         src={(prop.imageUrl || "").split(',')[0]?.trim() || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA'} 
@@ -265,39 +265,39 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                       />
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <p className="font-bold text-slate-900">{prop.title}</p>
-                    <p className="text-xs text-slate-500">{prop.zone}, {prop.city}</p>
+                  <td className="px-3 md:px-6 py-4">
+                    <p className="font-bold text-slate-900 text-xs md:text-sm">{prop.title}</p>
+                    <p className="text-[10px] md:text-xs text-slate-500">{prop.zone}, {prop.city}</p>
                   </td>
-                  <td className="px-6 py-4">
-                    <p className="font-bold text-slate-900">${(prop.priceUsd ?? 0).toLocaleString()} USD</p>
-                    <p className="text-xs text-slate-400">Bs. {((prop.priceUsd ?? 0) * 6.96).toLocaleString("es-BO")}</p>
+                  <td className="px-3 md:px-6 py-4">
+                    <p className="font-bold text-slate-900 text-xs md:text-sm">${(prop.priceUsd ?? 0).toLocaleString()} USD</p>
+                    <p className="text-[10px] md:text-xs text-slate-400">Bs. {((prop.priceUsd ?? 0) * 6.96).toLocaleString("es-BO")}</p>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold">
+                  <td className="hidden sm:table-cell px-3 md:px-6 py-4">
+                    <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-[10px] md:text-xs font-semibold whitespace-nowrap">
                       {prop.bedrooms > 0 ? `${prop.bedrooms}D / ${prop.bathrooms}B` : 'Lote'} • {prop.areaSqm}m²
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="hidden lg:table-cell px-3 md:px-6 py-4">
                     {prop.acceptsSocialHousing ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] md:text-xs font-bold border border-emerald-200 whitespace-nowrap">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                        SÍ (Vivienda Social)
+                        SÍ (VIS)
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold border border-rose-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                        NO (Crédito Libre)
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] md:text-xs font-bold border border-slate-200 whitespace-nowrap">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                        NO (Libre)
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Indexado pgvector ({prop.vectorDimensions || 1536}d)</span>
+                  <td className="hidden xl:table-cell px-3 md:px-6 py-4">
+                    <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-600 font-semibold bg-emerald-50/50 px-2 py-1 rounded-md border border-emerald-100 whitespace-nowrap">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Indexado pgvector (1536d)
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-3 md:px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button 
                         onClick={() => setViewingProperty(prop)}
@@ -347,8 +347,8 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
 
       {/* Modal Nueva Propiedad */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 max-h-[95vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3">
               <h3 className="text-lg font-bold text-slate-900">+ Agregar Propiedad al Inventario RAG</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -480,10 +480,10 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal Ver Ficha */}
+      {/* Modal Ver Ficha de Propiedad */}
       {viewingProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 max-h-[95vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">{viewingProperty.title}</h3>
@@ -526,8 +526,8 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
 
       {/* Modal Editar Propiedad */}
       {editingProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 max-h-[95vh] overflow-y-auto custom-scrollbar">
             <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
               <h3 className="text-lg font-bold text-slate-900">Editar Propiedad</h3>
               <button onClick={() => setEditingProperty(null)} className="text-slate-400 hover:text-slate-600">
