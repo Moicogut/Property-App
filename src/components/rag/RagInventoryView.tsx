@@ -15,23 +15,35 @@ import {
   Sparkles,
   Layers,
   Search,
-  Check
+  Check,
+  Trash2,
+  PauseCircle,
+  Eye,
+  PlayCircle
 } from "lucide-react";
 import { Property } from "@/src/types/property";
 
 interface RagInventoryViewProps {
   properties: Property[];
   onAddProperty: (newProp: Partial<Property>) => void;
+  onUpdateProperty?: (id: string, updates: Partial<Property>) => void;
+  onDeleteProperty?: (id: string) => void;
 }
 
 export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   properties,
   onAddProperty,
+  onUpdateProperty,
+  onDeleteProperty,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessingDoc, setIsProcessingDoc] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("ALL");
+  
+  // States for new management features
+  const [viewingProperty, setViewingProperty] = useState<Property | null>(null);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
 
   // Form State for new property
   const [title, setTitle] = useState("");
@@ -278,12 +290,38 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="text-emerald-700 hover:underline font-bold text-xs px-2 py-1">
-                        Ver Ficha
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button 
+                        onClick={() => setViewingProperty(prop)}
+                        className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 transition-colors"
+                        title="Ver Ficha"
+                      >
+                        <Eye className="w-4 h-4" />
                       </button>
-                      <button className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700">
+                      <button 
+                        onClick={() => setEditingProperty(prop)}
+                        className="p-1.5 bg-blue-50 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                        title="Editar Propiedad"
+                      >
                         <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => onUpdateProperty && onUpdateProperty(prop.id, { status: prop.status === "AVAILABLE" ? "RESERVED" : "AVAILABLE" })}
+                        className={`p-1.5 ${prop.status === "RESERVED" ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "bg-slate-50 text-slate-400 hover:bg-slate-200"} rounded transition-colors`}
+                        title={prop.status === "RESERVED" ? "Reanudar" : "Pausar/Reservar"}
+                      >
+                        {prop.status === "RESERVED" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (window.confirm("¿Estás seguro de eliminar esta propiedad y todos sus vectores RAG?")) {
+                            onDeleteProperty && onDeleteProperty(prop.id);
+                          }
+                        }}
+                        className="p-1.5 bg-rose-50 hover:bg-rose-100 rounded text-rose-600 transition-colors"
+                        title="Borrar Propiedad"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -421,6 +459,106 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
         </div>
       )}
 
+      {/* Modal Ver Ficha */}
+      {viewingProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{viewingProperty.title}</h3>
+                <p className="text-xs text-slate-500">{viewingProperty.zone}, {viewingProperty.city}</p>
+              </div>
+              <button onClick={() => setViewingProperty(null)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="w-full h-48 bg-slate-100 rounded-xl overflow-hidden mb-4 border border-slate-200">
+              <img src={viewingProperty.imageUrl} className="w-full h-full object-cover" alt="Property" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-[10px] text-slate-500 font-bold uppercase">Precio Venta</div>
+                <div className="text-base font-extrabold text-emerald-600">${(viewingProperty.priceUsd ?? 0).toLocaleString()} USD</div>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="text-[10px] text-slate-500 font-bold uppercase">Superficie</div>
+                <div className="text-base font-bold text-slate-700">{viewingProperty.areaSqm} m²</div>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 mb-4 text-xs">
+              <span className="font-bold text-slate-700 block mb-1">Características:</span>
+              <span>🛏️ {viewingProperty.bedrooms} Habitaciones • 🚿 {viewingProperty.bathrooms} Baños</span>
+              <div className="mt-2 text-slate-600 max-h-24 overflow-y-auto custom-scrollbar italic">
+                {viewingProperty.rawDescription}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Propiedad */}
+      {editingProperty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3 mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Editar Propiedad</h3>
+              <button onClick={() => setEditingProperty(null)} className="text-slate-400 hover:text-slate-600">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (onUpdateProperty) {
+                onUpdateProperty(editingProperty.id, editingProperty);
+              }
+              setEditingProperty(null);
+            }} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Título</label>
+                <input type="text" required value={editingProperty.title} onChange={(e) => setEditingProperty({...editingProperty, title: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Precio USD</label>
+                  <input type="number" required min="0" value={editingProperty.priceUsd} onChange={(e) => setEditingProperty({...editingProperty, priceUsd: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Área (m²)</label>
+                  <input type="number" required min="0" value={editingProperty.areaSqm} onChange={(e) => setEditingProperty({...editingProperty, areaSqm: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Dormitorios</label>
+                  <input type="number" required min="0" value={editingProperty.bedrooms} onChange={(e) => setEditingProperty({...editingProperty, bedrooms: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Baños</label>
+                  <input type="number" required min="0" value={editingProperty.bathrooms} onChange={(e) => setEditingProperty({...editingProperty, bathrooms: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Descripción RAG (Contexto IA)</label>
+                <textarea required rows={3} value={editingProperty.rawDescription} onChange={(e) => setEditingProperty({...editingProperty, rawDescription: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 resize-none"></textarea>
+              </div>
+
+              <div className="pt-2">
+                <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Guardar Cambios
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

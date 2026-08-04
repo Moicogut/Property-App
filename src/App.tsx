@@ -692,6 +692,8 @@ export default function App() {
           <RagInventoryView
             properties={properties}
             onAddProperty={handleAddProperty}
+            onUpdateProperty={handleUpdateProperty}
+            onDeleteProperty={handleDeleteProperty}
           />
         )}
 
