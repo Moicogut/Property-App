@@ -318,6 +318,33 @@ export default function App() {
     });
   };
 
+  const handleUpdateProperty = async (id: string, updates: Partial<Property>) => {
+    setProperties((prev) => 
+      prev.map(p => p.id === id ? { ...p, ...updates } : p)
+    );
+    
+    const dbUpdates: any = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.city !== undefined) dbUpdates.city = updates.city;
+    if (updates.zone !== undefined) dbUpdates.zone = updates.zone;
+    if (updates.priceUsd !== undefined) dbUpdates.price_usd = updates.priceUsd;
+    if (updates.bedrooms !== undefined) dbUpdates.bedrooms = updates.bedrooms;
+    if (updates.bathrooms !== undefined) dbUpdates.bathrooms = updates.bathrooms;
+    if (updates.areaSqm !== undefined) dbUpdates.area_sqm = updates.areaSqm;
+    if (updates.acceptsSocialHousing !== undefined) dbUpdates.accepts_social_housing = updates.acceptsSocialHousing;
+    if (updates.rawDescription !== undefined) dbUpdates.raw_description = updates.rawDescription;
+    
+    if (Object.keys(dbUpdates).length > 0) {
+      await supabase.from("properties").update(dbUpdates).eq("id", id);
+    }
+  };
+
+  const handleDeleteProperty = async (id: string) => {
+    setProperties((prev) => prev.filter(p => p.id !== id));
+    await supabase.from("properties").delete().eq("id", id);
+  };
+
   const handleMoveStage = async (leadId: string, newStage: PipelineStage) => {
     setLeads((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, pipelineStage: newStage } : l))
