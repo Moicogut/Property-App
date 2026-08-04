@@ -55,6 +55,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   const [areaSqm, setAreaSqm] = useState(70);
   const [acceptsSocialHousing, setAcceptsSocialHousing] = useState(true);
   const [rawDescription, setRawDescription] = useState("");
+  const [imageUrls, setImageUrls] = useState("");
 
   const handleSimulatedFileUpload = () => {
     setIsProcessingDoc(true);
@@ -68,6 +69,12 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
     e.preventDefault();
     if (!title) return;
 
+    const parsedUrls = imageUrls.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+    if (parsedUrls.length < 2 || parsedUrls.length > 6) {
+      alert("Por favor ingresa entre 2 y 6 enlaces de imágenes válidos.");
+      return;
+    }
+
     onAddProperty({
       title,
       city,
@@ -79,7 +86,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
       acceptsSocialHousing,
       status: "AVAILABLE",
       rawDescription: rawDescription || `${title} ubicado en ${zone}, ${city}. Excelente oportunidad inmobiliaria.`,
-      imageUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA",
+      imageUrl: parsedUrls.join(","),
       vectorIndexed: true,
       vectorDimensions: 1536,
     });
@@ -88,6 +95,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
     setTitle("");
     setZone("");
     setRawDescription("");
+    setImageUrls("");
   };
 
   const filteredProperties = properties.filter((p) => {
@@ -251,7 +259,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                   <td className="px-6 py-4">
                     <div className="w-16 h-12 rounded-lg bg-slate-200 overflow-hidden border border-slate-300">
                       <img 
-                        src={prop.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA'} 
+                        src={(prop.imageUrl || "").split(',')[0]?.trim() || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA'} 
                         alt={prop.title}
                         className="w-full h-full object-cover"
                       />
@@ -438,6 +446,19 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Enlaces de Imágenes (Mín 2, Máx 6)</label>
+                <textarea 
+                  required
+                  rows={3}
+                  value={imageUrls}
+                  onChange={(e) => setImageUrls(e.target.value)}
+                  placeholder="https://ejemplo.com/foto1.jpg&#10;https://ejemplo.com/foto2.jpg"
+                  className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-xs resize-none"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Ingresa un enlace por línea.</p>
+              </div>
+
               <div className="flex justify-end gap-2 pt-3">
                 <button 
                   type="button"
@@ -473,8 +494,12 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
               </button>
             </div>
             
-            <div className="w-full h-48 bg-slate-100 rounded-xl overflow-hidden mb-4 border border-slate-200">
-              <img src={viewingProperty.imageUrl} className="w-full h-full object-cover" alt="Property" />
+            <div className="flex gap-2 w-full h-48 overflow-x-auto custom-scrollbar snap-x snap-mandatory mb-4">
+              {(viewingProperty.imageUrl || "").split(',').filter(Boolean).map((imgUrl, i) => (
+                <div key={i} className="min-w-[100%] h-full bg-slate-100 rounded-xl overflow-hidden border border-slate-200 snap-center">
+                  <img src={imgUrl.trim()} className="w-full h-full object-cover" alt={`Property ${i+1}`} />
+                </div>
+              ))}
             </div>
             
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -512,8 +537,14 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
 
             <form onSubmit={(e) => {
               e.preventDefault();
+              const parsedUrls = (editingProperty.imageUrl || "").split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+              if (parsedUrls.length < 2 || parsedUrls.length > 6) {
+                alert("Por favor ingresa entre 2 y 6 enlaces de imágenes válidos (uno por línea o separados por comas).");
+                return;
+              }
+              
               if (onUpdateProperty) {
-                onUpdateProperty(editingProperty.id, editingProperty);
+                onUpdateProperty(editingProperty.id, { ...editingProperty, imageUrl: parsedUrls.join(",") });
               }
               setEditingProperty(null);
             }} className="space-y-3 text-xs">
@@ -547,6 +578,11 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Descripción RAG (Contexto IA)</label>
                 <textarea required rows={3} value={editingProperty.rawDescription} onChange={(e) => setEditingProperty({...editingProperty, rawDescription: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 resize-none"></textarea>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Enlaces de Imágenes (Mín 2, Máx 6)</label>
+                <textarea required rows={3} value={(editingProperty.imageUrl || "").replace(/,/g, "\n")} onChange={(e) => setEditingProperty({...editingProperty, imageUrl: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 resize-none" placeholder="https://ejemplo.com/foto1.jpg&#10;https://ejemplo.com/foto2.jpg"></textarea>
               </div>
 
               <div className="pt-2">
