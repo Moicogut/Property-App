@@ -46,7 +46,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
       id: "msg-1",
       leadId: lead.id,
       sender: "lead",
-      text: `Hola, estoy interesado en opciones en ${lead.preferredZone || 'Equipetrol Norte'}. ¿Tienen departamentos compatibles con mi presupuesto de $${lead.budgetMaxUsd.toLocaleString()} USD?`,
+      text: `Hola, estoy interesado en opciones en ${lead.preferredZone || 'Equipetrol Norte'}. ¿Tienen departamentos compatibles con mi presupuesto de $${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD?`,
       timestamp: "10:45 AM",
     },
     {
@@ -300,7 +300,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
                     <div className="text-[9px] text-slate-500 font-medium">Presupuesto</div>
-                    <div className="text-xs font-bold text-slate-900">${lead.budgetMaxUsd.toLocaleString()} USD</div>
+                    <div className="text-xs font-bold text-slate-900">${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD</div>
                   </div>
 
                   <div className="bg-white p-2 rounded-lg border border-slate-200">
@@ -337,7 +337,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
                       <div className="flex-1">
                         <div className="text-xs font-bold text-slate-900">{lead.matchedProperty.title}</div>
                         <div className="text-[10px] text-emerald-700 font-bold">
-                          Match RAG: 98% compatible (${lead.matchedProperty.priceUsd.toLocaleString()} USD)
+                          Match RAG: 98% compatible (${(lead.matchedProperty?.priceUsd ?? 0).toLocaleString()} USD)
                         </div>
                       </div>
                     </div>

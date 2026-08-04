@@ -34,7 +34,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
 
     if (syncCalendar) {
       const title = encodeURIComponent(`Visita Property OS: ${lead.fullName} - ${lead.matchedProperty?.title || 'Smart Tower 2D'}`);
-      const details = encodeURIComponent(`Cliente: ${lead.fullName}\nTeléfono: ${lead.phoneNumber}\nPresupuesto: $${lead.budgetMaxUsd.toLocaleString()} USD\nForma de Pago: ${lead.paymentMethod}\nNotas: ${notes}`);
+      const details = encodeURIComponent(`Cliente: ${lead.fullName}\nTeléfono: ${lead.phoneNumber}\nPresupuesto: $${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD\nForma de Pago: ${lead.paymentMethod}\nNotas: ${notes}`);
       const location = encodeURIComponent(`${lead.matchedProperty?.zone || 'Equipetrol Norte'}, Santa Cruz`);
       const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
       
@@ -71,7 +71,7 @@ export const AppointmentModal: React.FC<AppointmentModalProps> = ({
             <p className="text-slate-500">{lead.phoneNumber} • {lead.preferredZone}</p>
           </div>
           <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-lg text-[11px]">
-            ${lead.budgetMaxUsd.toLocaleString()} USD
+            ${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD
           </span>
         </div>
 

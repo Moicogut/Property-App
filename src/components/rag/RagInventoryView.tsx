@@ -249,8 +249,8 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                     <p className="text-xs text-slate-500">{prop.zone}, {prop.city}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="font-bold text-slate-900">${prop.priceUsd.toLocaleString()} USD</p>
-                    <p className="text-xs text-slate-400">Bs. {(prop.priceUsd * 6.96).toLocaleString("es-BO")}</p>
+                    <p className="font-bold text-slate-900">${(prop.priceUsd ?? 0).toLocaleString()} USD</p>
+                    <p className="text-xs text-slate-400">Bs. {((prop.priceUsd ?? 0) * 6.96).toLocaleString("es-BO")}</p>
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-semibold">

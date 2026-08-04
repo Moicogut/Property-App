@@ -73,7 +73,7 @@ export const PdfFichaModal: React.FC<PdfFichaModalProps> = ({
                 </tr>
                 <tr className="bg-slate-100/50">
                   <td className="p-3 font-bold text-slate-700">Presupuesto Aprobado</td>
-                  <td className="p-3 font-extrabold text-slate-900">${lead.budgetMaxUsd.toLocaleString()} USD</td>
+                  <td className="p-3 font-extrabold text-slate-900">${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD</td>
                 </tr>
                 <tr>
                   <td className="p-3 font-bold text-slate-700">Modalidad Financiera</td>

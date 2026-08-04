@@ -619,7 +619,7 @@ export default function App() {
                           {/* Badges */}
                           <div className="flex flex-wrap gap-1 mb-3">
                             <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold">
-                              ${lead.budgetMaxUsd.toLocaleString()} USD
+                              ${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD
                             </span>
                             
                             {lead.paymentMethod === "CREDITO_VIS" && (
@@ -775,7 +775,7 @@ export default function App() {
                   </p>
 
                   <div className="flex justify-between items-center text-xs pt-1">
-                    <span className="font-bold text-slate-900">${lead.budgetMaxUsd.toLocaleString()} USD</span>
+                    <span className="font-bold text-slate-900">${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD</span>
                     <span className="text-emerald-600 font-bold">Abrir Chat →</span>
                   </div>
                 </div>

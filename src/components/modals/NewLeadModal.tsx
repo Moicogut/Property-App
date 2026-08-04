@@ -217,7 +217,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
             >
               {properties.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title} — ${p.priceUsd.toLocaleString()} USD ({p.zone}, {p.city})
+                  {p.title} — ${(p.priceUsd ?? 0).toLocaleString()} USD ({p.zone}, {p.city})
                 </option>
               ))}
             </select>
