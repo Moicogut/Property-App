@@ -19,6 +19,8 @@ export async function processWebhookMessage(
   options: WebhookProcessOptions = {}
 ): Promise<any> {
   const payload = body;
+  console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(payload).substring(0, 500) + "...");
+  
   const data = payload.data as Record<string, unknown> | undefined;
   const keyData = (data?.key as Record<string, unknown>) ?? undefined;
   
@@ -26,20 +28,26 @@ export async function processWebhookMessage(
   const messageId = (keyData?.id as string) || (payload.id as string) || "";
   const fromMe = (keyData?.fromMe as boolean) ?? (payload.fromMe as boolean) ?? false;
   
+  const messageData = data?.message as Record<string, unknown> | undefined;
+  const extText = (messageData?.extendedTextMessage as Record<string, unknown> | undefined)?.text;
+  const userMessageText = (messageData?.conversation as string) || (extText as string) || (payload.message as string) || "";
+
   if (fromMe) {
-    return { status: "IGNORED", reason: "Message sent by me (human intervention)" };
+    // Si el mensaje fue enviado por el propio bot (IA), ignorar para evitar loop
+    if (userMessageText.includes("Sofía") || userMessageText.includes("Property OS") || userMessageText.includes("asesor")) {
+      console.log(`[IGNORE] Self-message from AI detected. Ignoring to prevent loop.`);
+      return { status: "IGNORED", reason: "AI self message" };
+    }
+    console.log(`[TESTING] Allowed fromMe message from own account for testing: ${userMessageText}`);
   }
 
   if (!remoteJid || remoteJid.includes("@g.us")) {
+    console.log(`[IGNORE] Group message or missing JID: ${remoteJid}`);
     return { status: "IGNORED", reason: "Group message or missing JID" };
   }
 
   const rawPhoneNumber = remoteJid.replace("@s.whatsapp.net", "");
   const senderName = (data?.pushName as string) || (payload.pushName as string) || "Cliente WhatsApp";
-
-  const messageData = data?.message as Record<string, unknown> | undefined;
-  const extText = (messageData?.extendedTextMessage as Record<string, unknown> | undefined)?.text;
-  const userMessageText = (messageData?.conversation as string) || (extText as string) || (payload.message as string) || "";
 
   if (!userMessageText) {
     return { status: "IGNORED", reason: "Empty message" };
