@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "http";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from "openai";
 import { sendWhatsAppMessage } from "../../src/lib/evolution";
 import { supabaseServer } from "../../src/lib/supabase-server";
@@ -325,48 +326,30 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
   };
 }
 
-export default async function handler(
-  req: IncomingMessage & { body?: any },
-  res: ServerResponse & { status?: (code: number) => any; json?: (body: unknown) => any }
-) {
-  const sendJson = (statusCode: number, body: unknown) => {
-    res.writeHead(statusCode, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(body));
-  };
-
-  if (req.method === "GET") {
-    return sendJson(200, { status: "WEBHOOK_ACTIVE", system: "Property OS" });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'GET') {
+    return res.status(200).json({ status: "WEBHOOK_ACTIVE", system: "Property OS" });
   }
 
-  if (req.method === "POST") {
-    // 3. RETORNO RAPIDO 200 INMEDIATO para evitar timeouts de Evolution API
-    sendJson(200, { status: "PROCESSING_ASYNC" });
-    
-    try {
-      const apiKey = req.headers["apikey"] || req.headers["x-api-key"] || req.headers["authorization"]?.toString().replace("Bearer ", "");
-      const expectedKey = process.env.WEBHOOK_SECRET || process.env.EVOLUTION_API_KEY;
-
-      if (expectedKey && apiKey !== expectedKey && process.env.NODE_ENV !== "development") {
-        console.warn("[Vercel Webhook] ❌ Invalid API Key. Proceeding for fallback or rejecting if strictly needed.");
-      }
-
-      const body = req.body || {};
-      
-      // Lanzamos la función asíncrona pero sin hacer await para que Vercel termine la respuesta,
-      // aunque es posible que en el Edge/Serverless el proceso siga en background unos segundos más.
-      processWebhookMessage(body, {
-        evolutionApiUrl: process.env.EVOLUTION_API_URL,
-        evolutionApiKey: process.env.EVOLUTION_API_KEY,
-        evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-      }).catch(err => {
-        console.error("[Vercel Async Webhook] Error:", err);
-      });
-
-    } catch (err: unknown) {
-      console.error("[Vercel Webhook Initialization] Error:", err);
-    }
-    return;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
+  
+  // Log inicial para confirmar recepción
+  console.log('WEBHOOK_HIT:', JSON.stringify(req.body));
+  
+  // Retorno rápido HTTP 200
+  res.status(200).json({ status: 'OK' });
 
-  return sendJson(405, { error: "Method Not Allowed" });
+  // Procesar RAG y respuesta de forma asíncrona
+  try {
+    const body = req.body || {};
+    await processWebhookMessage(body, {
+      evolutionApiUrl: process.env.EVOLUTION_API_URL,
+      evolutionApiKey: process.env.EVOLUTION_API_KEY,
+      evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
+    });
+  } catch (err) {
+    console.error('ERROR_PROCESSING_WEBHOOK:', err);
+  }
 }
