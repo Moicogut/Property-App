@@ -461,6 +461,7 @@ export default function App() {
     { stage: "NUEVO", label: "NUEVO", countBadge: "bg-slate-200 text-slate-800" },
     { stage: "EN_CALIFICACION", label: "EN CALIFICACIÓN", countBadge: "bg-slate-200 text-slate-800" },
     { stage: "CALIFICADO_VISITA_PENDIENTE", label: "CALIFICADO", countBadge: "bg-emerald-100 text-emerald-800" },
+    { stage: "VISITA_AGENDADA", label: "AGENDA", countBadge: "bg-emerald-100 text-emerald-800" },
     { stage: "VISITA_REALIZADA", label: "VISITA", countBadge: "bg-slate-200 text-slate-800" },
     { stage: "EN_NEGOCIACION", label: "NEGOCIACIÓN", countBadge: "bg-slate-200 text-slate-800" },
     { stage: "CERRADO", label: "CERRADO", countBadge: "bg-emerald-500 text-white" },
@@ -819,11 +820,11 @@ export default function App() {
                           </div>
 
                           {/* Cita Inteligente (Si existe) */}
-                          {lead.appointmentDate && (
+                          {lead.appointmentDate ? (
                             <div className="mt-2.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold py-1.5 px-2 rounded-md border border-emerald-100 flex items-center justify-center gap-1.5 shadow-sm">
                               <span>📅 Cita: {new Date(lead.appointmentDate).toLocaleString()}</span>
                             </div>
-                          )}
+                          ) : null}
 
                         </div>
                       ))}
