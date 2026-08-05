@@ -10,21 +10,25 @@ const supabaseServer = createClient(supabaseUrl, supabaseKey);
 
 // 2. Evolution API Inline
 async function sendWhatsAppMessage(phone: string, text: string, instanceName: string, apiUrl: string, apiKey: string) {
-  const cleanPhone = phone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+  // 1. Limpieza estricta del número:
+  const recipientNumber = phone.replace('@s.whatsapp.net', '').replace('@g.us', '').replace(/\D/g, '');
+
   try {
-    console.log(`[Evolution API] Enviando mensaje a: ${cleanPhone} en instancia: ${instanceName}`);
+    console.log(`[Evolution API] Enviando mensaje a: ${recipientNumber} en instancia: ${instanceName}`);
     
+    // 2. Formato del Payload para Evolution API v2:
     const payload = {
-      number: String(cleanPhone),
-      text: text,
-      delay: 1200
+      number: recipientNumber,
+      text: text
     };
 
+    // 3. POST a Evolution API
     const response = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: apiKey },
       body: JSON.stringify(payload)
     });
+    
     const responseBody = await response.text();
     console.log(`[Evolution API] Status Code: ${response.status}`);
     console.log(`[Evolution API] Response Body: ${responseBody}`);
