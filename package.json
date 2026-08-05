@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/db/seed.ts",
+    "status-report": "tsx scripts/generate-status-report.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

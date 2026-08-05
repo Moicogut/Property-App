@@ -19,12 +19,14 @@
 * **URL API:** `https://evolution-api-production-286c8.up.railway.app`
 * **Instancia:** `PropertyOS-Main`
 * **Número vinculado:** WhatsApp corporativo (`+591 78756107` / Moisés R. Gutierrez A.).
-* **Webhook:** Activo apuntando a la ruta del proyecto `/api/whatsapp/webhook`.
+* **Webhook (Vercel):** Activo apuntando a `/api/whatsapp/webhook`.
+  - *Fix (05/Ago):* Se eliminó el bloqueo estricto 401 que descartaba eventos de Evolution API por falta de cabecera `apikey`, logrando compatibilidad directa.
+  - *Diagnóstico (05/Ago):* Se creó el endpoint oculto `/api/whatsapp/test` para auto-verificación en vivo de variables de entorno de producción.
 * **Procesamiento de IA:** Integrado OpenAI y Gemini de forma intercambiable. (Actualmente operando estable con OpenAI para manejo de memoria y contexto).
-* **Retraso Cognitivo (Humano):** (NUEVO) Se añadió una función de *delay* aleatorio entre 5 y 15 segundos en el webhook antes de despachar mensajes, logrando una ilusión de "escribiendo..." humana.
+* **Retraso Cognitivo (Humano):** Se añadió una función de *delay* aleatorio en el webhook antes de despachar mensajes, logrando una ilusión de "escribiendo..." humana, optimizado para evitar Timeouts de 10s en Vercel Serverless.
 
 ### 🟢 Motor Agéntico y Tools (Function Calling)
-* **Skill - Agendar Visita:** (NUEVO) El cerebro del bot ha sido dotado con la función `agendar_visita(fecha, hora)`. Cuando detecta que el usuario quiere agendar, llama a esta herramienta, guardando la cita en la tabla `appointments` y modificando el estatus del Lead a `VISITA_AGENDADA`.
+* **Skill - Agendar Visita:** El cerebro del bot ha sido dotado con la función `agendar_visita(fecha, hora)`. Cuando detecta que el usuario quiere agendar, llama a esta herramienta, guardando la cita en la tabla `appointments` y modificando el estatus del Lead a `VISITA_AGENDADA`.
 
 ### 🟢 Frontend & UI (Vercel + Vite + React)
 * **Single Source of Truth:** La UI (`App.tsx`) se nutre directamente desde Supabase en tiempo real.
@@ -39,13 +41,17 @@
 
 El sistema ahora entra en fase de pruebas intensivas en campo, la hoja de ruta para las siguientes mejoras incluirá:
 
+### 🔴 0. Auditoría de Despliegue (Urgente - Siguiente Sesión)
+* Utilizar el endpoint de diagnóstico (`/api/whatsapp/test`) para verificar el estado de las credenciales de Vercel.
+* Revisar el panel de Evolution API Manager para confirmar que el evento `MESSAGES_UPSERT` esté efectivamente marcado en ON, garantizando el flujo de datos.
+
 ### 🟡 1. Afinado y Tuning del Prompt (Asesor Inmobiliario)
 * Auditar transcripciones de las pruebas de campo.
 * Ajustar el comportamiento del bot para que no pierda control bajo ataques o interrupciones de clientes.
 * Enseñar respuestas condicionales más refinadas basadas en el input del RAG (por ejemplo, si el cliente presiona para descuentos).
 
 ### 🟡 2. Manejo de Errores y Timeouts en Webhook
-* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI (junto al retraso añadido de 15 seg) no generen Timeouts (error 504) en la instancia Evolution API.
+* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI no generen Timeouts (error 504).
 * Mover el disparo de WhatsApp a un Job asíncrono (Background o Queues) si Vercel aborta ejecuciones largas en la versión gratuita.
 
 ### 🟡 3. UI/UX Mejoras Finales
