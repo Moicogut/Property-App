@@ -23,20 +23,27 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
     };
 
     // 3. POST a Evolution API
-    const baseUrl = apiUrl.replace(/\/+$/, '');
-    const instance = instanceName || 'PropertyOS-Main';
-    const targetUrl = `${baseUrl}/message/sendText/${instance}`;
+    const rawBaseUrl = apiUrl || process.env.EVOLUTION_API_URL || "https://evolution-api-production-a3a5.up.railway.app";
+    const cleanBaseUrl = rawBaseUrl.trim().replace(/\/+$/, '');
+    const instance = instanceName || process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main";
+    const targetUrl = `${cleanBaseUrl}/message/sendText/${instance}`;
     
-    console.log("[Evolution API] Intentando POST a URL:", targetUrl);
+    console.log("[Evolution API Target URL]:", targetUrl);
 
     const response = await fetch(targetUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: apiKey },
-      body: JSON.stringify(payload)
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": apiKey || process.env.EVOLUTION_API_KEY || "a2bf8aaaec21a9806766c4a536c75e716d1480feff6f9705697bf626e8fab135"
+      },
+      body: JSON.stringify({
+        number: String(recipientNumber),
+        text: text
+      })
     });
     
     const responseBody = await response.text();
-    console.log(`[Evolution API] Status Code: ${response.status}`);
+    console.log("[Evolution API Response Status]:", response.status);
     console.log(`[Evolution API] Response Body: ${responseBody}`);
     if (!response.ok) console.error("[Evolution API] Error HTTP:", response.status);
     return response.ok;
