@@ -23,7 +23,13 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
     };
 
     // 3. POST a Evolution API
-    const response = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
+    const baseUrl = apiUrl.replace(/\/+$/, '');
+    const instance = instanceName || 'PropertyOS-Main';
+    const targetUrl = `${baseUrl}/message/sendText/${instance}`;
+    
+    console.log("[Evolution API] Intentando POST a URL:", targetUrl);
+
+    const response = await fetch(targetUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: apiKey },
       body: JSON.stringify(payload)
