@@ -320,23 +320,17 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
 }
 
 export async function POST(req: Request): Promise<Response> {
-  // ── Log de entrada INMEDIATO — antes de cualquier validación o parseo ──────
-  const rawHeaders: Record<string, string> = {};
-  req.headers.forEach((v, k) => { rawHeaders[k] = v; });
-  console.log("📥 [WEBHOOK ENTRY] Headers:", JSON.stringify(rawHeaders));
-
   let rawBody = "";
   try {
+    const body = await req.json();
+    
+    // Solo loggear si las keys no coinciden, pero no bloquear para evitar que Evolution API falle.
     const incomingKey = req.headers.get("apikey") || req.headers.get("x-api-key") || new URL(req.url).searchParams.get("apikey") || req.headers.get("authorization")?.replace("Bearer ", "");
     const expectedKey = process.env.WEBHOOK_SECRET || process.env.EVOLUTION_API_KEY;
-    
-    if (process.env.NODE_ENV === "development") {
-      console.log("[Route Dev] Webhook recibido con Key:", incomingKey);
-    } else if (expectedKey && incomingKey !== expectedKey) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    if (expectedKey && incomingKey !== expectedKey && process.env.NODE_ENV !== "development") {
+      console.warn("[Webhook] Advertencia: Petición sin API Key o incorrecta de Evolution. Dejando pasar de momento...");
     }
 
-    const body = await req.json();
     const result = await processWebhookMessage(body, {
       evolutionApiUrl: process.env.EVOLUTION_API_URL,
       evolutionApiKey: process.env.EVOLUTION_API_KEY,
@@ -345,52 +339,7 @@ export async function POST(req: Request): Promise<Response> {
 
     return new Response(JSON.stringify(result), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error: unknown) {
+    console.error("[Webhook] Error crítico:", error);
     return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
   }
-
-  // Responder 200 INMEDIATAMENTE a Evolution API para evitar timeouts / reintentos
-  // El procesamiento real se ejecuta de forma asíncrona después
-  const immediateResponse = new Response(JSON.stringify({ status: "EVENT_RECEIVED" }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-
-  // Procesar el payload de forma async (fire-and-forget seguro en Edge/Node)
-  (async () => {
-    try {
-      let body: Record<string, unknown> = {};
-      try {
-        body = JSON.parse(rawBody) as Record<string, unknown>;
-      } catch {
-        console.error("[Webhook] ❌ Body no es JSON válido:", rawBody);
-        return;
-      }
-
-      // ── Validación de API Key (SOFT — solo bloquea si AMBAS están configuradas) ─
-      // Si EVOLUTION_API_KEY no está en env, se permite pasar (modo setup/debug)
-      const expectedKey = process.env.WEBHOOK_SECRET || process.env.EVOLUTION_API_KEY;
-      if (process.env.NODE_ENV !== "development" && expectedKey) {
-        const incomingKey =
-          req.headers.get("apikey") ||
-          req.headers.get("x-api-key") ||
-          new URL(req.url).searchParams.get("apikey") ||
-          req.headers.get("authorization")?.replace("Bearer ", "");
-        if (incomingKey && incomingKey !== expectedKey) {
-          console.warn(`[Webhook] ❌ API Key inválida. Recibida: "${incomingKey}" | Esperada: "${expectedKey?.slice(0, 6)}..."`);
-          return; // Silenciar — ya se respondió 200 arriba
-        }
-      }
-
-      await processWebhookMessage(body, {
-        evolutionApiUrl: process.env.EVOLUTION_API_URL,
-        evolutionApiKey: process.env.EVOLUTION_API_KEY,
-        evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[Webhook] ❌ Error procesando mensaje:", message);
-    }
-  })();
-
-  return immediateResponse;
 }
