@@ -30,11 +30,14 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
     
     console.log("[Evolution API Target URL]:", targetUrl);
 
+    const GLOBAL_API_KEY = "a2bf8aaaec21a9806766c4a536c75e716d1480feff6f9705697bf626e8fab135";
+    const activeApiKey = apiKey || process.env.EVOLUTION_API_KEY || GLOBAL_API_KEY;
+
     const response = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "apikey": apiKey || process.env.EVOLUTION_API_KEY || "a2bf8aaaec21a9806766c4a536c75e716d1480feff6f9705697bf626e8fab135"
+        "apikey": activeApiKey
       },
       body: JSON.stringify({
         number: String(recipientNumber),
@@ -43,7 +46,7 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
     });
     
     const responseBody = await response.text();
-    console.log("[Evolution API Response Status]:", response.status);
+    console.log("[Evolution API] Enviando con apikey status:", response.status);
     console.log(`[Evolution API] Response Body: ${responseBody}`);
     if (!response.ok) console.error("[Evolution API] Error HTTP:", response.status);
     return response.ok;
@@ -87,7 +90,7 @@ export async function processWebhookMessage(
   const payload = body;
   console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(payload).substring(0, 500) + "...");
   
-  const payloadApiKey = (payload.apikey as string) || undefined;
+  const payloadApiKey = (payload.apikey as string) || (payload.data && (payload.data as any).apikey) || undefined;
   
   const messageDataObj = (payload.data as Record<string, any>) || (payload as Record<string, any>);
   const keyData = messageDataObj.key || {};
