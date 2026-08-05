@@ -294,9 +294,9 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
   const { evolutionApiUrl, evolutionApiKey, evolutionInstance } = options;
   if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
     try {
-      // Calcular retraso aleatorio entre 5000 y 15000 milisegundos
-      const humanDelayMs = Math.floor(Math.random() * (15000 - 5000 + 1) + 5000);
-      console.log(`[Webhook] Retraso humano aplicado: ${humanDelayMs}ms antes de responder a ${rawPhoneNumber}`);
+      // Calcular retraso aleatorio entre 1000 y 2000 milisegundos para evitar timeouts de Vercel
+      const humanDelayMs = Math.floor(Math.random() * (2000 - 1000 + 1) + 1000);
+      console.log(`[Webhook] Retraso ligero aplicado: ${humanDelayMs}ms antes de responder a ${rawPhoneNumber}`);
       await new Promise(resolve => setTimeout(resolve, humanDelayMs));
 
       await sendWhatsAppMessage(
