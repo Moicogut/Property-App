@@ -13,10 +13,17 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
   const cleanPhone = phone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
   try {
     console.log(`[Evolution API] Enviando mensaje a: ${cleanPhone} en instancia: ${instanceName}`);
+    
+    const payload = {
+      number: String(cleanPhone),
+      text: text,
+      delay: 1200
+    };
+
     const response = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: apiKey },
-      body: JSON.stringify({ number: cleanPhone, text, delay: 1200 })
+      body: JSON.stringify(payload)
     });
     const responseBody = await response.text();
     console.log(`[Evolution API] Status Code: ${response.status}`);
