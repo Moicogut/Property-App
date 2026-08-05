@@ -12,11 +12,15 @@ const supabaseServer = createClient(supabaseUrl, supabaseKey);
 async function sendWhatsAppMessage(phone: string, text: string, instanceName: string, apiUrl: string, apiKey: string) {
   const cleanPhone = phone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
   try {
+    console.log(`[Evolution API] Enviando mensaje a: ${cleanPhone} en instancia: ${instanceName}`);
     const response = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: apiKey },
       body: JSON.stringify({ number: cleanPhone, text, delay: 1200 })
     });
+    const responseBody = await response.text();
+    console.log(`[Evolution API] Status Code: ${response.status}`);
+    console.log(`[Evolution API] Response Body: ${responseBody}`);
     if (!response.ok) console.error("[Evolution API] Error HTTP:", response.status);
     return response.ok;
   } catch (err) {
@@ -86,6 +90,8 @@ export async function processWebhookMessage(
 
   const rawPhoneNumber = remoteJid.replace("@s.whatsapp.net", "");
   const senderName = (data?.pushName as string) || (payload.pushName as string) || "Cliente WhatsApp";
+
+  console.log(`[Webhook] Remitente extraído: ${rawPhoneNumber} (${senderName})`);
 
   if (!userMessageText) {
     return { status: "IGNORED", reason: "Empty message" };
@@ -271,6 +277,8 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
     }
   }
 
+  console.log(`[Webhook] Respuesta final de la IA generada:`, aiReplyText);
+
   // 6. Evaluación básica de keywords para Pipeline
   const isFullyQualified = lowerMsg.includes("aporte") || lowerMsg.includes("cuota inicial") || lowerMsg.includes("banco");
   const stage = isAppointmentCreated ? "VISITA_AGENDADA" : (isFullyQualified ? "CALIFICADO_VISITA_PENDIENTE" : "EN_CALIFICACION");
@@ -374,10 +382,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Log inicial para confirmar recepción
   console.log('WEBHOOK_HIT:', JSON.stringify(req.body));
   
-  // Retorno rápido HTTP 200
-  res.status(200).json({ status: 'OK' });
-
-  // Procesar RAG y respuesta de forma asíncrona
+  // Procesar RAG y respuesta primero para asegurar que no se mate el proceso en Vercel
   try {
     const body = req.body || {};
     await processWebhookMessage(body, {
@@ -388,4 +393,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error('ERROR_PROCESSING_WEBHOOK:', err);
   }
+
+  // Retornar HTTP 200 DESPUÉS de terminar el proceso
+  res.status(200).json({ status: 'OK' });
 }
