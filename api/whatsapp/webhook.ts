@@ -41,7 +41,9 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
       },
       body: JSON.stringify({
         number: String(recipientNumber),
-        text: text
+        text: text,
+        delay: Math.floor(Math.random() * (3500 - 1500 + 1) + 1500), // 1.5s to 3.5s of typing
+        presence: "composing" // Shows "typing..." in WhatsApp
       })
     });
     
