@@ -138,7 +138,7 @@ export async function processWebhookMessage(
   }
 
   // 5. Armar el prompt para el LLM (Sofía)
-  const sofiaSystemPrompt = \`
+  const sofiaSystemPrompt = `
 Eres Sofía, la Asistente Virtual Inteligente de Bienes Raíces de Property OS.
 Objetivo: Calificar al prospecto para Crédito de Vivienda Social (VIS/ASFI) y coordinar una visita o dar seguimiento según la conversación.
 
@@ -147,14 +147,14 @@ REGLAS DE CALIFICACIÓN DE CUOTA INICIAL:
 - Evalúa el presupuesto máximo.
 
 INMUEBLE SUGERIDO EN BASE A LA BÚSQUEDA DEL USUARIO (RAG):
-\${bestMatch 
-  ? \`- Código de Referencia: \${bestMatch.property_code || bestMatch.id.substring(0,6)}\\n- Título: \${bestMatch.title}\\n- Zona: \${bestMatch.zone}\\n- Precio: $\${bestMatch.price_usd} USD\\n- Califica VIS: \${bestMatch.accepts_social_housing ? 'SÍ' : 'NO'}\\n- Descripción: \${bestMatch.raw_description}\`
+${bestMatch 
+  ? `- Código de Referencia: ${bestMatch.property_code || bestMatch.id.substring(0,6)}\n- Título: ${bestMatch.title}\n- Zona: ${bestMatch.zone}\n- Precio: $${bestMatch.price_usd} USD\n- Califica VIS: ${bestMatch.accepts_social_housing ? 'SÍ' : 'NO'}\n- Descripción: ${bestMatch.raw_description}`
   : '- No se encontraron inmuebles exactos. Sugiere consultar disponibilidad general o responde en base al historial.'}
 
-\${chatHistoryText}
+${chatHistoryText}
 
 Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita el Código de Referencia de la propiedad sugerida si existe. Si el cliente dice algo corto como "ok" o "estoy en clases", responde de acuerdo al historial de conversación de forma natural.
-\`;
+`;
 
   // 6. Generación de respuesta con OpenAI (gpt-4o-mini)
   let aiReplyText = "";
@@ -168,7 +168,7 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: sofiaSystemPrompt },
-          { role: "user", content: \`[Cliente]: "\${userMessageText}"\` }
+          { role: "user", content: `[Cliente]: "${userMessageText}"` }
         ],
         tools: [
           {
@@ -193,12 +193,12 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
 
       const message = response.choices[0].message;
       if (message.tool_calls && message.tool_calls.length > 0) {
-        const toolCall = message.tool_calls[0];
+        const toolCall = message.tool_calls[0] as any;
         if (toolCall.function.name === "agendar_visita") {
           const args = JSON.parse(toolCall.function.arguments);
-          aiReplyText = \`¡Perfecto! He agendado formalmente la visita para el \${args.fecha} a las \${args.hora}. Un asesor se pondrá en contacto para afinar detalles.\`;
+          aiReplyText = `¡Perfecto! He agendado formalmente la visita para el ${args.fecha} a las ${args.hora}. Un asesor se pondrá en contacto para afinar detalles.`;
           isAppointmentCreated = true;
-          appointmentDateString = \`\${args.fecha} \${args.hora}\`;
+          appointmentDateString = `${args.fecha} ${args.hora}`;
         }
       } else {
         aiReplyText = message.content || "";
@@ -214,24 +214,24 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
     const isGreeting = lowerMsg === "hola" || lowerMsg === "hola " || lowerMsg.includes("buen dia") || lowerMsg.includes("buenas tardes");
     
     if (isGreeting && !wantsDepartment) {
-      aiReplyText = \`¡Hola \${senderName}! Soy Sofía, asistente virtual de Property OS. ¿En qué tipo de inmueble estás interesado hoy?\`;
+      aiReplyText = `¡Hola ${senderName}! Soy Sofía, asistente virtual de Property OS. ¿En qué tipo de inmueble estás interesado hoy?`;
     } else if (wantsDepartment) {
       if (bestMatch && bestMatch.title.toLowerCase().includes("departamento")) {
-        aiReplyText = \`¡Hola \${senderName}! Tengo este departamento ideal para ti: "\${bestMatch.title}" en \${bestMatch.zone} por $\${bestMatch.price_usd}. ¿Te interesaría agendar una visita?\`;
+        aiReplyText = `¡Hola ${senderName}! Tengo este departamento ideal para ti: "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd}. ¿Te interesaría agendar una visita?`;
       } else {
         // Si el RAG trajo un Lote o algo que no es departamento, forzamos respuesta genérica coherente
-        aiReplyText = \`¡Hola \${senderName}! Contamos con departamentos de diferentes dormitorios en las mejores zonas. Un asesor te enviará nuestro catálogo en breve.\`;
+        aiReplyText = `¡Hola ${senderName}! Contamos con departamentos de diferentes dormitorios en las mejores zonas. Un asesor te enviará nuestro catálogo en breve.`;
       }
     } else if (lowerMsg.includes("precio") || lowerMsg.includes("costo") || lowerMsg.includes("cuanto")) {
       if (bestMatch) {
-        aiReplyText = \`El inmueble más cercano a tu búsqueda es "\${bestMatch.title}" y tiene un valor de $\${bestMatch.price_usd}. ¿Quisieras detalles del financiamiento?\`;
+        aiReplyText = `El inmueble más cercano a tu búsqueda es "${bestMatch.title}" y tiene un valor de $${bestMatch.price_usd}. ¿Quisieras detalles del financiamiento?`;
       } else {
-        aiReplyText = \`Los precios varían según la zona. ¿Tienes algún presupuesto aproximado en mente?\`;
+        aiReplyText = `Los precios varían según la zona. ¿Tienes algún presupuesto aproximado en mente?`;
       }
     } else if (bestMatch) {
-      aiReplyText = \`¡Hola \${senderName}! Basado en tu búsqueda, te sugiero el inmueble "\${bestMatch.title}" en \${bestMatch.zone} por $\${bestMatch.price_usd}. ¿Te gustaría visitarlo?\`;
+      aiReplyText = `¡Hola ${senderName}! Basado en tu búsqueda, te sugiero el inmueble "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd}. ¿Te gustaría visitarlo?`;
     } else {
-      aiReplyText = \`¡Hola \${senderName}! Un agente se comunicará contigo en breve para asesorarte detalladamente en tu búsqueda.\`;
+      aiReplyText = `¡Hola ${senderName}! Un agente se comunicará contigo en breve para asesorarte detalladamente en tu búsqueda.`;
     }
   }
 
@@ -249,7 +249,7 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
     phone_number: rawPhoneNumber,
     full_name: senderName,
     pipeline_stage: existingLead ? existingLead.pipeline_stage : stage, // Solo actualiza stage si es nuevo o lógica manual
-    ai_summary: \`[Último mensaje]: \${userMessageText.substring(0, 100)}...\`,
+    ai_summary: `[Último mensaje]: ${userMessageText.substring(0, 100)}...`,
     property_interest_id: bestMatch?.id || null,
   };
 
@@ -303,7 +303,7 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
   if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
     try {
       const humanDelayMs = Math.floor(Math.random() * (2000 - 1000 + 1) + 1000);
-      console.log(\`[Webhook] Retraso ligero aplicado: \${humanDelayMs}ms antes de responder a \${rawPhoneNumber}\`);
+      console.log(`[Webhook] Retraso ligero aplicado: ${humanDelayMs}ms antes de responder a ${rawPhoneNumber}`);
       await new Promise(resolve => setTimeout(resolve, humanDelayMs));
 
       await sendWhatsAppMessage(
