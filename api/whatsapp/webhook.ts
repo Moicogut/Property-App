@@ -45,9 +45,17 @@ async function sendWhatsAppMessage(phone: string, text: string, instanceName: st
       })
     });
     
-    const responseBody = await response.text();
+    const responseText = await response.text();
+    let evoData: any = responseText;
+    try {
+      evoData = JSON.parse(responseText);
+    } catch (e) {
+      // Ignorar si no es JSON
+    }
+    
     console.log("[Evolution API] Enviando con apikey status:", response.status);
-    console.log(`[Evolution API] Response Body: ${responseBody}`);
+    console.log("[Evolution API Delivery Result]:", evoData?.status || evoData);
+    
     if (!response.ok) console.error("[Evolution API] Error HTTP:", response.status);
     return response.ok;
   } catch (err) {
@@ -111,12 +119,8 @@ export async function processWebhookMessage(
   const userMessageText = (messageData?.conversation as string) || (extText as string) || (payload.message as string) || "";
 
   if (fromMe) {
-    // Si el mensaje fue enviado por el propio bot (IA), ignorar para evitar loop
-    if (userMessageText.includes("Sofía") || userMessageText.includes("Property OS") || userMessageText.includes("asesor")) {
-      console.log(`[IGNORE] Self-message from AI detected. Ignoring to prevent loop.`);
-      return { status: "IGNORED", reason: "AI self message" };
-    }
-    console.log(`[TESTING] Allowed fromMe message from own account for testing: ${userMessageText}`);
+    console.log("[Webhook Skip] Ignorando mensaje saliente generado por el bot (fromMe: true)");
+    return { skipped: true, reason: "fromMe", status: "IGNORED" };
   }
 
   if (!rawRemoteJid || rawRemoteJid.includes("@g.us")) {
