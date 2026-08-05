@@ -80,15 +80,22 @@ export async function processWebhookMessage(
   const payload = body;
   console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(payload).substring(0, 500) + "...");
   
-  const data = payload.data as Record<string, unknown> | undefined;
-  const keyData = (data?.key as Record<string, unknown>) ?? undefined;
+  const messageDataObj = (payload.data as Record<string, any>) || (payload as Record<string, any>);
+  const keyData = messageDataObj.key || {};
   
-  const remoteJid = (keyData?.remoteJid as string) || (payload.remoteJid as string) || "";
-  const messageId = (keyData?.id as string) || (payload.id as string) || "";
-  const fromMe = (keyData?.fromMe as boolean) ?? (payload.fromMe as boolean) ?? false;
+  // Extraer el JID del cliente que envía el mensaje:
+  const rawRemoteJid = (keyData.remoteJid as string) || (messageDataObj.sender as string) || (payload.remoteJid as string) || "";
   
-  const messageData = data?.message as Record<string, unknown> | undefined;
-  const extText = (messageData?.extendedTextMessage as Record<string, unknown> | undefined)?.text;
+  // Limpiar para obtener SOLO los dígitos del cliente:
+  const rawPhoneNumber = rawRemoteJid.replace('@s.whatsapp.net', '').replace('@g.us', '').replace(/\D/g, '');
+  
+  console.log("[Webhook] Remitente real del CLIENTE para responder:", rawPhoneNumber);
+
+  const messageId = (keyData.id as string) || (payload.id as string) || "";
+  const fromMe = (keyData.fromMe as boolean) ?? (payload.fromMe as boolean) ?? false;
+  
+  const messageData = messageDataObj.message as Record<string, any> | undefined;
+  const extText = messageData?.extendedTextMessage?.text;
   const userMessageText = (messageData?.conversation as string) || (extText as string) || (payload.message as string) || "";
 
   if (fromMe) {
@@ -100,13 +107,12 @@ export async function processWebhookMessage(
     console.log(`[TESTING] Allowed fromMe message from own account for testing: ${userMessageText}`);
   }
 
-  if (!remoteJid || remoteJid.includes("@g.us")) {
-    console.log(`[IGNORE] Group message or missing JID: ${remoteJid}`);
+  if (!rawRemoteJid || rawRemoteJid.includes("@g.us")) {
+    console.log(`[IGNORE] Group message or missing JID: ${rawRemoteJid}`);
     return { status: "IGNORED", reason: "Group message or missing JID" };
   }
 
-  const rawPhoneNumber = remoteJid.replace("@s.whatsapp.net", "");
-  const senderName = (data?.pushName as string) || (payload.pushName as string) || "Cliente WhatsApp";
+  const senderName = (messageDataObj?.pushName as string) || (payload.pushName as string) || "Cliente WhatsApp";
 
   console.log(`[Webhook] Remitente extraído: ${rawPhoneNumber} (${senderName})`);
 
