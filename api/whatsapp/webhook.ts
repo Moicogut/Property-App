@@ -87,6 +87,8 @@ export async function processWebhookMessage(
   const payload = body;
   console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(payload).substring(0, 500) + "...");
   
+  const payloadApiKey = (payload.apikey as string) || undefined;
+  
   const messageDataObj = (payload.data as Record<string, any>) || (payload as Record<string, any>);
   const keyData = messageDataObj.key || {};
   
@@ -385,7 +387,7 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
         aiReplyText,
         evolutionInstance,
         evolutionApiUrl,
-        evolutionApiKey
+        payloadApiKey || evolutionApiKey || ""
       );
     } catch (sendErr) {
       console.error("[Webhook] Error enviando mensaje de WhatsApp:", sendErr);
