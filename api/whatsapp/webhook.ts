@@ -1,9 +1,46 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from "openai";
-import { sendWhatsAppMessage } from "../../src/lib/evolution";
-import { supabaseServer } from "../../src/lib/supabase-server";
-import { EmbeddingFactory } from "../../src/lib/embeddings";
+import { createClient } from "@supabase/supabase-js";
+
+// 1. Instancia Supabase Server Inline
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lqagnlbygzurddkzbbwn.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseServer = createClient(supabaseUrl, supabaseKey);
+
+// 2. Evolution API Inline
+async function sendWhatsAppMessage(phone: string, text: string, instanceName: string, apiUrl: string, apiKey: string) {
+  const cleanPhone = phone.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+  try {
+    const response = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: apiKey },
+      body: JSON.stringify({ number: cleanPhone, text, delay: 1200 })
+    });
+    if (!response.ok) console.error("[Evolution API] Error HTTP:", response.status);
+    return response.ok;
+  } catch (err) {
+    console.error("[Evolution API] Fallo de red:", err);
+    return false;
+  }
+}
+
+// 3. OpenAI Embeddings Inline (text-embedding-3-small 768d)
+async function generateEmbedding(text: string): Promise<number[]> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+      dimensions: 768
+    });
+    const embedding = response.data[0]?.embedding;
+    return embedding && embedding.length === 768 ? embedding : Array(768).fill(0);
+  } catch (err) {
+    console.warn("[OpenAI] Embeddings API Error (fallback to dummy):", err);
+    return Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1);
+  }
+}
 
 // Cache simple en memoria para idempotencia (Message ID -> Timestamp)
 const processedMessages = new Map<string, number>();
@@ -98,8 +135,7 @@ export async function processWebhookMessage(
   // 3. RAG Nativo en PostgreSQL (100% RPC, 0% CPU local)
   let matchedProperties: any[] = [];
   try {
-    const provider = await EmbeddingFactory.getProvider();
-    const queryEmbedding = await provider.generateEmbedding(userMessageText);
+    const queryEmbedding = await generateEmbedding(userMessageText);
 
     const { data: matches, error: rpcError } = await supabaseServer.rpc("match_properties", {
       query_embedding: JSON.stringify(queryEmbedding),
