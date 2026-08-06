@@ -19,6 +19,7 @@ export interface AppUser {
   email: string;
   fullName: string;
   role: UserRole;
+  phoneNumber?: string; // Para notificaciones push
 }
 
 export interface Organization {
@@ -27,6 +28,12 @@ export interface Organization {
   ai_keywords?: string;
   gemini_api_key?: string;
   whatsapp_instance_id?: string;
+  ai_config?: {
+    systemRules: string;
+    tone: string;
+    fallbacks: string;
+    defaultAgentPhone?: string; // Teléfono por defecto para Push Alerts
+  };
 }
 
 export type PaymentMethod =
@@ -55,6 +62,14 @@ export interface Property {
   vectorDimensions?: number;
 }
 
+export interface BantScore {
+  budget: number;
+  authority: boolean;
+  need: string;
+  timeline: string;
+  score: number; // 0 - 100
+}
+
 export interface Lead {
   id: string;
   organizationId: string;
@@ -73,6 +88,7 @@ export interface Lead {
   aiSummary: string;
   aiPaused: boolean;
   intentScore: number; // e.g. 95 (Hot Lead)
+  bantScore?: BantScore;
   createdAt: string;
 }
 

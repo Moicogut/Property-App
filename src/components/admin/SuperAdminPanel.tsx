@@ -426,6 +426,54 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                       </div>
 
                       <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide flex justify-between items-center">
+                          <span>Protocolo de Conversación Sofía (System Rules)</span>
+                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">4 Etapas Estrictas</span>
+                        </label>
+                        <textarea 
+                          rows={15}
+                          defaultValue={`ETAPA 1: SALUDO Y BIENVENIDA
+- Presentación cordial con nombre ("Sofía, asesora inmobiliaria de Property OS").
+- Preguntar cuál es el objetivo (comprar, alquilar, inversión).
+
+ETAPA 2: CONSULTA OBLIGATORIA DE INVENTARIO (RAG FIRST)
+- ANTES de responder sobre disponibilidad, la IA DEBE ejecutar la búsqueda en el inventario vectorial.
+- Si existen propiedades que coincidan, presentar al menos 1 o 2 opciones concretas (Título, Precio, Zona).
+- PROHIBIDO decir "tenemos varias opciones" sin citar al menos una opción real del RAG.
+
+ETAPA 3: CALIFICACIÓN BANT
+- Extraer Presupuesto real, Zona preferida, Tipo de Pago y Tiempo de compra.
+
+ETAPA 4: CIERRE Y AGENDAMIENTO DE VISITA
+- Confirmar Fecha y Hora usando SIEMPRE el año actual (${new Date().getFullYear()}).
+- Generar el evento de cita en la BD sin repetir el mensaje de confirmación si el cliente solo agradece o pide ubicación.`}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-y"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                          Tono de Conversación (Tone)
+                        </label>
+                        <textarea 
+                          rows={2}
+                          defaultValue="Ejecutivo, cálido y amable. Estilo inmobiliario boliviano. Máximo 2 oraciones."
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                          Reglas de Fallback
+                        </label>
+                        <textarea 
+                          rows={2}
+                          defaultValue="Si pide algo fuera de bienes raíces, informa amablemente que solo asistes en temas inmobiliarios."
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-none"
+                        />
+                      </div>
+
+                      <div>
                         <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
                           Gemini API Key (Google AI)
                         </label>

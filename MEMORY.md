@@ -1,7 +1,7 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 05 de Agosto de 2026 (Módulo Operativo de Agendamiento, Google Calendar y Cron Jobs)
-**Estado General:** Refactorización arquitectónica a MVP robusto, sistema SaaS con base sólida en Inteligencia Artificial y Function Calling (Agendador). Backend 100% libre de errores de Typescript. Listo para pruebas de campo intensivas.
+**Última actualización:** 06 de Agosto de 2026 (Refactorización P0 Completada & Inicio Fase 1 BANT)
+**Estado General:** Arquitectura P0 cerrada (Zero Ghost Data, Multi-Tenant Prompting Seguro, Freno Lógico Anti-Spam y Auto-Vectorización RAG listos en producción). Listos para implementar Fase 1: Lead Scoring (BANT) y Alertas Push.
 
 ---
 
@@ -35,21 +35,19 @@
 
 ---
 
-## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (ETAPA DE CAMPO)
+## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (FASE 1)
 
 ### 🔴 0. Configuración Vercel Cron (Inmediato)
 * **Archivo vercel.json:** Subir configuración cron en la raíz del proyecto para disparar `GET /api/cron/followup` de forma programada (ej. cada hora).
-* **Service Account:** Agregar el JSON de credenciales de Google (`GOOGLE_SERVICE_ACCOUNT_KEY`) en el panel de Vercel (Environment Variables).
+* **Service Account:** Agregar el JSON de credenciales de Google (`GOOGLE_SERVICE_ACCOUNT_KEY`) en el panel de Vercel.
 
-### 🟡 1. Afinado y Tuning del Prompt (Asesor Inmobiliario)
-* Auditar transcripciones de las pruebas de campo.
-* Ajustar el comportamiento del bot para que no pierda control bajo ataques o interrupciones de clientes.
-* Enseñar respuestas condicionales más refinadas basadas en el input del RAG (por ejemplo, si el cliente presiona para descuentos).
+### 🟡 1. Lead Scoring (BANT) & Alertas Push (Fase 1)
+* **Extensión de Esquema:** Añadir columna `bant_score` (jsonb) a `leads`.
+* **Evaluación BANT en `waitUntil`:** Lógica asíncrona para extraer Presupuesto, Autoridad, Necesidad y Tiempo durante la charla.
+* **Badges Visuales en Kanban:** Mostrar indicadores de calor BANT en `src/components`.
+* **Alertas Push WhatsApp:** Notificación automática al agente asignado cuando la IA agenda una visita exitosa.
 
-### 🟡 2. Manejo de Errores y Timeouts en Webhook
-* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI no generen Timeouts (error 504) al acumularse el tiempo de generación y envío.
-
-### 🟡 3. UI/UX Mejoras Finales
+### 🟡 2. UI/UX Mejoras Finales
 * Incorporar una Vista de **Calendario en el Front-End**, consolidando la tabla `appointments` en formato semana/mes visualmente, independiente del Google Calendar externo.
 
 ---

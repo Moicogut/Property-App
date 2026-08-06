@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { waitUntil } from '@vercel/functions';
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
@@ -179,14 +180,82 @@ export async function processWebhookMessage(
     return { status: "IGNORED", reason: "No matching keywords" };
   }
 
-  // 3. RAG Nativo en PostgreSQL (100% RPC, 0% CPU local)
+  // 4. Obtener Organización y Configuración IA TEMPRANO
+  const { data: orgs, error: orgErr } = await supabaseServer.from("organizations").select("*").limit(1);
+  if (orgErr) console.error("[Webhook] Error obteniendo Organization:", orgErr);
+  const orgId = orgs?.[0]?.id || "org-1"; // Fallback para evitar error de NOT NULL
+  const aiConfig = orgs?.[0]?.ai_config || {
+    systemRules: "Eres Sofía, Asesora Inmobiliaria de Property OS. Califica al prospecto (Cuota inicial, presupuesto).",
+    tone: "Cálida, profesional y ejecutiva. Máximo 2 oraciones.",
+    fallbacks: "Si pregunta por temas no inmobiliarios, deniega amablemente."
+  };
+
+  // 4.1 Recuperar Historial de Chat
+  let chatHistoryText = "";
+  let historyCount = 0;
+  if (existingLead) {
+    const { data: historyData } = await supabaseServer
+      .from("messages")
+      .select("sender, text")
+      .eq("lead_id", existingLead.id)
+      .order("created_at", { ascending: false })
+      .limit(6);
+      
+    if (historyData && historyData.length > 0) {
+      historyCount = historyData.length;
+      // Revertir para orden cronológico
+      const sortedHistory = historyData.reverse();
+      chatHistoryText = "HISTORIAL DE CONVERSACIÓN RECIENTE:\n" + sortedHistory.map(msg => 
+        `[${msg.sender === "lead" ? "Cliente" : "Sofía"}]: ${msg.text}`
+      ).join("\n");
+    }
+  }
+
+  // FRENO LÓGICO (Context Control)
+  const wordCount = userMessageText.trim().split(/\s+/).length;
+  if (wordCount < 3 && historyCount === 0) {
+    console.log(`[Webhook] Freno lógico activado para mensaje corto: "${userMessageText}" sin historial.`);
+    const fallbackReply = `¡Hola ${senderName}! Soy Sofía de Property OS. Para ayudarte mejor, ¿podrías darme un poco más de detalles sobre qué tipo de inmueble buscas o en qué zona?`;
+    
+    // Upsert Lead inicial y retornar rápido
+    const stage = "EN_CALIFICACION";
+    const leadPayload = {
+      organization_id: orgId,
+      phone_number: rawPhoneNumber,
+      full_name: senderName,
+      pipeline_stage: stage,
+      ai_summary: `[Último mensaje]: ${userMessageText.substring(0, 100)}...`,
+    };
+    
+    let fastLead = existingLead;
+    if (!existingLead) {
+      const { data: inserted } = await supabaseServer.from("leads").insert(leadPayload).select().single();
+      if (inserted) fastLead = inserted;
+    }
+
+    if (fastLead?.id) {
+      await supabaseServer.from("messages").insert([
+        { lead_id: fastLead.id, sender: "lead", text: userMessageText },
+        { lead_id: fastLead.id, sender: "ai_sofia", text: fallbackReply }
+      ]);
+    }
+
+    const { evolutionApiUrl, evolutionApiKey, evolutionInstance } = options;
+    if (evolutionApiUrl && evolutionInstance) {
+      await sendWhatsAppMessage(rawPhoneNumber, fallbackReply, evolutionInstance, evolutionApiUrl, payloadApiKey || evolutionApiKey || "");
+    }
+    
+    return { status: "SHORT_CIRCUIT", reason: "Mensaje sin contexto inicial", leadId: fastLead?.id };
+  }
+
+  // 3. RAG Nativo en PostgreSQL
   let matchedProperties: any[] = [];
   try {
     const queryEmbedding = await generateEmbedding(userMessageText);
 
     const { data: matches, error: rpcError } = await supabaseServer.rpc("match_properties", {
       query_embedding: JSON.stringify(queryEmbedding),
-      match_threshold: 0.3,
+      match_threshold: 0.3, // Podría subirse a 0.5 luego
       match_count: 2
     });
 
@@ -201,50 +270,32 @@ export async function processWebhookMessage(
 
   const bestMatch = matchedProperties.length > 0 ? matchedProperties[0] : null;
 
-  // 4.1 Recuperar Historial de Chat
-  let chatHistoryText = "";
-  if (existingLead) {
-    const { data: historyData } = await supabaseServer
-      .from("messages")
-      .select("sender, text")
-      .eq("lead_id", existingLead.id)
-      .order("created_at", { ascending: false })
-      .limit(6);
-      
-    if (historyData && historyData.length > 0) {
-      // Revertir para orden cronológico
-      const sortedHistory = historyData.reverse();
-      chatHistoryText = "HISTORIAL DE CONVERSACIÓN RECIENTE:\n" + sortedHistory.map(msg => 
-        `[${msg.sender === "lead" ? "Cliente" : "Sofía"}]: ${msg.text}`
-      ).join("\n");
-    }
-  }
-
-  // 5. Armar el prompt para el LLM (Sofía)
+  // 5. Armar el prompt estructurado para el LLM (Sofía)
   const sofiaSystemPrompt = `
-Eres Sofía, Asesora Inmobiliaria de Property OS.
-TONO Y PERSONALIDAD:
-- Eres cálida, profesional, empática y servicial (estilo boliviano corporativo amable).
-- PROHIBIDO pedir presupuesto de forma agresiva o directa (ej. "cuánta plata tienes" o "¿cuál es tu presupuesto?").
-- NUNCA envíes mensajes fríos tipo formulario. Da un tratamiento personalizado como asesora humana.
+<system_rules>
+${aiConfig.systemRules}
+REGLA DE ORO: Si hay HISTORIAL DE CONVERSACIÓN RECIENTE, NO SALUDES de nuevo. Ve directo al punto.
+</system_rules>
 
-ESTRUCTURA OBLIGATORIA DE TU RESPUESTA (Aplica de manera natural y conversacional, máximo 3 o 4 oraciones breves):
-1. Saludo cordial y validación empática de la consulta (solo si es el inicio de la conversación).
-2. Aporte de valor (menciona brevemente algo atractivo de la propiedad sugerida por RAG).
-3. Pregunta de calificación ELEGANTE (Ej: "¿En qué rango de inversión aproximado te gustaría mantenerte?", "¿Para qué fecha estimada te gustaría mudarte?") o Llamado a la acción (CTA) con opción múltiple (Ej: "¿Prefieres que te envíe las fichas con fotos por aquí o te queda bien agendar una visita breve esta semana?").
+<tone>
+${aiConfig.tone}
+</tone>
 
-REGLAS DE CALIFICACIÓN (Averigua esto sutilmente durante la charla):
-- Aporte Propio/Cuota Inicial (mínimo 10% a 20%).
-- Rango de inversión o presupuesto máximo.
+<fallbacks>
+${aiConfig.fallbacks}
+Si el INMUEBLE SUGERIDO (RAG) no coincide lógicamente con lo que busca el usuario (ej. busca casa y el RAG sugiere un lote), IGNORA EL INMUEBLE y haz una repregunta.
+</fallbacks>
+
+<rag_enforcement>
+OBLIGATORIO: Si hay un INMUEBLE SUGERIDO válido abajo, DEBES mencionarlo EXPLÍCITAMENTE en tu respuesta (citando al menos el Título y el Precio). ESTÁ ESTRICTAMENTE PROHIBIDO decir "tenemos varias opciones" sin presentar los datos reales del inmueble sugerido.
+</rag_enforcement>
 
 INMUEBLE SUGERIDO EN BASE A LA BÚSQUEDA DEL USUARIO (RAG):
 ${bestMatch 
-  ? `- Código de Referencia: ${bestMatch.property_code || bestMatch.id.substring(0,6)}\n- Título: ${bestMatch.title}\n- Zona: ${bestMatch.zone}\n- Precio: $${bestMatch.price_usd} USD\n- Califica VIS: ${bestMatch.accepts_social_housing ? 'SÍ' : 'NO'}\n- Descripción: ${bestMatch.raw_description}`
-  : '- No se encontraron inmuebles exactos. Ofrece ayuda para encontrar opciones similares en nuestra base general.'}
+  ? `- Código de Referencia: ${bestMatch.property_code || bestMatch.id.substring(0,6)}\n- Título: ${bestMatch.title}\n- Zona: ${bestMatch.zone}\n- Precio: $${bestMatch.price_usd} USD\n- Descripción: ${bestMatch.raw_description}`
+  : '- No se encontraron inmuebles exactos. Ofrece ayuda genérica o pregunta detalles.'}
 
 ${chatHistoryText}
-
-Responde de acuerdo al historial. Cita el Código de Referencia de la propiedad sugerida si existe y fluye natural en la conversación. Si el usuario envía mensajes cortos ("ok", "gracias"), adapta tu respuesta y no repitas toda la estructura obligatoria.
 `;
 
   // 6. Generación de respuesta con OpenAI (gpt-4o-mini)
@@ -255,29 +306,33 @@ Responde de acuerdo al historial. Cita el Código de Referencia de la propiedad 
   if (process.env.OPENAI_API_KEY) {
     try {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      // Herramientas disponibles (condicionadas a que no haya visita ya agendada)
+      const tools: any[] = [];
+      if (existingLead?.pipeline_stage !== "VISITA_AGENDADA") {
+        tools.push({
+          type: "function",
+          function: {
+            name: "agendar_visita",
+            description: `Programa una cita o visita al inmueble. Usa esto SOLO LA PRIMERA VEZ que el cliente acepta agendar explícitamente una fecha/hora. NO lo uses si el cliente solo agradece o si pide la ubicación de una cita ya agendada. Usa SIEMPRE el año actual (${new Date().getFullYear()}).`,
+            parameters: {
+              type: "object",
+              properties: {
+                fecha: { type: "string", description: `Fecha de la cita (ej. ${new Date().getFullYear()}-08-07)` },
+                hora: { type: "string", description: "Hora de la cita (ej. 10:00 AM)" }
+              },
+              required: ["fecha", "hora"]
+            }
+          }
+        });
+      }
+
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: sofiaSystemPrompt },
           { role: "user", content: `[Cliente]: "${userMessageText}"` }
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "agendar_visita",
-              description: "Programa una cita o visita al inmueble. Usa esto solo cuando el cliente explícitamente confirme una fecha y hora aproximada.",
-              parameters: {
-                type: "object",
-                properties: {
-                  fecha: { type: "string", description: "Fecha de la cita (ej. 2026-08-07)" },
-                  hora: { type: "string", description: "Hora de la cita (ej. 10:00 AM)" }
-                },
-                required: ["fecha", "hora"]
-              }
-            }
-          }
-        ],
+        tools: tools.length > 0 ? tools : undefined,
         temperature: 0.7,
         max_tokens: 250,
       });
@@ -332,52 +387,71 @@ Responde de acuerdo al historial. Cita el Código de Referencia de la propiedad 
   const isFullyQualified = lowerMsg.includes("aporte") || lowerMsg.includes("cuota inicial") || lowerMsg.includes("banco");
   const stage = isAppointmentCreated ? "VISITA_AGENDADA" : (isFullyQualified ? "CALIFICADO_VISITA_PENDIENTE" : "EN_CALIFICACION");
 
-  // 7. Upsert Lead en Supabase
-  const { data: orgs, error: orgErr } = await supabaseServer.from("organizations").select("id").limit(1);
-  if (orgErr) console.error("[Webhook] Error obteniendo Organization:", orgErr);
-  const orgId = orgs?.[0]?.id || "org-1"; // Fallback para evitar error de NOT NULL
+  // 7. Extracción BANT (Asíncrono en background - JSON mode)
+  let extractedBant: any = null;
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const bantPrompt = `Eres un sistema experto en Scoring Inmobiliario BANT (Budget, Authority, Need, Timeline). 
+Extrae o deduce estos 4 atributos basados en el historial y el último mensaje del lead.
+Responde ÚNICAMENTE en JSON con la siguiente estructura estricta:
+{
+  "budget": 0, // número (USD). Intenta extraer el presupuesto máximo. 0 si es desconocido.
+  "authority": false, // booleano. ¿Es el tomador de decisión? (asume true a menos que diga que debe consultar a un familiar/pareja).
+  "need": "", // string corto de 5 palabras máximo resumiendo lo que busca.
+  "timeline": "", // string corto (ej. "En 3 meses", "Inmediato"). "" si es desconocido.
+  "score": 0 // número de 0 a 100 (100 = listo para comprar, 50 = tibio, 0 = no calificado).
+}`;
+      const bantResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: bantPrompt },
+          { role: "user", content: `HISTORIAL:\n${chatHistoryText}\nULTIMO MENSAJE: "${userMessageText}"` }
+        ],
+        temperature: 0.1,
+      });
+      const parsed = JSON.parse(bantResponse.choices[0].message.content || "{}");
+      if (typeof parsed.budget === "number" && typeof parsed.score === "number") {
+        extractedBant = parsed;
+      }
+    } catch (err) {
+      console.error("[Webhook] Error extrayendo BANT:", err);
+    }
+  }
 
-  const leadPayload = {
+  // 8. Upsert Lead en Supabase (orgId ya se obtuvo arriba)
+  const leadPayload: any = {
     organization_id: orgId,
     phone_number: rawPhoneNumber,
     full_name: senderName,
-    pipeline_stage: existingLead ? existingLead.pipeline_stage : stage, // Solo actualiza stage si es nuevo o lógica manual
+    pipeline_stage: existingLead ? existingLead.pipeline_stage : stage,
     ai_summary: `[Último mensaje]: ${userMessageText.substring(0, 100)}...`,
     property_interest_id: bestMatch?.id || null,
   };
+  
+  if (extractedBant) {
+    leadPayload.bant_score = extractedBant;
+  }
 
   let finalLead = existingLead;
   if (existingLead) {
-    const { data: updated, error: updateErr } = await supabaseServer
-      .from("leads")
-      .update(leadPayload)
-      .eq("id", existingLead.id)
-      .select()
-      .single();
-    if (updateErr) console.error("[Webhook] Error actualizando Lead:", updateErr);
+    const { data: updated } = await supabaseServer.from("leads").update(leadPayload).eq("id", existingLead.id).select().single();
     if (updated) finalLead = updated;
   } else {
-    const { data: inserted, error: insertErr } = await supabaseServer
-      .from("leads")
-      .insert(leadPayload)
-      .select()
-      .single();
-    if (insertErr) console.error("[Webhook] Error insertando Lead nuevo:", insertErr, leadPayload);
+    const { data: inserted } = await supabaseServer.from("leads").insert(leadPayload).select().single();
     if (inserted) finalLead = inserted;
   }
 
-  // Guardar mensajes en la base de datos para la Central de Conversaciones
   if (finalLead?.id) {
     try {
       await supabaseServer.from("messages").insert([
         { lead_id: finalLead.id, sender: "lead", text: userMessageText },
         { lead_id: finalLead.id, sender: "ai_sofia", text: aiReplyText }
       ]);
-      
       if (isAppointmentCreated) {
         const aptDate = new Date();
-        aptDate.setDate(aptDate.getDate() + 1); // Día siguiente como fallback de timestamp
-        
+        aptDate.setDate(aptDate.getDate() + 1);
         await supabaseServer.from("appointments").insert([{
           organization_id: orgId,
           lead_id: finalLead.id,
@@ -387,36 +461,55 @@ Responde de acuerdo al historial. Cita el Código de Referencia de la propiedad 
         }]);
       }
     } catch (msgErr) {
-      console.error("[Webhook] Error guardando historial de chat o cita:", msgErr);
+      console.error("[Webhook] Error guardando historial:", msgErr);
     }
   }
 
-  // 8. Enviar WhatsApp (con retraso humano de 1 a 2 segundos)
+  // 10. Enviar WhatsApp (con retraso humano acotado < 2s para evitar timeout)
   const { evolutionApiUrl, evolutionApiKey, evolutionInstance } = options;
   if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
     try {
-      const humanDelayMs = Math.floor(Math.random() * (2000 - 1000 + 1) + 1000);
-      console.log(`[Webhook] Retraso ligero aplicado: ${humanDelayMs}ms antes de responder a ${rawPhoneNumber}`);
+      // Máximo 1500ms para asegurar que todo termina en < 8s
+      const humanDelayMs = Math.min(Math.floor(aiReplyText.length * 15), 1500);
+      console.log(`[Webhook] Retraso dinámico acotado aplicado: ${humanDelayMs}ms`);
       await new Promise(resolve => setTimeout(resolve, humanDelayMs));
 
-      await sendWhatsAppMessage(
-        rawPhoneNumber,
-        aiReplyText,
-        evolutionInstance,
-        evolutionApiUrl,
-        payloadApiKey || evolutionApiKey || ""
-      );
+      await sendWhatsAppMessage(rawPhoneNumber, aiReplyText, evolutionInstance, evolutionApiUrl, payloadApiKey || evolutionApiKey || "");
+      
+      // MOTOR DE ALERTAS PUSH PARA EL AGENTE
+      if (isAppointmentCreated) {
+        let agentPhone = "";
+        
+        // Nivel 1: Teléfono del Agente Asignado
+        if (finalLead?.assigned_agent_id) {
+          const { data: agentData } = await supabaseServer.from("users").select("phone_number").eq("id", finalLead.assigned_agent_id).single();
+          if (agentData?.phone_number) agentPhone = agentData.phone_number;
+        }
+        
+        // Nivel 2: Configuración de la Organización
+        if (!agentPhone && aiConfig?.defaultAgentPhone) {
+          agentPhone = aiConfig.defaultAgentPhone;
+        }
+        
+        // Nivel 3: Fallback de Variable de Entorno (.env)
+        if (!agentPhone && process.env.AGENT_PHONE_NUMBER) {
+          agentPhone = process.env.AGENT_PHONE_NUMBER;
+        }
+
+        if (agentPhone) {
+          const pushAlertText = `*NUEVA VISITA AGENDADA* 🚨\n\n*Lead:* ${senderName}\n*Teléfono:* ${rawPhoneNumber}\n*Fecha/Hora:* ${appointmentDateString}\n*Inmueble:* ${bestMatch?.title || 'Por definir'}\n*Presupuesto (BANT):* $${extractedBant?.budget || 0}\n\n👉 Accede al Kanban para más detalles.`;
+          await sendWhatsAppMessage(agentPhone, pushAlertText, evolutionInstance, evolutionApiUrl, payloadApiKey || evolutionApiKey || "");
+          console.log(`[Webhook] 📱 Push Alert enviado al agente (${agentPhone})`);
+        } else {
+          console.log("[Webhook] ⚠️ Visita agendada pero no hay teléfono de agente configurado (AGENT_PHONE_NUMBER).");
+        }
+      }
     } catch (sendErr) {
-      console.error("[Webhook] Error enviando mensaje de WhatsApp:", sendErr);
+      console.error("[Webhook] Error enviando mensaje:", sendErr);
     }
   }
 
-  return {
-    status: "SUCCESS",
-    leadId: finalLead?.id,
-    aiReply: aiReplyText,
-    matchedProperty: bestMatch
-  };
+  return { status: "SUCCESS", leadId: finalLead?.id };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -428,21 +521,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   
-  // Log inicial para confirmar recepción
-  console.log('WEBHOOK_HIT:', JSON.stringify(req.body));
+  // Log inicial
+  console.log('WEBHOOK_HIT:', JSON.stringify(req.body).substring(0, 300) + '...');
   
-  // Procesar RAG y respuesta primero para asegurar que no se mate el proceso en Vercel
-  try {
-    const body = req.body || {};
-    await processWebhookMessage(body, {
+  // 1. Responder INMEDIATAMENTE HTTP 200 para evitar timeout en WhatsApp/Evolution
+  res.status(200).json({ status: 'OK' });
+  
+  // 2. Ejecutar proceso pesado en background usando waitUntil
+  const body = req.body || {};
+  waitUntil(
+    processWebhookMessage(body, {
       evolutionApiUrl: process.env.EVOLUTION_API_URL,
       evolutionApiKey: process.env.EVOLUTION_API_KEY,
       evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-    });
-  } catch (err) {
-    console.error('ERROR_PROCESSING_WEBHOOK:', err);
-  }
-
-  // Retornar HTTP 200 DESPUÉS de terminar el proceso
-  res.status(200).json({ status: 'OK' });
+    }).catch(err => {
+      console.error('ERROR_PROCESSING_WEBHOOK:', err);
+    })
+  );
 }

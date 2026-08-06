@@ -54,12 +54,12 @@ const loadDataFromSupabase = async (
     const mappedLeads: Lead[] = leadsData.map((l: any) => ({
       id: l.id,
       organizationId: l.organization_id || "org-1",
-      fullName: l.full_name || "Lead WhatsApp",
       phoneNumber: l.phone_number,
-      pipelineStage: l.pipeline_stage || "NUEVO",
-      budgetMaxUsd: Number(l.budget_max_usd || 85000),
-      paymentMethod: l.payment_method || "CREDITO_VIS",
-      hasDownPayment: l.has_down_payment ?? true,
+      fullName: l.full_name,
+      pipelineStage: l.pipeline_stage,
+      budgetMaxUsd: l.bant_score?.budget || Number(l.budget_max_usd) || 0,
+      paymentMethod: l.payment_method,
+      hasDownPayment: l.has_down_payment ?? false,
       downPaymentPercent: l.down_payment_percent || 20,
       downPaymentBank: l.down_payment_bank || "Banco BCP",
       preferredZone: l.preferred_zone || "Equipetrol",
@@ -83,6 +83,13 @@ const loadDataFromSupabase = async (
       aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
       aiPaused: l.ai_paused ?? false,
       intentScore: l.intent_score || 85,
+      bantScore: l.bant_score ? {
+        budget: Number(l.bant_score.budget || 0),
+        authority: Boolean(l.bant_score.authority),
+        need: String(l.bant_score.need || ""),
+        timeline: String(l.bant_score.timeline || ""),
+        score: Number(l.bant_score.score || 0)
+      } : undefined,
       createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       appointmentDate: l.appointments && l.appointments.length > 0 ? l.appointments[0].appointment_date : undefined,
     }));
@@ -153,12 +160,12 @@ export default function App() {
         const mappedLeads: Lead[] = data.map((l: any) => ({
           id: l.id,
           organizationId: l.organization_id || "org-1",
-          fullName: l.full_name || "Lead WhatsApp",
           phoneNumber: l.phone_number,
-          pipelineStage: l.pipeline_stage || "NUEVO",
-          budgetMaxUsd: Number(l.budget_max_usd || 85000),
-          paymentMethod: l.payment_method || "CREDITO_VIS",
-          hasDownPayment: l.has_down_payment ?? true,
+          fullName: l.full_name,
+          pipelineStage: l.pipeline_stage,
+          budgetMaxUsd: l.bant_score?.budget || Number(l.budget_max_usd) || 0,
+          paymentMethod: l.payment_method,
+          hasDownPayment: l.has_down_payment ?? false,
           downPaymentPercent: l.down_payment_percent || 20,
           downPaymentBank: l.down_payment_bank || "Banco BCP",
           preferredZone: l.preferred_zone || "Equipetrol",
@@ -182,6 +189,13 @@ export default function App() {
           aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
           aiPaused: l.ai_paused ?? false,
           intentScore: l.intent_score || 85,
+          bantScore: l.bant_score ? {
+            budget: Number(l.bant_score.budget || 0),
+            authority: Boolean(l.bant_score.authority),
+            need: String(l.bant_score.need || ""),
+            timeline: String(l.bant_score.timeline || ""),
+            score: Number(l.bant_score.score || 0)
+          } : undefined,
           createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }));
         setLeads(mappedLeads);
@@ -785,6 +799,18 @@ export default function App() {
                             {lead.hasDownPayment && (
                               <span className="text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 text-emerald-700 font-bold">
                                 Aporte: {lead.downPaymentPercent}%
+                              </span>
+                            )}
+                            
+                            {/* BANT Score Badge */}
+                            {lead.bantScore && lead.bantScore.score > 0 && (
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold flex items-center gap-0.5 ${
+                                lead.bantScore.score >= 80 ? "bg-orange-50 border-orange-200 text-orange-700" :
+                                lead.bantScore.score >= 50 ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
+                                "bg-slate-50 border-slate-200 text-slate-600"
+                              }`} title={`BANT: ${lead.bantScore.score}/100\nPresupuesto: $${lead.bantScore.budget}\nAutoridad: ${lead.bantScore.authority ? "Sí" : "No"}\nNecesidad: ${lead.bantScore.need}\nTiempo: ${lead.bantScore.timeline}`}>
+                                {lead.bantScore.score >= 80 ? "🔥" : lead.bantScore.score >= 50 ? "🟡" : "🔵"} 
+                                B: ${(lead.bantScore.budget/1000).toFixed(0)}k | T: {lead.bantScore.timeline}
                               </span>
                             )}
                           </div>

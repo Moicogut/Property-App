@@ -1,6 +1,6 @@
 # 📊 PROPERTY OS - STATUS REPORT
 
-**Fecha de generación:** 2026-08-05T16:01:22.037Z
+**Fecha de actualización:** 2026-08-06 (Planificación de Arquitectura IA)
 
 ## 🗄️ 1. Estado de Base de Datos (Supabase)
 
@@ -42,3 +42,9 @@ e10e595 fix: resolve Vercel timeout by reducing delay
 d4c6815 fix: add VISITA_AGENDADA column to kanban and fix react dom insertion error
 a09dfc5 feat: Property OS MVP con IA, Agendamiento automático y retraso humano
 ```
+
+## 🚀 6. Próxima Implementación (Plan Aprobación Pendiente)
+
+- **Manual de Entrenamiento IA (SaaS Multi-tenant):** Migración del System Prompt de Sofía desde el código fuente (`webhook.ts`) hacia la base de datos (`organizations.ai_training_manual`).
+- **Control de Contexto (Anti-Spam RAG):** Implementación de una barrera lógica en el Webhook para interceptar mensajes cortos (ej. "casa") y pedir más contexto antes de ejecutar la IA y la búsqueda vectorial.
+- **UI de Protocolos:** Adición de interfaz en `SuperAdminPanel.tsx` para editar las reglas de negocio de la IA en tiempo real.

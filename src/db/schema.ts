@@ -29,6 +29,11 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   whatsappInstanceId: text("whatsapp_instance_id"),
+  aiConfig: jsonb("ai_config").$type<{ systemRules: string; tone: string; fallbacks: string; defaultAgentPhone?: string }>().default({
+    systemRules: "Eres Sofía, asistente virtual de Property OS. Califica al prospecto para crédito VIS/bancario.",
+    tone: "Ejecutivo, cálido y amable. Estilo inmobiliario boliviano. Máximo 2 oraciones.",
+    fallbacks: "Si pide algo fuera de bienes raíces, informa amablemente que solo asistes en temas inmobiliarios."
+  }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -40,6 +45,7 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   // superadmin: acceso global | agency_admin: gestiona su org | agent: operativo
   role: text("role", { enum: ["superadmin", "agency_admin", "agent"] }).default("agent").notNull(),
+  phoneNumber: text("phone_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -111,6 +117,7 @@ export const leads = pgTable("leads", {
   aiSummary: text("ai_summary"),
   aiPaused: boolean("ai_paused").default(false).notNull(),
   intentScore: integer("intent_score").default(50).notNull(), // 0 - 100
+  bantScore: jsonb("bant_score").$type<{ budget: number; authority: boolean; need: string; timeline: string; score: number }>().default({ budget: 0, authority: false, need: "", timeline: "", score: 0 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
