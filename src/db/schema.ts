@@ -92,6 +92,7 @@ export const leads = pgTable("leads", {
       "NUEVO",
       "EN_CALIFICACION",
       "CALIFICADO_VISITA_PENDIENTE",
+      "VISITA_AGENDADA",
       "VISITA_REALIZADA",
       "EN_NEGOCIACION",
       "CERRADO",
@@ -132,6 +133,10 @@ export const appointments = pgTable("appointments", {
   propertyId: uuid("property_id").references(() => properties.id),
   appointmentDate: timestamp("appointment_date", { withTimezone: true }).notNull(),
   status: text("status", { enum: ["SCHEDULED", "COMPLETED", "CANCELED", "RESCHEDULED"] }).default("SCHEDULED").notNull(),
+  reminderSent: boolean("reminder_sent").default(false),
+  feedbackRequested: boolean("feedback_requested").default(false),
+  rating: integer("rating"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("appointments_lead_id_idx").on(table.leadId),

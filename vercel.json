@@ -1,13 +1,8 @@
 {
-  "version": 2,
-  "rewrites": [
+  "crons": [
     {
-      "source": "/whatsapp/webhook",
-      "destination": "/api/whatsapp/webhook"
-    },
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
+      "path": "/api/cron/followup",
+      "schedule": "0 * * * *"
     }
   ]
 }

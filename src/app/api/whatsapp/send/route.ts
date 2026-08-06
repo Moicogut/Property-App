@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { supabaseServer } from "@/src/lib/supabase-server";
 import { sendWhatsAppMessage } from "@/src/lib/evolution";
 
@@ -7,7 +6,7 @@ export async function POST(req: Request) {
     const { leadId, text } = await req.json();
 
     if (!leadId || !text) {
-      return NextResponse.json({ error: "Faltan datos obligatorios (leadId, text)" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "Faltan datos obligatorios (leadId, text)" }), { status: 400 });
     }
 
     // 1. Obtener los datos del lead
@@ -18,7 +17,7 @@ export async function POST(req: Request) {
       .single();
 
     if (leadError || !lead) {
-      return NextResponse.json({ error: "Lead no encontrado" }, { status: 404 });
+      return new Response(JSON.stringify({ error: "Lead no encontrado" }), { status: 404 });
     }
 
     // 2. Insertar el mensaje en el historial (messages)
@@ -47,13 +46,14 @@ export async function POST(req: Request) {
         evolutionApiUrl,
         evolutionApiKey
       );
+      return new Response(JSON.stringify({ success: true, message: "Mensaje enviado y IA pausada." }), { status: 200 });
     } else {
       console.warn("[Send API] No se configuró Evolution API en las variables de entorno.");
+      return new Response(JSON.stringify({ error: "No se pudo enviar el mensaje a WhatsApp" }), { status: 500 });
     }
-
-    return NextResponse.json({ success: true, message: "Mensaje enviado y IA pausada." });
-  } catch (error) {
-    console.error("[Send API] Error:", error);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("[API send] Error:", errorMsg);
+    return new Response(JSON.stringify({ error: errorMsg }), { status: 500 });
   }
 }

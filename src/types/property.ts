@@ -2,6 +2,7 @@ export type PipelineStage =
   | 'NUEVO'
   | 'EN_CALIFICACION'
   | 'CALIFICADO_VISITA_PENDIENTE'
+  | 'VISITA_AGENDADA'
   | 'VISITA_REALIZADA'
   | 'EN_NEGOCIACION'
   | 'CERRADO';

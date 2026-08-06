@@ -185,8 +185,8 @@ Responde en un tono ejecutivo, cálido y profesional (máximo 3 oraciones). Cita
 
       const message = response.choices[0].message;
       if (message.tool_calls && message.tool_calls.length > 0) {
-        const toolCall = message.tool_calls[0];
-        if (toolCall.function.name === "agendar_visita") {
+        const toolCall = message.tool_calls[0] as any;
+        if (toolCall.function?.name === "agendar_visita") {
           const args = JSON.parse(toolCall.function.arguments);
           aiReplyText = `¡Perfecto! He agendado formalmente la visita para el ${args.fecha} a las ${args.hora}. Un asesor se pondrá en contacto para afinar detalles.`;
           isAppointmentCreated = true;

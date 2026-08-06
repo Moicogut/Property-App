@@ -20,6 +20,7 @@
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.2",
+    "googleapis": "^174.0.1",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "openai": "^7.3.0",
