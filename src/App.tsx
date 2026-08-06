@@ -425,18 +425,24 @@ export default function App() {
     await supabase.from("leads").update({ pipeline_stage: newStage }).eq("id", leadId);
   };
 
-  const handleConfirmAppointment = (leadId: string, details: { date: string; time: string; agent: string; notes: string }) => {
+  const handleConfirmAppointment = async (leadId: string, details: { date: string; time: string; agent: string; notes: string }) => {
     setLeads((prev) =>
       prev.map((l) =>
         l.id === leadId
           ? {
               ...l,
-              pipelineStage: "CALIFICADO_VISITA_PENDIENTE",
+              pipelineStage: "VISITA_AGENDADA",
               aiSummary: `Visita agendada para el ${details.date} a las ${details.time} con ${details.agent}.`,
             }
           : l
       )
     );
+
+    // Save to database
+    await supabase.from("leads").update({ 
+      pipeline_stage: "VISITA_AGENDADA",
+      ai_summary: `Visita agendada para el ${details.date} a las ${details.time} con ${details.agent}.`
+    }).eq("id", leadId);
   };
 
   // Dynamic Filtering
