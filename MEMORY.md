@@ -1,7 +1,7 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 04 de Agosto de 2026 (Property OS MVP Completo - Inicio de Fase de Campo)
-**Estado General:** Refactorización arquitectónica a MVP robusto, sistema SaaS con base sólida en Inteligencia Artificial y Function Calling (Agendador). Listo para pruebas de estrés.
+**Última actualización:** 05 de Agosto de 2026 (Módulo Operativo de Agendamiento, Google Calendar y Cron Jobs)
+**Estado General:** Refactorización arquitectónica a MVP robusto, sistema SaaS con base sólida en Inteligencia Artificial y Function Calling (Agendador). Backend 100% libre de errores de Typescript. Listo para pruebas de campo intensivas.
 
 ---
 
@@ -10,7 +10,7 @@
 ### 🟢 Base de Datos & Auth (Supabase)
 * **Proyecto:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`).
 * **Extensiones:** `pgvector` activada con índices vectoriales **HNSW**.
-* **Tablas Core:** `organizations`, `users`, `properties`, `leads`, `app_config`, `appointments` (NUEVO).
+* **Tablas Core:** `organizations`, `users`, `properties`, `leads`, `app_config`, `appointments` (Manejo de Citas), `messages`.
 * **Configuración Auth:** `Site URL` configurada en `https://property-app-ashen.vercel.app`.
 * **RPC RAG Nativo:** Creada función RPC `match_properties` para delegar el cálculo de similitud coseno 100% a PostgreSQL.
 * **Seguridad Front-end:** Implementado Bypass de Row Level Security (RLS) en el panel de React usando forzosamente el JWT del `SERVICE_ROLE_KEY` para lectura limpia del pipeline en el Dashboard ejecutivo.
@@ -18,32 +18,28 @@
 ### 🟢 Servidor de Mensajería (Evolution API v2 en Railway)
 * **URL API:** `https://evolution-api-production-286c8.up.railway.app`
 * **Instancia:** `PropertyOS-Main`
-* **Número vinculado:** WhatsApp corporativo (`+591 78756107` / Moisés R. Gutierrez A.).
-* **Webhook (Vercel):** Activo apuntando a `/api/whatsapp/webhook`.
-  - *Fix (05/Ago):* Se eliminó el bloqueo estricto 401 que descartaba eventos de Evolution API por falta de cabecera `apikey`, logrando compatibilidad directa.
-  - *Diagnóstico (05/Ago):* Se creó el endpoint oculto `/api/whatsapp/test` para auto-verificación en vivo de variables de entorno de producción.
-* **Procesamiento de IA:** Integrado OpenAI y Gemini de forma intercambiable. (Actualmente operando estable con OpenAI para manejo de memoria y contexto).
-* **Retraso Cognitivo (Humano):** Se añadió una función de *delay* aleatorio en el webhook antes de despachar mensajes, logrando una ilusión de "escribiendo..." humana, optimizado para evitar Timeouts de 10s en Vercel Serverless.
+* **Webhooks & Endpoints (Vercel):**
+  - **Recepción Principal:** `/api/whatsapp/webhook`. (Implementado bloqueo de eventos "fromMe" para evitar bucles de la propia IA).
+  - **Gestión Operativa:** Endpoints nativos `/api/booking/create`, `/api/booking/feedback` y `/api/cron/followup` listos para ser consumidos y programados.
+  - **Auto-Verificación:** Endpoint `/api/whatsapp/test` para comprobar salud de las variables de entorno de producción.
+* **Retraso Cognitivo (Humano):** Se añadió una función de *delay* aleatorio con *typing* de 3 a 5 segundos en el webhook antes de despachar mensajes, logrando una ilusión 100% humana y optimizando el tiempo de Vercel Serverless.
 
-### 🟢 Motor Agéntico y Tools (Function Calling)
-* **Skill - Agendar Visita:** El cerebro del bot ha sido dotado con la función `agendar_visita(fecha, hora)`. Cuando detecta que el usuario quiere agendar, llama a esta herramienta, guardando la cita en la tabla `appointments` y modificando el estatus del Lead a `VISITA_AGENDADA`.
+### 🟢 Motor Agéntico y Calendar (Google Workspace)
+* **Integración Google Calendar:** Implementación de autenticación de backend (JWT Service Account) para auto-agendar eventos de calendario invitando al prospecto y al agente de forma asíncrona.
+* **Seguimiento Cron Jobs:** Arquitectura de re-enganche construida. El endpoint `/api/cron/followup` gestiona recordatorios (2h previas), recolección de feedback (2h posteriores) y rescate de leads fríos (24h inactivos).
 
 ### 🟢 Frontend & UI (Vercel + Vite + React)
-* **Single Source of Truth:** La UI (`App.tsx`) se nutre directamente desde Supabase en tiempo real.
-* **Kanban Completo:** Etapas sincronizadas que abarcan desde NUEVO hasta AGENDA y CERRADO.
-* **Acciones en Kanban:** Posibilidad de Editar Nombres de cliente (✏️) y Borrar leads y su historial (🗑️) mediante accesos rápidos en la tarjeta.
-* **Tarjetas Inteligentes:** Muestran un banner visual en color esmeralda cuando el cliente agendó una visita, indicando la fecha y hora.
-* **SuperAdmin Panel (KPIs):** Las métricas incluyen el conteo correcto de clientes en pipeline, ratio de autogestión y conteo de Citas VIS agendadas por la IA.
+* **Kanban Fix:** Subsanado un error en el flujo de agendamiento manual (botón "Visita" en la tarjeta). Ahora, actualizar la tarjeta manualmente salva el cambio en Supabase y mueve el Lead directamente a la etapa `VISITA_AGENDADA`.
+* **UI Sincronizada:** El pipeline está diseñado en 7 etapas rígidas que concuerdan estrictamente con los Enum de la base de datos PostgreSQL.
+* **Typescript Clean:** Eliminados los remanentes incompatibles del App Router (next/server) dentro de los endpoints Serverless, garantizando builds impecables en Vercel.
 
 ---
 
 ## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (ETAPA DE CAMPO)
 
-El sistema ahora entra en fase de pruebas intensivas en campo, la hoja de ruta para las siguientes mejoras incluirá:
-
-### 🔴 0. Auditoría de Despliegue (Urgente - Siguiente Sesión)
-* Utilizar el endpoint de diagnóstico (`/api/whatsapp/test`) para verificar el estado de las credenciales de Vercel.
-* Revisar el panel de Evolution API Manager para confirmar que el evento `MESSAGES_UPSERT` esté efectivamente marcado en ON, garantizando el flujo de datos.
+### 🔴 0. Configuración Vercel Cron (Inmediato)
+* **Archivo vercel.json:** Subir configuración cron en la raíz del proyecto para disparar `GET /api/cron/followup` de forma programada (ej. cada hora).
+* **Service Account:** Agregar el JSON de credenciales de Google (`GOOGLE_SERVICE_ACCOUNT_KEY`) en el panel de Vercel (Environment Variables).
 
 ### 🟡 1. Afinado y Tuning del Prompt (Asesor Inmobiliario)
 * Auditar transcripciones de las pruebas de campo.
@@ -51,12 +47,10 @@ El sistema ahora entra en fase de pruebas intensivas en campo, la hoja de ruta p
 * Enseñar respuestas condicionales más refinadas basadas en el input del RAG (por ejemplo, si el cliente presiona para descuentos).
 
 ### 🟡 2. Manejo de Errores y Timeouts en Webhook
-* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI no generen Timeouts (error 504).
-* Mover el disparo de WhatsApp a un Job asíncrono (Background o Queues) si Vercel aborta ejecuciones largas en la versión gratuita.
+* Monitorear latencia del Vercel Edge/Serverless functions. Asegurar que las respuestas lentas de OpenAI no generen Timeouts (error 504) al acumularse el tiempo de generación y envío.
 
 ### 🟡 3. UI/UX Mejoras Finales
-* Reemplazar los `window.prompt` de React por un UI Component nativo (Modales en Tailwind).
-* Incorporar una Vista de **Calendario en el Front-End**, consolidando la tabla `appointments` en formato semana/mes.
+* Incorporar una Vista de **Calendario en el Front-End**, consolidando la tabla `appointments` en formato semana/mes visualmente, independiente del Google Calendar externo.
 
 ---
 
@@ -76,4 +70,7 @@ OPENAI_API_KEY="..."
 EVOLUTION_API_URL="https://evolution-api-production-286c8.up.railway.app"
 EVOLUTION_API_KEY="..."
 EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
+
+# Google Calendar Auth
+GOOGLE_SERVICE_ACCOUNT_KEY='{"type": "service_account", "project_id": "...", ...}'
 ```
