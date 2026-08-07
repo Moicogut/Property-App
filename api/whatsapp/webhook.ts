@@ -65,7 +65,7 @@ function parseEvolutionPayload(body: Record<string, unknown>): ParsedIncomingMes
 export async function processWebhookMessage(
   body: Record<string, unknown>,
   options: WebhookProcessOptions
-): Promise<{ status: string; error?: string; leadId?: string }> {
+): Promise<{ status: string; error?: string; leadId?: string; reason?: string }> {
   console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(body).substring(0, 500) + "...");
 
   // ── Parse ──
