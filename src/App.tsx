@@ -40,7 +40,8 @@ import { PdfFichaModal } from "@/src/components/modals/PdfFichaModal";
 import { LoginPage } from "@/src/components/auth/LoginPage";
 import { SuperAdminPanel } from "@/src/components/admin/SuperAdminPanel";
 import { getCurrentUser, onAuthStateChange, signOut } from "@/src/lib/auth";
-
+import { AppHeader } from "@/src/components/layout/AppHeader";
+import { KanbanBoard } from "@/src/components/kanban/KanbanBoard";
 
 import { supabase } from "@/src/lib/supabase";
 
@@ -477,190 +478,26 @@ export default function App() {
     return matchesSearch && matchesCity && matchesVis;
   });
 
-  const kanbanColumns: { stage: PipelineStage; label: string; countBadge: string }[] = [
-    { stage: "NUEVO", label: "NUEVO", countBadge: "bg-slate-200 text-slate-800" },
-    { stage: "EN_CALIFICACION", label: "EN CALIFICACIÓN", countBadge: "bg-slate-200 text-slate-800" },
-    { stage: "CALIFICADO_VISITA_PENDIENTE", label: "CALIFICADO", countBadge: "bg-emerald-100 text-emerald-800" },
-    { stage: "VISITA_AGENDADA", label: "AGENDA", countBadge: "bg-emerald-100 text-emerald-800" },
-    { stage: "VISITA_REALIZADA", label: "VISITA", countBadge: "bg-slate-200 text-slate-800" },
-    { stage: "EN_NEGOCIACION", label: "NEGOCIACIÓN", countBadge: "bg-slate-200 text-slate-800" },
-    { stage: "CERRADO", label: "CERRADO", countBadge: "bg-emerald-500 text-white" },
-  ];
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden">
       
       {/* 1. TOP EXECUTIVE HEADER - "Professional Polish" Theme */}
-      <header className="h-16 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between px-3 md:px-6 shrink-0 z-30">
-        
-        {/* Brand & Connection Status */}
-        <div className="flex items-center gap-3">
-          {/* Menú Hamburguesa Móvil */}
-          <button 
-            className="md:hidden text-slate-300 hover:text-white p-1"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? <XCircle className="w-6 h-6" /> : <MoreHorizontal className="w-6 h-6" />}
-          </button>
-          
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-xl shadow-md hidden sm:flex">
-            P
-          </div>
-          <h1 className="text-white font-bold text-base md:text-lg tracking-tight flex items-center gap-1.5">
-            PROPERTY <span className="text-slate-400 font-medium text-sm">OS</span>
-          </h1>
-
-          <div className="ml-0 md:ml-2 px-2 md:px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-1.5 md:gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10B981]" />
-            <span className="text-[10px] md:text-xs font-semibold text-emerald-400 uppercase tracking-wider whitespace-nowrap">
-              Evo API
-            </span>
-          </div>
-        </div>
-
-        {/* Global Controls: Search, City Filter & Actions */}
-        <div className="flex items-center gap-2 md:gap-3">
-          
-          {/* City Dropdown Filter (Hidden on Mobile) */}
-          <div className="relative hidden lg:block">
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              className="bg-slate-800 text-xs font-bold text-slate-200 rounded-lg py-2 pl-3 pr-8 border border-slate-700 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer appearance-none"
-            >
-              <option value="TODAS">📍 Todas</option>
-              <option value="Santa Cruz">📍 Santa Cruz</option>
-              <option value="La Paz">📍 La Paz</option>
-              <option value="Cochabamba">📍 CBB</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
-          </div>
-
-          {/* Search Box */}
-          <div className="relative hidden sm:block">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar leads, zona o teléfono..."
-              className="bg-slate-800 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 placeholder-slate-400 w-56 outline-none focus:ring-1 focus:ring-emerald-500 focus:w-64 transition-all"
-            />
-          </div>
-
-          {/* New Lead Action Button */}
-          <button
-            onClick={() => setIsNewLeadModalOpen(true)}
-            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-lg text-xs font-bold transition-all"
-          >
-            <Plus className="w-4 h-4 text-emerald-400" />
-            <span className="hidden md:inline">+ Lead</span>
-          </button>
-
-          {/* Ingesta RAG Primary Action Button (Hidden on Mobile) */}
-          <button
-            onClick={() => setActiveTab("rag")}
-            className="hidden md:flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-semibold transition-colors shadow-lg shadow-emerald-900/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Ingesta RAG</span>
-          </button>
-
-          {/* Notification Bell */}
-          <div className="relative">
-            <button
-              onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors relative"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="w-2 h-2 rounded-full bg-emerald-500 absolute top-1.5 right-1.5" />
-            </button>
-
-            {showNotifications && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 p-3 text-xs z-50 animate-in fade-in slide-in-from-top-2">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-100 font-bold text-slate-900">
-                  <span>Notificaciones en Vivo</span>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Evolution API</span>
-                </div>
-                <div className="space-y-2 pt-2">
-                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                    <p className="font-bold text-slate-800">Juan Pérez calificado</p>
-                    <p className="text-slate-500 text-[10px]">Cuota inicial 15% confirmada en BCP.</p>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
-                    <p className="font-bold text-slate-800">Ingesta RAG ejecutada</p>
-                    <p className="text-slate-500 text-[10px]">Vector de 1536d creado para Smart Tower.</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* SuperAdmin Access (only shown for superadmin role) */}
-          {currentUser.role === "superadmin" && (
-            <button
-              onClick={() => setCurrentView("admin")}
-              className="flex items-center gap-1.5 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border border-purple-700/40 px-3 py-2 rounded-lg text-xs font-bold transition-all"
-              title="Panel SuperAdmin"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">SuperAdmin</span>
-            </button>
-          )}
-
-          {/* User & Logout */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
-            <div className="hidden md:block text-right">
-              <p className="text-[11px] font-bold text-white leading-none">{currentUser.fullName}</p>
-              <p className="text-[10px] text-slate-500">{currentUser.role}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              title="Cerrar Sesión"
-              className="p-1.5 md:p-2 text-slate-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-
-        </div>
-
-      </header>
-
-      {/* MOBILE MENU DRAWER */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex flex-col gap-4 animate-in slide-in-from-top z-20 shadow-xl">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar leads, zona o teléfono..."
-              className="bg-slate-800 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-xs text-slate-200 placeholder-slate-400 w-full outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-          
-          <select
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            className="w-full bg-slate-800 text-xs font-bold text-slate-200 rounded-lg py-2 px-3 border border-slate-700 outline-none"
-          >
-            <option value="TODAS">📍 Todas las Ciudades</option>
-            <option value="Santa Cruz">📍 Santa Cruz</option>
-            <option value="La Paz">📍 La Paz</option>
-            <option value="Cochabamba">📍 Cochabamba</option>
-          </select>
-
-          <button
-            onClick={() => { setActiveTab("rag"); setIsMobileMenuOpen(false); }}
-            className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-lg text-xs font-semibold shadow-lg shadow-emerald-900/20 w-full"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Agregar al Inventario RAG</span>
-          </button>
-        </div>
-      )}
+      <AppHeader
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        isMobileMenuOpen={isMobileMenuOpen}
+        setIsMobileMenuOpen={setIsMobileMenuOpen}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedCity={selectedCity}
+        setSelectedCity={setSelectedCity}
+        setIsNewLeadModalOpen={setIsNewLeadModalOpen}
+        setActiveTab={setActiveTab}
+        showNotifications={showNotifications}
+        setShowNotifications={setShowNotifications}
+        setCurrentView={setCurrentView}
+      />
 
       {/* 2. SUB-BAR NAVIGATION / TABS */}
       <div className="bg-[#0F172A] border-b border-slate-800 px-2 md:px-6 py-2 flex items-center justify-between shrink-0 overflow-x-auto custom-scrollbar">
@@ -739,140 +576,17 @@ export default function App() {
         
         {/* VIEW 1: KANBAN BOARD */}
         {activeTab === "pipeline" && (
-          <div className="flex-1 flex flex-col min-w-0 bg-[#F1F5F9] h-full overflow-hidden">
-            <div className="p-4 flex gap-4 overflow-x-auto h-full custom-scrollbar snap-x snap-mandatory">
-              {kanbanColumns.map((col) => {
-                const stageLeads = filteredLeads.filter((l) => l.pipelineStage === col.stage);
-
-                return (
-                  <div key={col.stage} className="flex-1 flex flex-col min-w-[85vw] sm:min-w-[280px] max-w-[320px] snap-center shrink-0">
-                    
-                    {/* Column Header */}
-                    <h3 className="text-xs font-bold text-slate-500 mb-3 flex items-center justify-between uppercase tracking-widest shrink-0">
-                      <span>{col.label}</span>
-                      <span className={`${col.countBadge} px-2 py-0.5 rounded text-[10px] font-mono font-bold`}>
-                        {stageLeads.length}
-                      </span>
-                    </h3>
-
-                    {/* Card List Container */}
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-                      {stageLeads.map((lead) => (
-                        <div
-                          key={lead.id}
-                          className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group"
-                        >
-                          {/* Card Header */}
-                          <div className="flex justify-between items-start mb-2">
-                            <span 
-                              onClick={() => handleOpenChat(lead)}
-                              className="text-xs font-bold text-slate-900 cursor-pointer hover:text-emerald-600 transition-colors"
-                            >
-                              {lead.fullName}
-                            </span>
-                            <div className="flex gap-1">
-                              <button onClick={() => handleEditLead(lead)} className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded cursor-pointer transition-colors" title="Editar Nombre">✏️</button>
-                              <button onClick={() => handleDeleteLead(lead.id)} className="text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded cursor-pointer transition-colors" title="Eliminar Cliente">🗑️</button>
-                              <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-0.5">
-                                {lead.intentScore} 🔥
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Details */}
-                          <div className="text-[10px] text-slate-500 mb-2 font-medium">
-                            {lead.matchedProperty ? `Preguntó por: ${lead.matchedProperty.title}` : `Zona: ${lead.preferredZone}`}
-                          </div>
-
-                          {/* Badges */}
-                          <div className="flex flex-wrap gap-1 mb-3">
-                            <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 font-bold">
-                              ${(lead.budgetMaxUsd ?? 0).toLocaleString()} USD
-                            </span>
-                            
-                            {lead.paymentMethod === "CREDITO_VIS" && (
-                              <span className="text-[9px] bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 text-blue-700 font-bold italic">
-                                Crédito VIS
-                              </span>
-                            )}
-
-                            {lead.hasDownPayment && (
-                              <span className="text-[9px] bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 text-emerald-700 font-bold">
-                                Aporte: {lead.downPaymentPercent}%
-                              </span>
-                            )}
-                            
-                            {/* BANT Score Badge */}
-                            {lead.bantScore && lead.bantScore.score > 0 && (
-                              <span className={`text-[9px] px-1.5 py-0.5 rounded border font-bold flex items-center gap-0.5 ${
-                                lead.bantScore.score >= 80 ? "bg-orange-50 border-orange-200 text-orange-700" :
-                                lead.bantScore.score >= 50 ? "bg-yellow-50 border-yellow-200 text-yellow-700" :
-                                "bg-slate-50 border-slate-200 text-slate-600"
-                              }`} title={`BANT: ${lead.bantScore.score}/100\nPresupuesto: $${lead.bantScore.budget}\nAutoridad: ${lead.bantScore.authority ? "Sí" : "No"}\nNecesidad: ${lead.bantScore.need}\nTiempo: ${lead.bantScore.timeline}`}>
-                                {lead.bantScore.score >= 80 ? "🔥" : lead.bantScore.score >= 50 ? "🟡" : "🔵"} 
-                                B: ${(lead.bantScore.budget/1000).toFixed(0)}k | T: {lead.bantScore.timeline}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Quick Stage Change Selector */}
-                          <div className="mb-2.5">
-                            <select
-                              value={lead.pipelineStage}
-                              onChange={(e) => handleMoveStage(lead.id, e.target.value as PipelineStage)}
-                              className="w-full text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded py-1 px-1.5 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                            >
-                              <option value="NUEVO">Etapa: NUEVO</option>
-                              <option value="EN_CALIFICACION">Etapa: EN CALIFICACIÓN</option>
-                              <option value="CALIFICADO_VISITA_PENDIENTE">Etapa: CALIFICADO</option>
-                              <option value="VISITA_AGENDADA">Etapa: AGENDA</option>
-                              <option value="VISITA_REALIZADA">Etapa: VISITA</option>
-                              <option value="EN_NEGOCIACION">Etapa: NEGOCIACIÓN</option>
-                              <option value="CERRADO">Etapa: CERRADO</option>
-                            </select>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-100">
-                            <button
-                              onClick={() => handleOpenChat(lead)}
-                              className="w-full py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded text-[10px] font-bold transition-colors text-center"
-                            >
-                              💬 Chat
-                            </button>
-                            <button
-                              onClick={() => {
-                                setLeadForAppointment(lead);
-                                setIsAppointmentModalOpen(true);
-                              }}
-                              className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-[10px] font-bold transition-colors text-center shadow-xs"
-                            >
-                              📅 Visita
-                            </button>
-                          </div>
-
-                          {/* Cita Inteligente (Si existe) */}
-                          {lead.appointmentDate ? (
-                            <div className="mt-2.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold py-1.5 px-2 rounded-md border border-emerald-100 flex items-center justify-center gap-1.5 shadow-sm">
-                              <span>📅 Cita: {new Date(lead.appointmentDate).toLocaleString()}</span>
-                            </div>
-                          ) : null}
-
-                        </div>
-                      ))}
-
-                      {stageLeads.length === 0 && (
-                        <div className="p-4 text-center text-[11px] text-slate-400 border border-dashed border-slate-300 rounded-xl">
-                          Sin tarjetas
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <KanbanBoard
+            leads={filteredLeads}
+            onOpenChat={handleOpenChat}
+            onEditLead={handleEditLead}
+            onDeleteLead={handleDeleteLead}
+            onMoveStage={handleMoveStage}
+            onOpenAppointmentModal={(lead) => {
+              setLeadForAppointment(lead);
+              setIsAppointmentModalOpen(true);
+            }}
+          />
         )}
 
         {/* VIEW 2: RAG INVENTORY */}
