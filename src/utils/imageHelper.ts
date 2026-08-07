@@ -18,7 +18,7 @@ export const getSafeImageUrl = (property: any): string => {
   const imgFromImages = extractUrl(property.images);
   if (imgFromImages) return imgFromImages;
 
-  const imgFromImageUrl = extractUrl(property.image_url);
+  const imgFromImageUrl = extractUrl(property.image_url) || extractUrl(property.imageUrl);
   if (imgFromImageUrl) return imgFromImageUrl;
 
   return DEFAULT_FALLBACK;
@@ -42,7 +42,7 @@ export const getSafeImageArray = (property: any): string[] => {
   };
 
   const imagesUrls = extractUrls(property.images);
-  const imageUrls = extractUrls(property.image_url);
+  const imageUrls = [...extractUrls(property.image_url), ...extractUrls(property.imageUrl)];
 
   return Array.from(new Set([...imagesUrls, ...imageUrls]));
 };
