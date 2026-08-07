@@ -343,7 +343,7 @@ export default function App() {
       <LandingPage
         properties={properties}
         onLoginClick={() => setCurrentView("login")}
-        onSelectProperty={() => {}} // TODO: Mostrar detalle de propiedad
+        onOpenSofia={() => setIsDrawerOpen(true)}
       />
     );
   }
