@@ -34,7 +34,7 @@ OBLIGATORIO: Si hay un INMUEBLE SUGERIDO válido abajo, DEBES mencionarlo EXPLÍ
 
 INMUEBLE SUGERIDO EN BASE A LA BÚSQUEDA DEL USUARIO (RAG):
 ${bestMatch
-    ? `- Código de Referencia: ${bestMatch.property_code || bestMatch.id.substring(0, 6)}\n- Título: ${bestMatch.title}\n- Zona: ${bestMatch.zone}\n- Precio: $${bestMatch.price_usd} USD\n- Descripción: ${bestMatch.raw_description}`
+    ? `- Código de Referencia: ${bestMatch.property_code || bestMatch.id.substring(0, 6)}\n- Título: ${bestMatch.title}\n- Zona: ${bestMatch.zone}\n- Precio: $${bestMatch.price_usd} USD\n- Auditoría Legal: ${bestMatch.global_legal_score === 'VERDE' ? 'Apto para Crédito Bancario' : (bestMatch.global_legal_score === 'ROJO' || bestMatch.global_legal_score === 'AMARILLO' ? 'Solo Pago al Contado (Tiene trámites pendientes)' : 'Estado Legal Pendiente')}\n- Descripción: ${bestMatch.raw_description}`
     : "- No se encontraron inmuebles exactos. Ofrece ayuda genérica o pregunta detalles."}
 
 ${chatHistoryText}

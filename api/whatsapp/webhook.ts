@@ -11,10 +11,11 @@ import { waitUntil } from "@vercel/functions";
 import OpenAI from "openai";
 
 // ── Servicios ──
-import { sendWhatsAppMessage } from "../services/evolution-api";
-import { searchProperties } from "../services/rag-search";
-import { buildSofiaPrompt, buildSofiaTools, buildFallbackReply } from "../services/sofia-prompt";
-import { extractBantScore } from "../services/bant-extractor";
+// ── Servicios ──
+import { sendWhatsAppMessage } from "../../src/services/evolution-api";
+import { searchProperties } from "../../src/services/rag-search";
+import { buildSofiaPrompt, buildSofiaTools, buildFallbackReply } from "../../src/services/sofia-prompt";
+import { extractBantScore } from "../../src/services/bant-extractor";
 import {
   findLeadByPhone,
   getChatHistory,
@@ -22,14 +23,14 @@ import {
   upsertLead,
   saveMessages,
   createAppointment,
-} from "../services/lead-manager";
+} from "../../src/services/lead-manager";
 import {
   supabaseServer,
   DEFAULT_AI_CONFIG,
   DEFAULT_KEYWORDS,
   type WebhookProcessOptions,
   type ParsedIncomingMessage,
-} from "../services/shared";
+} from "../../src/services/shared";
 
 // ── Deduplicación en memoria ──
 const processedMessages = new Map<string, number>();
@@ -165,7 +166,7 @@ export async function processWebhookMessage(
       const message = response.choices[0].message;
       if (message.tool_calls && message.tool_calls.length > 0) {
         const toolCall = message.tool_calls[0];
-        if (toolCall.function.name === "agendar_visita") {
+        if ('function' in toolCall && toolCall.function?.name === "agendar_visita") {
           const args = JSON.parse(toolCall.function.arguments);
           aiReplyText = `¡Perfecto! He agendado formalmente la visita para el ${args.fecha} a las ${args.hora}. Un asesor se pondrá en contacto para afinar detalles.`;
           isAppointmentCreated = true;

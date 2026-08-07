@@ -1,7 +1,7 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 06 de Agosto de 2026 (Refactorización P0 Completada & Inicio Fase 1 BANT)
-**Estado General:** Arquitectura P0 cerrada (Zero Ghost Data, Multi-Tenant Prompting Seguro, Freno Lógico Anti-Spam y Auto-Vectorización RAG listos en producción). Listos para implementar Fase 1: Lead Scoring (BANT) y Alertas Push.
+**Última actualización:** 07 de Agosto de 2026 (Fase 0 de Estabilización y Refactoring Modular Completada)
+**Estado General:** La Fase 0 ha sido un éxito. Se ha eliminado la deuda técnica del monolito. El frontend y backend operan bajo una arquitectura modular limpia, escalable y preparada para inyectar los Add-Ons SaaS (Social Marketing, Legal Audit). Listos para implementar Fase 1.
 
 ---
 
@@ -9,46 +9,43 @@
 
 ### 🟢 Base de Datos & Auth (Supabase)
 * **Proyecto:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`).
-* **Extensiones:** `pgvector` activada con índices vectoriales **HNSW**.
-* **Tablas Core:** `organizations`, `users`, `properties`, `leads`, `app_config`, `appointments` (Manejo de Citas), `messages`.
-* **Configuración Auth:** `Site URL` configurada en `https://property-app-ashen.vercel.app`.
-* **RPC RAG Nativo:** Creada función RPC `match_properties` para delegar el cálculo de similitud coseno 100% a PostgreSQL.
-* **Seguridad Front-end:** Implementado Bypass de Row Level Security (RLS) en el panel de React usando forzosamente el JWT del `SERVICE_ROLE_KEY` para lectura limpia del pipeline en el Dashboard ejecutivo.
+* **SaaS Multi-Tenant Preparado:** Añadidas columnas `modules` (jsonb) para activar/desactivar add-ons por cliente, `primary_city` en `organizations` y `source_channel` en `leads` para tracking de marketing.
+* **BANT Nativo:** Migración aplicada para integrar el `bant_score` directamente en la tabla `leads` y mapear presupuestos y zonas duras desde la IA a la BD.
+* **Seguridad Front-end:** Implementado Bypass de Row Level Security (RLS) usando el JWT del `SERVICE_ROLE_KEY` en el dashboard.
 
-### 🟢 Servidor de Mensajería (Evolution API v2 en Railway)
-* **URL API:** `https://evolution-api-production-286c8.up.railway.app`
-* **Instancia:** `PropertyOS-Main`
-* **Webhooks & Endpoints (Vercel):**
-  - **Recepción Principal:** `/api/whatsapp/webhook`. (Implementado bloqueo de eventos "fromMe" para evitar bucles de la propia IA).
-  - **Gestión Operativa:** Endpoints nativos `/api/booking/create`, `/api/booking/feedback` y `/api/cron/followup` listos para ser consumidos y programados.
-  - **Auto-Verificación:** Endpoint `/api/whatsapp/test` para comprobar salud de las variables de entorno de producción.
-* **Retraso Cognitivo (Humano):** Se añadió una función de *delay* aleatorio con *typing* de 3 a 5 segundos en el webhook antes de despachar mensajes, logrando una ilusión 100% humana y optimizando el tiempo de Vercel Serverless.
-
-### 🟢 Motor Agéntico y Calendar (Google Workspace)
-* **Integración Google Calendar:** Implementación de autenticación de backend (JWT Service Account) para auto-agendar eventos de calendario invitando al prospecto y al agente de forma asíncrona.
-* **Seguimiento Cron Jobs:** Arquitectura de re-enganche construida. El endpoint `/api/cron/followup` gestiona recordatorios (2h previas), recolección de feedback (2h posteriores) y rescate de leads fríos (24h inactivos).
+### 🟢 Arquitectura de IA & Mensajería (Evolution API + OpenAI)
+* **Refactoring Modular del Webhook:** El monolito de 600 líneas `webhook.ts` se ha convertido en un orquestador que consume servicios especializados en `/api/services/`:
+  - `shared.ts`: Clientes DB y tipos.
+  - `evolution-api.ts`: Envío robusto a WhatsApp.
+  - `rag-search.ts`: Búsqueda vectorial pgvector aislada.
+  - `sofia-prompt.ts`: Inyección de reglas de sistema (System Rules personalizables desde panel) y `<rag_enforcement>` estricto.
+  - `bant-extractor.ts`: Scoring BANT estructurado forzando respuestas JSON del LLM.
+  - `lead-manager.ts`: Orquestación de creación, guardado de mensajes y agendamiento.
+* **Fixes IA P0 Integrados:** Año dinámico para agendamiento, `<rag_enforcement>` para obligar a Sofía a citar inventario real, y prevención de bucles de mensajes duplicados (deduplicación en 60s).
 
 ### 🟢 Frontend & UI (Vercel + Vite + React)
-* **Kanban Fix:** Subsanado un error en el flujo de agendamiento manual (botón "Visita" en la tarjeta). Ahora, actualizar la tarjeta manualmente salva el cambio en Supabase y mueve el Lead directamente a la etapa `VISITA_AGENDADA`.
-* **UI Sincronizada:** El pipeline está diseñado en 7 etapas rígidas que concuerdan estrictamente con los Enum de la base de datos PostgreSQL.
-* **Typescript Clean:** Eliminados los remanentes incompatibles del App Router (next/server) dentro de los endpoints Serverless, garantizando builds impecables en Vercel.
+* **Refactoring de `App.tsx`:** Descompuesto el monolito gigante (1000+ líneas) en componentes independientes de layout y features:
+  - `AppHeader.tsx`
+  - `KanbanBoard.tsx`
+  - `LeadCard.tsx`
+* **Fixes de Renderizado:** Eliminados los fallback estáticos hardcodeados ("Equipetrol", "$85,000 USD"). Ahora toda la vista del Kanban refleja en tiempo real el BANT score evaluado por el webhook.
 
 ---
 
-## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (FASE 1)
+## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (PRÓXIMAS SESIONES)
 
-### 🔴 0. Configuración Vercel Cron (Inmediato)
-* **Archivo vercel.json:** Subir configuración cron en la raíz del proyecto para disparar `GET /api/cron/followup` de forma programada (ej. cada hora).
-* **Service Account:** Agregar el JSON de credenciales de Google (`GOOGLE_SERVICE_ACCOUNT_KEY`) en el panel de Vercel.
+### 🟡 Fase 1: Motor SaaS y Marketing (Próximo Sprint)
+* **Módulo de Social Marketing:**
+  - Crear interfaz en el Panel Admin para conectar cuentas de Meta (Facebook/Instagram).
+  - Integrar webhook para recibir leads nativos de Facebook Lead Ads directamente al Kanban de Property OS (asignando `source_channel = facebook_ads`).
+* **Panel SuperAdmin de Módulos:**
+  - UI interactiva para encender/apagar (`module_social_marketing`, `module_legal_audit`, etc.) modificando el JSONB `modules` en Supabase por Inmobiliaria.
+* **Auditoría y Analytics de Agentes:**
+  - Interfaz de reportes que cruce el BANT Score con los cierres efectivos para evaluar el rendimiento de los agentes humanos vs. calificación IA.
 
-### 🟡 1. Lead Scoring (BANT) & Alertas Push (Fase 1)
-* **Extensión de Esquema:** Añadir columna `bant_score` (jsonb) a `leads`.
-* **Evaluación BANT en `waitUntil`:** Lógica asíncrona para extraer Presupuesto, Autoridad, Necesidad y Tiempo durante la charla.
-* **Badges Visuales en Kanban:** Mostrar indicadores de calor BANT en `src/components`.
-* **Alertas Push WhatsApp:** Notificación automática al agente asignado cuando la IA agenda una visita exitosa.
-
-### 🟡 2. UI/UX Mejoras Finales
-* Incorporar una Vista de **Calendario en el Front-End**, consolidando la tabla `appointments` en formato semana/mes visualmente, independiente del Google Calendar externo.
+### 🟡 Fase 2: Auditoría Legal y Cierres
+* **Contract Generator:** Generación automatizada de PDFs o DOCXs inyectando los datos del comprador y vendedor.
+* **Checklist Legal:** Tarjeta de Lead expandida con hitos de validación legal (Derechos Reales, Impuestos, Gravámenes).
 
 ---
 
@@ -69,6 +66,6 @@ EVOLUTION_API_URL="https://evolution-api-production-286c8.up.railway.app"
 EVOLUTION_API_KEY="..."
 EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
 
-# Google Calendar Auth
-GOOGLE_SERVICE_ACCOUNT_KEY='{"type": "service_account", "project_id": "...", ...}'
+# Configuración de Agentes (Fase 1)
+AGENT_PHONE_NUMBER="..."
 ```

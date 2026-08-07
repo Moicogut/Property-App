@@ -8,6 +8,7 @@ interface LeadCardProps {
   onDeleteLead: (leadId: string) => void;
   onMoveStage: (leadId: string, newStage: PipelineStage) => void;
   onOpenAppointmentModal: (lead: Lead) => void;
+  userType?: 'INDEPENDENT_AGENT' | 'REAL_ESTATE_AGENCY';
 }
 
 export function LeadCard({
@@ -17,6 +18,7 @@ export function LeadCard({
   onDeleteLead,
   onMoveStage,
   onOpenAppointmentModal,
+  userType = 'INDEPENDENT_AGENT',
 }: LeadCardProps) {
   return (
     <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group">
@@ -112,6 +114,20 @@ export function LeadCard({
           <option value="CERRADO">Etapa: CERRADO</option>
         </select>
       </div>
+
+      {/* Selector de Agentes Multi-tenant (Solo Agencias) */}
+      {userType === 'REAL_ESTATE_AGENCY' && (
+        <div className="mb-2.5">
+          <select
+            className="w-full text-[10px] font-bold text-slate-600 bg-white border border-slate-200 rounded py-1 px-1.5 outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+            defaultValue={lead.assignedAgentId || ""}
+          >
+            <option value="" disabled>Asignar a agente...</option>
+            <option value="agent1">Juan Pérez</option>
+            <option value="agent2">Ana Gómez</option>
+          </select>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-slate-100">

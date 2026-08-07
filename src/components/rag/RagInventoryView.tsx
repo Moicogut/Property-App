@@ -520,6 +520,52 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 {viewingProperty.rawDescription}
               </div>
             </div>
+
+            {/* Auditoría Legal & Marketing */}
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 mb-4 text-xs">
+              <span className="font-bold text-slate-700 block mb-2">Auditoría Legal (DDRR / Municipal)</span>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
+                  <span className="text-slate-500">Folio Real</span>
+                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                </div>
+                <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
+                  <span className="text-slate-500">Impuestos</span>
+                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                </div>
+                <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
+                  <span className="text-slate-500">Catastro</span>
+                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                </div>
+                <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
+                  <span className="text-slate-500">Semáforo</span>
+                  <span className="font-bold text-emerald-600">VERDE</span>
+                </div>
+              </div>
+              <button 
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/ai/generate-copy", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ propertyId: viewingProperty.id })
+                    });
+                    const data = await res.json();
+                    if (data.copy) {
+                      alert("✨ Copy Generado:\n\n" + data.copy);
+                    } else {
+                      alert("Error: " + (data.error || "No se pudo generar el copy."));
+                    }
+                  } catch (e) {
+                    alert("Error generando copy.");
+                  }
+                }}
+                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4" />
+                Generar Copy para Redes
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -13,6 +13,7 @@ export interface MatchedProperty {
   raw_description: string;
   property_code?: string;
   similarity: number;
+  global_legal_score?: string;
 }
 
 /**

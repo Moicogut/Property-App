@@ -19,12 +19,21 @@ export interface AppUser {
   email: string;
   fullName: string;
   role: UserRole;
+  userType?: 'INDEPENDENT_AGENT' | 'REAL_ESTATE_AGENCY';
   phoneNumber?: string; // Para notificaciones push
 }
 
 export interface Organization {
   id: string;
   name: string;
+  primaryCity?: string;
+  modules?: {
+    module_sofia_ia: boolean;
+    module_bant_kanban: boolean;
+    module_social_marketing: boolean;
+    module_legal_audit: boolean;
+    module_contract_generator: boolean;
+  };
   ai_keywords?: string;
   gemini_api_key?: string;
   whatsapp_instance_id?: string;
@@ -70,12 +79,25 @@ export interface BantScore {
   score: number; // 0 - 100
 }
 
+export interface PropertyLegalAudit {
+  id: string;
+  propertyId: string;
+  city: string;
+  folioRealStatus: 'AL_DIA' | 'CON_GRAVAMEN' | 'PENDIENTE';
+  taxStatus: 'AL_DIA' | 'DEUDA' | 'PENDIENTE';
+  cadastralStatus: 'APROBADO' | 'EN_TRAMITE' | 'NO_TIENE' | 'PENDIENTE';
+  globalLegalScore: 'VERDE' | 'AMARILLO' | 'ROJO';
+  notes?: string;
+  updatedAt?: string;
+}
+
 export interface Lead {
   id: string;
   organizationId: string;
   phoneNumber: string;
   fullName: string;
   pipelineStage: PipelineStage;
+  sourceChannel?: string;
   budgetMaxUsd: number;
   paymentMethod: PaymentMethod;
   hasDownPayment: boolean; // Insignia Aporte Propio

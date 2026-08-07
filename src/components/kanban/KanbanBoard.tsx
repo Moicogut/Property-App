@@ -9,6 +9,7 @@ interface KanbanBoardProps {
   onDeleteLead: (leadId: string) => void;
   onMoveStage: (leadId: string, newStage: PipelineStage) => void;
   onOpenAppointmentModal: (lead: Lead) => void;
+  userType?: 'INDEPENDENT_AGENT' | 'REAL_ESTATE_AGENCY';
 }
 
 export const kanbanColumns: { stage: PipelineStage; label: string; countBadge: string }[] = [
@@ -28,6 +29,7 @@ export function KanbanBoard({
   onDeleteLead,
   onMoveStage,
   onOpenAppointmentModal,
+  userType,
 }: KanbanBoardProps) {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#F1F5F9] h-full overflow-hidden">
@@ -61,6 +63,7 @@ export function KanbanBoard({
                     onDeleteLead={onDeleteLead}
                     onMoveStage={onMoveStage}
                     onOpenAppointmentModal={onOpenAppointmentModal}
+                    userType={userType}
                   />
                 ))}
 
