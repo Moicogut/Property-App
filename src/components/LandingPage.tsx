@@ -161,8 +161,13 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                       onError={(e) => { (e.target as HTMLImageElement).src = defaultImage; }}
                     />
-                    <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-indigo-300 border border-slate-800">
-                      {property.type || 'Inmueble'}
+                    <div className="absolute top-3 left-3 flex flex-col gap-1">
+                      <span className="bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-indigo-300 border border-slate-800 w-max">
+                        {property.type || 'Inmueble'}
+                      </span>
+                      <span className="bg-slate-900/90 backdrop-blur-md px-2 py-0.5 rounded-md text-[10px] font-mono text-slate-400 border border-slate-700 w-max">
+                        Ref: {property.id.substring(0, 8)}
+                      </span>
                     </div>
                     <div className="absolute bottom-3 right-3 bg-indigo-600/90 text-white font-bold text-sm px-3.5 py-1 rounded-xl backdrop-blur-md shadow-lg">
                       ${price > 0 ? price.toLocaleString() : 'Consulte'} USD
