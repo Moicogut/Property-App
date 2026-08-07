@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { processWebhookMessage } from "./src/app/api/whatsapp/webhook/route";
+import { processWebhookMessage } from "./api/whatsapp/webhook";
 import { supabaseServer } from "./src/lib/supabase-server";
 import { EmbeddingFactory } from "./src/lib/embeddings";
 
