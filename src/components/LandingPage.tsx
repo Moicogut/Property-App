@@ -150,7 +150,7 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
                       src={coverImg}
                       alt={property.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      onError={(e) => { (e.target as HTMLImageElement).src = defaultImage; }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80'; }}
                     />
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
                       <span className="bg-slate-950/80 backdrop-blur-md px-3 py-1 rounded-full text-xs font-semibold text-indigo-300 border border-slate-800 w-max">

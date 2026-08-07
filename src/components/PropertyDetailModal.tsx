@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, MapPin, Bed, Bath, Maximize, Phone, MessageSquare, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
-import { getSafeImageUrl } from '../utils/imageHelper';
+import { getSafeImageUrl, getSafeImageArray } from '../utils/imageHelper';
 
 interface Property {
   id: string;
@@ -32,31 +32,11 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
 
   // Colección de imágenes (prioriza el arreglo images o image_url)
   const safeCoverUrl = getSafeImageUrl(property);
-  let gallery = [safeCoverUrl];
+  let gallery = getSafeImageArray(property);
   
-  if (property.images && Array.isArray(property.images) && property.images.length > 0) {
-    const validImages = property.images.filter(img => typeof img === 'string' && img.startsWith('http'));
-    if (validImages.length > 0) {
-      gallery = validImages;
-    }
-  } else if (typeof property.images === 'string') {
-    try {
-      const parsed = JSON.parse(property.images);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const validImages = parsed.filter(img => typeof img === 'string' && img.startsWith('http'));
-        if (validImages.length > 0) {
-          gallery = validImages;
-        }
-      }
-    } catch (e) {
-      // Ignore
-    }
-  } else if (property.image_url) {
-    // Si viene como string separado por comas, lo dividimos
-    const parts = property.image_url.split(',').map(url => url.trim()).filter(url => url.startsWith('http'));
-    if (parts.length > 0) {
-      gallery = parts;
-    }
+  // Asegurar que haya al menos una imagen válida en la galería
+  if (gallery.length === 0) {
+    gallery = [safeCoverUrl];
   }
 
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
@@ -134,7 +114,7 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
                     src={img} 
                     alt={`Thumb ${idx}`} 
                     className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).src = defaultImage; }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80'; }}
                   />
                 </button>
               ))}
