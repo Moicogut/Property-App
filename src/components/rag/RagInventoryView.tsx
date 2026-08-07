@@ -53,19 +53,18 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
 
   const handleUploadFile = async (file: File): Promise<string | null> => {
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `properties/${fileName}`;
+    const filePath = `properties/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('images')
+      .from('properties')
       .upload(filePath, file);
 
     if (uploadError) {
-      console.error(uploadError);
+      console.error('Error subiendo imagen:', uploadError);
       return null;
     }
 
-    const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+    const { data } = supabase.storage.from('properties').getPublicUrl(filePath);
     return data.publicUrl;
   };
 
@@ -591,9 +590,10 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
               }
               
               if (onUpdateProperty) {
+                const coverUrl = imagesArray.find((img) => typeof img === 'string' && img.startsWith('http')) || imagesArray[0] || '';
                 onUpdateProperty(editingProperty.id, { 
                   ...editingProperty, 
-                  imageUrl: imagesArray[0], // Guardar primera para miniatura legacy
+                  imageUrl: coverUrl, // URL de la primera imagen como portada
                   images: imagesArray 
                 });
               }

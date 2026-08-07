@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Building2, Search, LogIn, MapPin, Bed, Bath, Maximize, Sparkles, Eye } from 'lucide-react';
 import { PropertyDetailModal } from './PropertyDetailModal';
 import { SofiaButton } from './SofiaButton';
+import { getSafeImageUrl } from '../utils/imageHelper';
 
 interface Property {
   id: string;
@@ -132,17 +133,7 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredProperties.map((property) => {
-              const defaultImage = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80';
-              let coverImg = defaultImage;
-              
-              if (property.images && property.images.length > 0) {
-                coverImg = property.images[0];
-              } else if (property.image_url) {
-                const parts = property.image_url.split(',');
-                if (parts.length > 0 && parts[0].trim()) {
-                  coverImg = parts[0].trim();
-                }
-              }
+              const coverImg = getSafeImageUrl(property);
 
               const price = property.price || property.priceUsd || 0;
               const location = property.location || (property.city && property.zone ? `${property.city}, ${property.zone}` : 'Ubicación a consultar');
