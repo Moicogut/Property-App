@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.property_copies (
 );
 
 ALTER TABLE public.property_copies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Full access for property_copies" ON public.property_copies;
 CREATE POLICY "Full access for property_copies" ON public.property_copies FOR ALL USING (true);
 
 -- Agregar columna de imágenes múltiples

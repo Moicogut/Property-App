@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.contracts (
 ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
 
 -- Políticas base para la tabla contracts (Opcional, asumiendo acceso completo a admin por el momento)
+DROP POLICY IF EXISTS "Allow Full Access on Contracts" ON public.contracts;
 CREATE POLICY "Allow Full Access on Contracts"
 ON public.contracts
 FOR ALL
@@ -31,11 +32,13 @@ VALUES ('contracts-pdf', 'contracts-pdf', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Permitir lectura pública de los documentos generados
+DROP POLICY IF EXISTS "Public Read Access for Contracts" ON storage.objects;
 CREATE POLICY "Public Read Access for Contracts"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'contracts-pdf');
 
 -- 3. Permitir subida/inserción a usuarios autenticados (o desde el Service Role del Serverless)
+DROP POLICY IF EXISTS "Allow Upload for Contracts" ON storage.objects;
 CREATE POLICY "Allow Upload for Contracts"
 ON storage.objects FOR INSERT
 WITH CHECK (bucket_id = 'contracts-pdf');
