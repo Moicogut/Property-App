@@ -44,6 +44,9 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   // States for new management features
   const [viewingProperty, setViewingProperty] = useState<Property | null>(null);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [generatedCopy, setGeneratedCopy] = useState<string>('');
+  const [copied, setCopied] = useState<boolean>(false);
+  const [loadingCopy, setLoadingCopy] = useState<boolean>(false);
 
   // Form State for new property
   const [title, setTitle] = useState("");
@@ -543,7 +546,9 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 </div>
               </div>
               <button 
+                disabled={loadingCopy}
                 onClick={async () => {
+                  setLoadingCopy(true);
                   try {
                     const res = await fetch("/api/ai/generate-copy", {
                       method: "POST",
@@ -552,19 +557,45 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                     });
                     const data = await res.json();
                     if (data.copy) {
-                      alert("✨ Copy Generado:\n\n" + data.copy);
+                      setGeneratedCopy(data.copy);
                     } else {
                       alert("Error: " + (data.error || "No se pudo generar el copy."));
                     }
                   } catch (e) {
                     alert("Error generando copy.");
+                  } finally {
+                    setLoadingCopy(false);
                   }
                 }}
-                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-1.5"
+                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-70"
               >
-                <Sparkles className="w-4 h-4" />
-                Generar Copy para Redes
+                <Sparkles className={`w-4 h-4 ${loadingCopy ? 'animate-spin' : ''}`} />
+                {loadingCopy ? 'Generando Copy...' : 'Generar Copy para Redes'}
               </button>
+
+              {generatedCopy && (
+                <div className="mt-4 p-4 bg-slate-800 rounded-lg border border-slate-700 animate-in fade-in zoom-in duration-300">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-sm font-semibold text-emerald-400">✨ Copy Generado para Redes</label>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedCopy);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded transition-colors shadow-sm"
+                    >
+                      {copied ? '✅ ¡Copiado!' : '📋 Copiar Texto'}
+                    </button>
+                  </div>
+                  <textarea
+                    value={generatedCopy}
+                    onChange={(e) => setGeneratedCopy(e.target.value)}
+                    rows={8}
+                    className="w-full p-3 bg-slate-900 text-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 custom-scrollbar resize-none"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -580,7 +611,6 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={(e) => {
               e.preventDefault();
               const parsedUrls = (editingProperty.imageUrl || "").split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
