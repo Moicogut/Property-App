@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Building2,
@@ -17,9 +17,11 @@ import {
   ChevronRight,
   Zap,
   Bot,
+  Settings,
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
 import { signOut } from "@/src/lib/auth";
+import { supabase } from "@/src/lib/supabase";
 
 /** Email del SuperAdmin — debe coincidir exactamente con auth.ts */
 const SUPERADMIN_EMAIL = "rolangutiali.rg@gmail.com";
@@ -58,10 +60,37 @@ const mockWebhookLogs = [
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
 export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout }) => {
-  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config">("agencies");
+  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts">("agencies");
   const [agencyStatuses, setAgencyStatuses] = useState<Record<string, "ACTIVA" | "PAUSADA">>(
     Object.fromEntries(mockAgencies.map((a) => [a.id, a.status]))
   );
+  
+  const [copyGeneratorPrompt, setCopyGeneratorPrompt] = useState("");
+  const [savingPrompt, setSavingPrompt] = useState(false);
+
+  useEffect(() => {
+    if (activeSection === "system_prompts") {
+      loadSystemPrompts();
+    }
+  }, [activeSection]);
+
+  const loadSystemPrompts = async () => {
+    const { data } = await supabase.from('system_prompts').select('*').eq('key', 'COPY_GENERATOR').single();
+    if (data) {
+      setCopyGeneratorPrompt(data.prompt_text);
+    }
+  };
+
+  const saveCopyGeneratorPrompt = async () => {
+    setSavingPrompt(true);
+    await supabase.from('system_prompts').upsert({
+      key: 'COPY_GENERATOR',
+      prompt_text: copyGeneratorPrompt,
+      updated_at: new Date().toISOString()
+    });
+    setSavingPrompt(false);
+    alert('Prompt actualizado con éxito!');
+  };
 
   // ─── Guard de seguridad estricto ───
   if (currentUser.email !== SUPERADMIN_EMAIL) {
@@ -91,6 +120,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
   const navItems = [
     { id: "agencies" as const, icon: Building2, label: "Gestor de Agencias" },
     { id: "ai_config" as const, icon: Bot, label: "Configuración IA" },
+    { id: "system_prompts" as const, icon: Settings, label: "Prompts IA" },
     { id: "metrics"  as const, icon: Activity,  label: "Métricas de Consumo" },
     { id: "webhook"  as const, icon: Webhook,    label: "Config Webhook" },
   ];
@@ -497,6 +527,55 @@ ETAPA 4: CIERRE Y AGENDAMIENTO DE VISITA
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── SECTION 5: Configuración System Prompts ── */}
+          {activeSection === "system_prompts" && (
+            <div className="space-y-5 max-w-5xl">
+              <div>
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-emerald-400" />
+                  Gestión Dinámica de Prompts (IA)
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Edita los prompts base que usan las funciones serverless sin necesidad de redesplegar.
+                </p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
+                <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Generador de Copies Publicitarios</h3>
+                    <p className="text-[11px] text-slate-400">Key: COPY_GENERATOR</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                      Prompt del Sistema
+                    </label>
+                    <textarea 
+                      value={copyGeneratorPrompt}
+                      onChange={(e) => setCopyGeneratorPrompt(e.target.value)}
+                      rows={12}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-y"
+                    />
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button 
+                      onClick={saveCopyGeneratorPrompt}
+                      disabled={savingPrompt}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-5 rounded-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {savingPrompt ? 'Guardando...' : 'Guardar Prompt'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -28,7 +28,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     
-    const systemPrompt = `Eres un Copywriter Inmobiliario Elite especializado en Ads.
+    // Fetch dynamic prompt from DB
+    const { data: promptConfig } = await supabaseServer
+      .from('system_prompts')
+      .select('prompt_text')
+      .eq('key', 'COPY_GENERATOR')
+      .single();
+
+    const systemPrompt = promptConfig?.prompt_text || `Eres un Copywriter Inmobiliario Elite especializado en Ads.
 Genera 2 variantes de copy persuasivo (Estructura Hook + Beneficios + CTA directo) y 1 Prompt para generar la imagen publicitaria en Midjourney/DALL-E.
 
 FORMATO REQUERIDO (Estricto, sin marcas de markdown ### ni **):

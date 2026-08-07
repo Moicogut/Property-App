@@ -423,6 +423,7 @@ export default function App() {
     if (updates.acceptsSocialHousing !== undefined) dbUpdates.accepts_social_housing = updates.acceptsSocialHousing;
     if (updates.rawDescription !== undefined) dbUpdates.raw_description = updates.rawDescription;
     if (updates.images !== undefined) dbUpdates.images = updates.images;
+    if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
     
     if (Object.keys(dbUpdates).length > 0) {
       await supabase.from("properties").update(dbUpdates).eq("id", id);
