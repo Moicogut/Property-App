@@ -62,7 +62,7 @@ const loadDataFromSupabase = async (
       hasDownPayment: l.has_down_payment ?? false,
       downPaymentPercent: l.down_payment_percent || 20,
       downPaymentBank: l.down_payment_bank || "Banco BCP",
-      preferredZone: l.preferred_zone || "Equipetrol",
+      preferredZone: l.preferred_zone || l.bant_score?.preferred_zone || "Por definir",
       matchedProperty: l.matchedProperty ? {
         id: l.matchedProperty.id,
         organizationId: l.matchedProperty.organization_id,
@@ -168,7 +168,7 @@ export default function App() {
           hasDownPayment: l.has_down_payment ?? false,
           downPaymentPercent: l.down_payment_percent || 20,
           downPaymentBank: l.down_payment_bank || "Banco BCP",
-          preferredZone: l.preferred_zone || "Equipetrol",
+          preferredZone: l.preferred_zone || l.bant_score?.preferred_zone || "Por definir",
           matchedProperty: l.matchedProperty ? {
             id: l.matchedProperty.id,
             organizationId: l.matchedProperty.organization_id,

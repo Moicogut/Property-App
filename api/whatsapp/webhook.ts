@@ -393,13 +393,14 @@ ${chatHistoryText}
     try {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const bantPrompt = `Eres un sistema experto en Scoring Inmobiliario BANT (Budget, Authority, Need, Timeline). 
-Extrae o deduce estos 4 atributos basados en el historial y el último mensaje del lead.
+Extrae o deduce estos atributos basados en el historial y el último mensaje del lead.
 Responde ÚNICAMENTE en JSON con la siguiente estructura estricta:
 {
-  "budget": 0, // número (USD). Intenta extraer el presupuesto máximo. 0 si es desconocido.
+  "budget": 0, // número (USD). Intenta extraer el presupuesto máximo declarado por el cliente. 0 si es desconocido.
   "authority": false, // booleano. ¿Es el tomador de decisión? (asume true a menos que diga que debe consultar a un familiar/pareja).
   "need": "", // string corto de 5 palabras máximo resumiendo lo que busca.
   "timeline": "", // string corto (ej. "En 3 meses", "Inmediato"). "" si es desconocido.
+  "preferred_zone": "", // string. La zona o barrio que el cliente mencionó explícitamente (ej. "Sopocachi", "Equipetrol Norte"). "" si no se mencionó.
   "score": 0 // número de 0 a 100 (100 = listo para comprar, 50 = tibio, 0 = no calificado).
 }`;
       const bantResponse = await openai.chat.completions.create({
@@ -432,6 +433,13 @@ Responde ÚNICAMENTE en JSON con la siguiente estructura estricta:
   
   if (extractedBant) {
     leadPayload.bant_score = extractedBant;
+    // Sincronizar campos principales para que el frontend los lea sin depender del JSON
+    if (extractedBant.budget > 0) {
+      leadPayload.budget_max_usd = extractedBant.budget;
+    }
+    if (extractedBant.preferred_zone) {
+      leadPayload.preferred_zone = extractedBant.preferred_zone;
+    }
   }
 
   let finalLead = existingLead;
