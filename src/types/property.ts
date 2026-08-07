@@ -67,6 +67,7 @@ export interface Property {
   rawDescription: string;
   featuresJson?: Record<string, unknown>;
   imageUrl?: string;
+  images?: string[];
   vectorIndexed?: boolean;
   vectorDimensions?: number;
 }

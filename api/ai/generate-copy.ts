@@ -28,23 +28,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     
-    const prompt = `
-Eres un experto copywriter inmobiliario. Genera 2 opciones de texto persuasivo (copy) para publicar este inmueble en Facebook e Instagram, usando emojis y un llamado a la acción (Call to Action).
-Información del inmueble:
+    const systemPrompt = `Eres un Copywriter Inmobiliario Elite especializado en Ads.
+Genera 2 variantes de copy persuasivo (Estructura Hook + Beneficios + CTA directo) y 1 Prompt para generar la imagen publicitaria en Midjourney/DALL-E.
+
+FORMATO REQUERIDO (Estricto, sin marcas de markdown ### ni **):
+
+OPCION 1: INSTAGRAM / FACEBOOK
+[Texto altamente persuasivo con emojis estratégicos]
+
+OPCION 2: TIKTOK / WHATSAPP SHORT
+[Texto directo al grano, enfocado en escasez o inversión]
+
+PROMPT DE IMAGEN IA (Midjourney / DALL-E / Flux):
+[Prompt detallado en inglés optimizado para render fotorrealista del inmueble, iluminación arquitectónica y estilo editorial]`;
+
+    const userPrompt = `
+Información del inmueble a promocionar:
 - Título: ${property.title}
 - Precio: $${property.price_usd} USD
-- Zona: ${property.zone}
+- Zona: ${property.zone}, ${property.city}
 - Descripción original: ${property.raw_description}
 - Habitaciones: ${property.bedrooms} | Baños: ${property.bathrooms}
-
-Devuelve las 2 opciones en texto claro.
+- ¿Compatible Crédito VIS/ASFI?: ${property.accepts_social_housing ? 'Sí' : 'No'}
 `;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
       temperature: 0.7,
-      max_tokens: 500,
+      max_tokens: 1000,
     });
 
     const copyText = response.choices[0].message.content || '';

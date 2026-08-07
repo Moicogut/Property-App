@@ -422,6 +422,7 @@ export default function App() {
     if (updates.areaSqm !== undefined) dbUpdates.area_sqm = updates.areaSqm;
     if (updates.acceptsSocialHousing !== undefined) dbUpdates.accepts_social_housing = updates.acceptsSocialHousing;
     if (updates.rawDescription !== undefined) dbUpdates.raw_description = updates.rawDescription;
+    if (updates.images !== undefined) dbUpdates.images = updates.images;
     
     if (Object.keys(dbUpdates).length > 0) {
       await supabase.from("properties").update(dbUpdates).eq("id", id);

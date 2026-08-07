@@ -22,6 +22,7 @@ import {
   PlayCircle
 } from "lucide-react";
 import { Property } from "@/src/types/property";
+import { CopyManagementSection } from "./CopyManagementSection";
 
 interface RagInventoryViewProps {
   properties: Property[];
@@ -545,57 +546,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                   <span className="font-bold text-emerald-600">VERDE</span>
                 </div>
               </div>
-              <button 
-                disabled={loadingCopy}
-                onClick={async () => {
-                  setLoadingCopy(true);
-                  try {
-                    const res = await fetch("/api/ai/generate-copy", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ propertyId: viewingProperty.id })
-                    });
-                    const data = await res.json();
-                    if (data.copy) {
-                      setGeneratedCopy(data.copy);
-                    } else {
-                      alert("Error: " + (data.error || "No se pudo generar el copy."));
-                    }
-                  } catch (e) {
-                    alert("Error generando copy.");
-                  } finally {
-                    setLoadingCopy(false);
-                  }
-                }}
-                className="w-full py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 font-bold rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-70"
-              >
-                <Sparkles className={`w-4 h-4 ${loadingCopy ? 'animate-spin' : ''}`} />
-                {loadingCopy ? 'Generando Copy...' : 'Generar Copy para Redes'}
-              </button>
-
-              {generatedCopy && (
-                <div className="mt-4 p-4 bg-slate-800 rounded-lg border border-slate-700 animate-in fade-in zoom-in duration-300">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-semibold text-emerald-400">✨ Copy Generado para Redes</label>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedCopy);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      }}
-                      className="px-3 py-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded transition-colors shadow-sm"
-                    >
-                      {copied ? '✅ ¡Copiado!' : '📋 Copiar Texto'}
-                    </button>
-                  </div>
-                  <textarea
-                    value={generatedCopy}
-                    onChange={(e) => setGeneratedCopy(e.target.value)}
-                    rows={8}
-                    className="w-full p-3 bg-slate-900 text-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 custom-scrollbar resize-none"
-                  />
-                </div>
-              )}
+              <CopyManagementSection property={viewingProperty} />
             </div>
           </div>
         </div>
@@ -620,7 +571,11 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
               }
               
               if (onUpdateProperty) {
-                onUpdateProperty(editingProperty.id, { ...editingProperty, imageUrl: parsedUrls.join(",") });
+                onUpdateProperty(editingProperty.id, { 
+                  ...editingProperty, 
+                  imageUrl: parsedUrls[0], // Guardar primera para miniatura legacy
+                  images: parsedUrls 
+                });
               }
               setEditingProperty(null);
             }} className="space-y-3 text-xs">
