@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { Lead, PipelineStage } from "@/src/types/property";
+import { GenerateContractModal } from "./GenerateContractModal";
 
 interface LeadCardProps {
   lead: Lead;
@@ -20,6 +21,8 @@ export function LeadCard({
   onOpenAppointmentModal,
   userType = 'INDEPENDENT_AGENT',
 }: LeadCardProps) {
+  const [showContractModal, setShowContractModal] = useState(false);
+
   return (
     <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all relative group">
       {/* Card Header */}
@@ -144,6 +147,18 @@ export function LeadCard({
           📅 Visita
         </button>
       </div>
+      
+      {/* Contract Button */}
+      {lead.matchedProperty && (
+        <div className="mt-1.5">
+          <button
+            onClick={() => setShowContractModal(true)}
+            className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition-colors text-center shadow-xs flex items-center justify-center gap-1.5"
+          >
+            📄 Emitir Documento Formal
+          </button>
+        </div>
+      )}
 
       {/* Cita Inteligente (Si existe) */}
       {lead.appointmentDate ? (
@@ -151,6 +166,14 @@ export function LeadCard({
           <span>📅 Cita: {new Date(lead.appointmentDate).toLocaleString()}</span>
         </div>
       ) : null}
+
+      {showContractModal && lead.matchedProperty && (
+        <GenerateContractModal 
+          lead={lead} 
+          property={lead.matchedProperty} 
+          onClose={() => setShowContractModal(false)} 
+        />
+      )}
     </div>
   );
 }
