@@ -11,7 +11,7 @@ export type PipelineStage =
 export type UserRole = 'superadmin' | 'agency_admin' | 'agent';
 
 /** Vista activa en el SPA — controla el routing sin librerías externas */
-export type AppView = 'login' | 'pipeline' | 'rag' | 'dashboard' | 'chat' | 'admin';
+export type AppView = 'login' | 'pipeline' | 'rag' | 'dashboard' | 'chat' | 'admin' | 'landing';
 
 /** Usuario autenticado de Supabase Auth */
 export interface AppUser {

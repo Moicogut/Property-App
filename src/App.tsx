@@ -42,6 +42,8 @@ import { SuperAdminPanel } from "@/src/components/admin/SuperAdminPanel";
 import { getCurrentUser, onAuthStateChange, signOut } from "@/src/lib/auth";
 import { AppHeader } from "@/src/components/layout/AppHeader";
 import { KanbanBoard } from "@/src/components/kanban/KanbanBoard";
+import { LandingPage } from "@/src/components/LandingPage";
+import { SaveToast } from "@/src/components/SaveToast";
 
 import { supabase } from "@/src/lib/supabase";
 
@@ -124,7 +126,9 @@ export default function App() {
   // ── Auth State ─────────────────────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<AppView>("pipeline");
+  const [currentView, setCurrentView] = useState<AppView>("landing");
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   // ── Tabs de navegación ──────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
@@ -333,8 +337,19 @@ export default function App() {
     );
   }
 
+  // ── Vista Pública: Landing Page ─────────────────────────────────────────────
+  if (currentView === "landing") {
+    return (
+      <LandingPage
+        properties={properties}
+        onLoginClick={() => setCurrentView("login")}
+        onSelectProperty={() => {}} // TODO: Mostrar detalle de propiedad
+      />
+    );
+  }
+
   // ── Auth Guard: mostrar Login si no hay sesión activa ───────────────────────
-  if (!currentUser) {
+  if (!currentUser || currentView === "login") {
     return <LoginPage onAuthSuccess={(user) => { setCurrentUser(user); setCurrentView("pipeline"); }} />;
   }
 
@@ -426,7 +441,13 @@ export default function App() {
     if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl;
     
     if (Object.keys(dbUpdates).length > 0) {
-      await supabase.from("properties").update(dbUpdates).eq("id", id);
+      const { error } = await supabase.from("properties").update(dbUpdates).eq("id", id);
+      if (!error) {
+        setToastMessage("Los datos e imágenes del inmueble se actualizaron correctamente.");
+        setShowToast(true);
+      } else {
+        console.error("Error al actualizar inmueble:", error.message);
+      }
     }
   };
 
@@ -730,6 +751,13 @@ export default function App() {
           setIsPdfModalOpen(false);
           setLeadForPdf(null);
         }}
+      />
+
+      {/* Global Save Toast Notification */}
+      <SaveToast
+        isOpen={showToast}
+        message={toastMessage}
+        onClose={() => setShowToast(false)}
       />
 
     </div>

@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import { Property } from "@/src/types/property";
 import { CopyManagementSection } from "./CopyManagementSection";
+import { PropertyImageUploader } from "@/src/components/PropertyImageUploader";
+import { supabase } from "@/src/lib/supabase";
 
 interface RagInventoryViewProps {
   properties: Property[];
@@ -48,6 +50,24 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   const [generatedCopy, setGeneratedCopy] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [loadingCopy, setLoadingCopy] = useState<boolean>(false);
+
+  const handleUploadFile = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `properties/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('images')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error(uploadError);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+    return data.publicUrl;
+  };
 
   // Form State for new property
   const [title, setTitle] = useState("");
@@ -564,17 +584,17 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const parsedUrls = (editingProperty.imageUrl || "").split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
-              if (parsedUrls.length < 2 || parsedUrls.length > 6) {
-                alert("Por favor ingresa entre 2 y 6 enlaces de imágenes válidos (uno por línea o separados por comas).");
+              const imagesArray = editingProperty.images || (editingProperty.imageUrl ? [editingProperty.imageUrl] : []);
+              if (imagesArray.length === 0) {
+                alert("Por favor ingresa al menos una imagen de la propiedad.");
                 return;
               }
               
               if (onUpdateProperty) {
                 onUpdateProperty(editingProperty.id, { 
                   ...editingProperty, 
-                  imageUrl: parsedUrls[0], // Guardar primera para miniatura legacy
-                  images: parsedUrls 
+                  imageUrl: imagesArray[0], // Guardar primera para miniatura legacy
+                  images: imagesArray 
                 });
               }
               setEditingProperty(null);
@@ -612,8 +632,11 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Enlaces de Imágenes (Mín 2, Máx 6)</label>
-                <textarea required rows={3} value={(editingProperty.imageUrl || "").replace(/,/g, "\n")} onChange={(e) => setEditingProperty({...editingProperty, imageUrl: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 resize-none" placeholder="https://ejemplo.com/foto1.jpg&#10;https://ejemplo.com/foto2.jpg"></textarea>
+                <PropertyImageUploader
+                  images={editingProperty.images || (editingProperty.imageUrl ? editingProperty.imageUrl.split(/[\n,]+/).map(u => u.trim()).filter(Boolean) : [])}
+                  onChange={(newImages) => setEditingProperty({...editingProperty, images: newImages, imageUrl: newImages[0] || ''})}
+                  onUploadFile={handleUploadFile}
+                />
               </div>
 
               <div className="pt-2">
