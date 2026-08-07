@@ -23,6 +23,10 @@ export const getSafeImageUrl = (property: any): string => {
 
   // 3. Evaluar campo image_url
   if (typeof property.image_url === 'string' && property.image_url.startsWith('http')) {
+    const parts = property.image_url.split(',');
+    if (parts.length > 0 && parts[0].trim().startsWith('http')) {
+      return parts[0].trim();
+    }
     return property.image_url;
   }
 

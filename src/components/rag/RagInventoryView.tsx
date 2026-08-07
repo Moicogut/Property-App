@@ -56,7 +56,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
     const filePath = `properties/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('properties')
+      .from('images')
       .upload(filePath, file);
 
     if (uploadError) {
@@ -64,7 +64,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
       return null;
     }
 
-    const { data } = supabase.storage.from('properties').getPublicUrl(filePath);
+    const { data } = supabase.storage.from('images').getPublicUrl(filePath);
     return data.publicUrl;
   };
 
