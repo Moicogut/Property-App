@@ -1,7 +1,14 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { supabaseServer } from '../../src/services/shared';
+import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseServer = createClient(supabaseUrl, supabaseKey);
+
+const sanitizeText = (str: string) => 
+  str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ñ/g, "n").replace(/Ñ/g, "N") : "";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -59,7 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Cuerpo
     const drawLine = (label: string, value: string) => {
       page.drawText(`${label}:`, { x: margin, y, size: 12, font: fontBold });
-      page.drawText(value, { x: margin + 120, y, size: 12, font });
+      page.drawText(sanitizeText(value), { x: margin + 120, y, size: 12, font });
       y -= 20;
     };
 
@@ -74,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     drawLine('Válido Hasta', valid_until ? new Date(valid_until).toLocaleDateString() : 'N/A');
 
     y -= 40;
-    page.drawText('Cláusulas Legales:', { x: margin, y, size: 12, font: fontBold });
+    page.drawText('Clausulas Legales:', { x: margin, y, size: 12, font: fontBold });
     y -= 20;
     
     const clausulas = contract_type === 'RESERVATION' 
@@ -83,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const clausulasLines = clausulas.split('\n');
     for (const line of clausulasLines) {
-      page.drawText(line, { x: margin, y, size: 10, font });
+      page.drawText(sanitizeText(line), { x: margin, y, size: 10, font });
       y -= 15;
     }
 
@@ -143,8 +150,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(200).json({ success: true, pdf_url: pdfUrl, contract: contractRecord });
-  } catch (error) {
-    console.error('[PDF Generation Error]', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+  } catch (error: any) {
+    console.error("Error al generar contrato:", error);
+    return res.status(500).json({ error: error.message || "Error interno al generar el PDF" });
   }
 }
