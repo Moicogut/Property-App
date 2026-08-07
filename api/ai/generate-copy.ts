@@ -1,7 +1,10 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import OpenAI from 'openai';
-import { supabaseServer } from '../../src/services/shared';
+import { createClient } from '@supabase/supabase-js';
 
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseServer = createClient(supabaseUrl, supabaseKey);
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -47,8 +50,8 @@ Devuelve las 2 opciones en texto claro.
     const copyText = response.choices[0].message.content || '';
 
     return res.status(200).json({ copy: copyText });
-  } catch (error) {
-    console.error('[Generate Copy] Error:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+  } catch (error: any) {
+    console.error("Error al generar copy con IA:", error);
+    return res.status(500).json({ error: error.message || 'Error interno al generar copy' });
   }
 }
