@@ -188,6 +188,7 @@ export default function App() {
             status: l.matchedProperty.status,
             rawDescription: l.matchedProperty.raw_description,
             imageUrl: l.matchedProperty.image_url,
+            images: l.matchedProperty.images,
             vectorIndexed: true,
             vectorDimensions: 1536,
           } : undefined,
@@ -239,6 +240,7 @@ export default function App() {
         status: p.status,
         rawDescription: p.raw_description,
         imageUrl: p.image_url,
+        images: p.images,
         vectorIndexed: true,
         vectorDimensions: 1536,
       }));
