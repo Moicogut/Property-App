@@ -1,43 +1,108 @@
-/**
- * Webhook Principal de Property OS — Orquestador.
- * 
- * Este archivo ya NO contiene lógica de negocio directa.
- * Toda la lógica está delegada a servicios independientes en /api/services/.
- * 
- * Flujo: Parse → Dedup → Lead Lookup → RAG → LLM → BANT → Upsert → Enviar
- */
+import "dotenv/config";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// ── Servicios ──
-// ── Servicios ──
-import { sendWhatsAppMessage } from "../../src/services/evolution-api";
-import { searchProperties } from "../../src/services/rag-search";
-import { buildSofiaPrompt, buildSofiaTools, buildFallbackReply } from "../../src/services/sofia-prompt";
-import { extractBantScore } from "../../src/services/bant-extractor";
-import {
-  findLeadByPhone,
-  getChatHistory,
-  getOrganization,
-  upsertLead,
-  saveMessages,
-  createAppointment,
-} from "../../src/services/lead-manager";
-import {
-  supabaseServer,
-  DEFAULT_AI_CONFIG,
-  DEFAULT_KEYWORDS,
-  type WebhookProcessOptions,
-  type ParsedIncomingMessage,
-} from "../../src/services/shared";
+// ── 1. SUPABASE CLIENT LAZY INIT PROXY ──
+const FALLBACK_SUPABASE_URL = "https://lqagnlbygzurddkzbbwn.supabase.co";
 
-// ── Deduplicación en memoria ──
+let _supabaseServer: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabaseServer) {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+    _supabaseServer = createClient(supabaseUrl, supabaseKey || "dummy-key-for-init");
+  }
+  return _supabaseServer;
+}
+
+const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabase();
+    const val = (client as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof val === "function" ? (val as (...args: unknown[]) => unknown).bind(client) : val;
+  },
+});
+
+// ── 2. CONSTANTES Y CONFIGURACIÓN ──
+const DEFAULT_AI_CONFIG = {
+  systemRules: "Eres Sofía, Asesora Inmobiliaria de Property OS. Califica al prospecto (Cuota inicial, presupuesto).",
+  tone: "Cálida, profesional y ejecutiva. Máximo 2 oraciones.",
+  fallbacks: "Si pregunta por temas no inmobiliarios, deniega amablemente.",
+  defaultAgentPhone: "",
+};
+
+const DEFAULT_KEYWORDS = [
+  "departamento", "casa", "garsonier", "garaje", "tienda", "almacen",
+  "property", "informacion", "precio", "venta", "hola", "buen dia",
+  "buenas", "info", "ubicacion", "agente",
+];
+
 const processedMessages = new Map<string, number>();
 const DEDUP_WINDOW_MS = 60_000;
 
-// ════════════════════════════════════════════════════════════════
-// 1. PARSER: Extrae datos del payload de Evolution API
-// ════════════════════════════════════════════════════════════════
+// ── 3. EMBEDDINGS Y BÚSQUEDA RAG ──
+async function generateEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1);
+  }
+  try {
+    const openai = new OpenAI({ apiKey });
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: text,
+      dimensions: 768,
+    });
+    const embedding = response.data[0]?.embedding;
+    return embedding && embedding.length === 768 ? embedding : Array(768).fill(0);
+  } catch (err) {
+    console.warn("[OpenAI] Embeddings error:", err);
+    return Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1);
+  }
+}
+
+interface MatchedProperty {
+  id: string;
+  title: string;
+  zone: string;
+  city: string;
+  price_usd: number;
+  raw_description: string;
+  property_code?: string;
+  similarity: number;
+}
+
+async function searchProperties(userText: string): Promise<MatchedProperty[]> {
+  try {
+    const queryEmbedding = await generateEmbedding(userText);
+    const { data: matches, error: rpcError } = await supabase.rpc("match_properties", {
+      query_embedding: JSON.stringify(queryEmbedding),
+      match_threshold: 0.25,
+      match_count: 2,
+    });
+    if (rpcError) {
+      console.warn("[RAG] RPC error:", rpcError);
+      return [];
+    }
+    return (matches || []) as MatchedProperty[];
+  } catch (err) {
+    console.error("[RAG] Fallo:", err);
+    return [];
+  }
+}
+
+// ── 4. PARSER EVOLUTION API ──
+interface ParsedIncomingMessage {
+  rawPhoneNumber: string;
+  senderName: string;
+  userMessageText: string;
+  messageId: string;
+  fromMe: boolean;
+  rawRemoteJid: string;
+  payloadApiKey?: string;
+}
+
 function parseEvolutionPayload(body: Record<string, unknown>): ParsedIncomingMessage {
   const payloadApiKey = (body.apikey as string) || (body.data && (body.data as Record<string, unknown>).apikey as string) || undefined;
   const msgData = (body.data as Record<string, unknown>) || body;
@@ -58,24 +123,56 @@ function parseEvolutionPayload(body: Record<string, unknown>): ParsedIncomingMes
   return { rawPhoneNumber, senderName, userMessageText, messageId, fromMe, rawRemoteJid, payloadApiKey };
 }
 
-// ════════════════════════════════════════════════════════════════
-// 2. PROCESADOR PRINCIPAL
-// ════════════════════════════════════════════════════════════════
+// ── 5. ENVÍO DE MENSAJES WHATSAPP ──
+async function sendWhatsAppMessage(
+  phone: string,
+  text: string,
+  instanceName: string,
+  apiUrl: string,
+  apiKey: string
+): Promise<boolean> {
+  const recipientNumber = phone.replace(/\D/g, "");
+  try {
+    const rawBaseUrl = apiUrl || process.env.EVOLUTION_API_URL || "https://evolution-api-production-a3a5.up.railway.app";
+    const cleanBaseUrl = rawBaseUrl.trim().replace(/\/+$/, "");
+    const instance = instanceName || process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main";
+    const targetUrl = `${cleanBaseUrl}/message/sendText/${instance}`;
+    const activeApiKey = apiKey || process.env.EVOLUTION_API_KEY || "";
+
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: activeApiKey,
+      },
+      body: JSON.stringify({
+        number: String(recipientNumber),
+        text,
+        delay: Math.floor(Math.random() * (2000 - 1000 + 1) + 1000),
+        presence: "composing",
+      }),
+    });
+
+    console.log(`[Evolution API] Envío a ${recipientNumber} - Status:`, response.status);
+    return response.ok;
+  } catch (err) {
+    console.error("[Evolution API] Fallo de red:", err);
+    return false;
+  }
+}
+
+// ── 6. PROCESAMIENTO PRINCIPAL ──
 export async function processWebhookMessage(
   body: Record<string, unknown>,
-  options: WebhookProcessOptions
+  options: { evolutionApiUrl?: string; evolutionApiKey?: string; evolutionInstance?: string }
 ): Promise<{ status: string; error?: string; leadId?: string; reason?: string }> {
-  console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(body).substring(0, 500) + "...");
+  console.log("📥 [WEBHOOK_PAYLOAD]:", JSON.stringify(body).substring(0, 400) + "...");
 
-  // ── Parse ──
   const msg = parseEvolutionPayload(body);
-
-  // ── Guards rápidos ──
   if (msg.fromMe) return { status: "IGNORED", reason: "fromMe" };
   if (!msg.rawRemoteJid || msg.rawRemoteJid.includes("@g.us")) return { status: "IGNORED", reason: "Group or missing JID" };
   if (!msg.userMessageText) return { status: "IGNORED", reason: "Empty message" };
 
-  // ── Deduplicación ──
   if (msg.messageId) {
     const now = Date.now();
     if (processedMessages.has(msg.messageId) && now - processedMessages.get(msg.messageId)! < DEDUP_WINDOW_MS) {
@@ -87,169 +184,119 @@ export async function processWebhookMessage(
     }
   }
 
-  // ── Lead existente ──
-  const existingLead = await findLeadByPhone(msg.rawPhoneNumber);
+  // Lead Lookup
+  const { data: existingLead } = await supabase
+    .from("leads")
+    .select("id, pipeline_stage, ai_paused, full_name, budget_max_usd, assigned_agent_id")
+    .eq("phone_number", msg.rawPhoneNumber)
+    .single();
+
   if (existingLead?.ai_paused) return { status: "AI_PAUSED", leadId: existingLead.id };
 
-  // ── Keywords (solo para leads nuevos) ──
   const lowerMsg = msg.userMessageText.toLowerCase();
   const hasKeyword = DEFAULT_KEYWORDS.some((kw) => lowerMsg.includes(kw));
   if (!existingLead && !hasKeyword) return { status: "IGNORED", reason: "No matching keywords" };
 
-  // ── Organización + Config IA ──
-  const org = await getOrganization();
-  const orgId = org?.id || "org-1";
-  const aiConfig = org?.ai_config || DEFAULT_AI_CONFIG;
+  // Org Config
+  const { data: orgData } = await supabase.from("organizations").select("id, ai_config").limit(1).single();
+  const orgId = orgData?.id || "org-1";
+  const aiConfig = (orgData?.ai_config as typeof DEFAULT_AI_CONFIG) || DEFAULT_AI_CONFIG;
 
-  // ── Historial de chat ──
+  // Historial
   let chatHistoryText = "";
-  let historyCount = 0;
-  if (existingLead) {
-    const history = await getChatHistory(existingLead.id);
-    chatHistoryText = history.text;
-    historyCount = history.count;
+  if (existingLead?.id) {
+    const { data: historyMsgs } = await supabase
+      .from("messages")
+      .select("sender, content, created_at")
+      .eq("lead_id", existingLead.id)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    if (historyMsgs && historyMsgs.length > 0) {
+      chatHistoryText = historyMsgs
+        .reverse()
+        .map((m) => `${m.sender === "USER" ? "Cliente" : "Sofía"}: ${m.content}`)
+        .join("\n");
+    }
   }
 
-  // ── Freno lógico (mensaje corto sin contexto) ──
-  const wordCount = msg.userMessageText.trim().split(/\s+/).length;
-  if (wordCount < 3 && historyCount === 0) {
-    const fallbackReply = `¡Hola ${msg.senderName}! Soy Sofía de Property OS. Para ayudarte mejor, ¿podrías darme un poco más de detalles sobre qué tipo de inmueble buscas o en qué zona?`;
-
-    let fastLead = existingLead;
-    if (!existingLead) {
-      fastLead = await upsertLead(null, {
-        organizationId: orgId,
-        phoneNumber: msg.rawPhoneNumber,
-        fullName: msg.senderName,
-        pipelineStage: "EN_CALIFICACION",
-        userMessageText: msg.userMessageText,
-      });
-    }
-
-    if (fastLead?.id) await saveMessages(fastLead.id, msg.userMessageText, fallbackReply);
-
-    const { evolutionApiUrl, evolutionApiKey, evolutionInstance } = options;
-    if (evolutionApiUrl && evolutionInstance) {
-      await sendWhatsAppMessage(msg.rawPhoneNumber, fallbackReply, evolutionInstance, evolutionApiUrl, msg.payloadApiKey || evolutionApiKey || "");
-    }
-
-    return { status: "SHORT_CIRCUIT", leadId: fastLead?.id };
-  }
-
-  // ── Búsqueda RAG ──
+  // RAG Search
   const matchedProperties = await searchProperties(msg.userMessageText);
   const bestMatch = matchedProperties[0] || null;
 
-  // ── Generar respuesta LLM ──
+  // LLM Generation
   let aiReplyText = "";
   let isAppointmentCreated = false;
   let appointmentDateString = "";
-
   const openAiKey = process.env.OPENAI_API_KEY;
+
   if (openAiKey) {
     try {
       const openai = new OpenAI({ apiKey: openAiKey });
-      const sofiaPrompt = buildSofiaPrompt(aiConfig, bestMatch, chatHistoryText);
-      const tools = buildSofiaTools(existingLead?.pipeline_stage);
+      const systemPrompt = `Eres Sofía, asistente virtual inmobiliaria de Property OS.
+Reglas: ${aiConfig.systemRules}
+Tono: ${aiConfig.tone}
+${bestMatch ? `Inmueble destacado en inventario: "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd} USD.` : "No hay inmueble exacto, pregunta por zona y presupuesto."}
+${chatHistoryText ? `\nHistorial:\n${chatHistoryText}` : ""}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: sofiaPrompt },
-          { role: "user", content: `[Cliente]: "${msg.userMessageText}"` },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: msg.userMessageText },
         ],
-        tools: tools.length > 0 ? (tools as any) : undefined,
         temperature: 0.7,
         max_tokens: 250,
       });
 
-      const message = response.choices[0].message;
-      if (message.tool_calls && message.tool_calls.length > 0) {
-        const toolCall = message.tool_calls[0];
-        if ('function' in toolCall && toolCall.function?.name === "agendar_visita") {
-          const args = JSON.parse(toolCall.function.arguments);
-          aiReplyText = `¡Perfecto! He agendado formalmente la visita para el ${args.fecha} a las ${args.hora}. Un asesor se pondrá en contacto para afinar detalles.`;
-          isAppointmentCreated = true;
-          appointmentDateString = `${args.fecha} ${args.hora}`;
-        }
-      } else {
-        aiReplyText = message.content || "";
-      }
+      aiReplyText = response.choices[0].message.content || "";
     } catch (err) {
-      console.error("[Webhook] LLM Error:", err);
+      console.error("[Webhook] OpenAI Error:", err);
     }
   }
 
-  // ── Fallback si LLM falló ──
   if (!aiReplyText) {
-    aiReplyText = buildFallbackReply(msg.senderName, msg.userMessageText, bestMatch);
+    aiReplyText = bestMatch
+      ? `¡Hola ${msg.senderName}! Te saluda Sofía de Property OS. Tenemos disponible "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd} USD. ¿Te gustaría agendar una visita?`
+      : `¡Hola ${msg.senderName}! Soy Sofía de Property OS. ¿En qué tipo de inmueble estás interesado hoy o en qué zona buscas?`;
   }
 
-  // ── Extracción BANT ──
-  const extractedBant = await extractBantScore(chatHistoryText, msg.userMessageText);
+  // Upsert Lead
+  const { data: upsertedLead } = await supabase
+    .from("leads")
+    .upsert({
+      id: existingLead?.id || undefined,
+      organization_id: orgId,
+      phone_number: msg.rawPhoneNumber,
+      full_name: existingLead?.full_name || msg.senderName,
+      pipeline_stage: existingLead?.pipeline_stage || "EN_CALIFICACION",
+      property_interest_id: bestMatch?.id || undefined,
+      updated_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
 
-  // ── Pipeline stage ──
-  const isFullyQualified = lowerMsg.includes("aporte") || lowerMsg.includes("cuota inicial") || lowerMsg.includes("banco");
-  const stage = isAppointmentCreated
-    ? "VISITA_AGENDADA"
-    : isFullyQualified
-      ? "CALIFICADO_VISITA_PENDIENTE"
-      : "EN_CALIFICACION";
+  const finalLeadId = upsertedLead?.id || existingLead?.id;
 
-  // ── Upsert Lead ──
-  const finalLead = await upsertLead(existingLead?.id || null, {
-    organizationId: orgId,
-    phoneNumber: msg.rawPhoneNumber,
-    fullName: msg.senderName,
-    pipelineStage: existingLead ? existingLead.pipeline_stage : stage,
-    userMessageText: msg.userMessageText,
-    propertyInterestId: bestMatch?.id,
-    bantScore: extractedBant,
-  });
-
-  // ── Guardar mensajes ──
-  if (finalLead?.id) {
-    await saveMessages(finalLead.id, msg.userMessageText, aiReplyText);
-    if (isAppointmentCreated) {
-      await createAppointment(orgId, finalLead.id, bestMatch?.id || null, appointmentDateString);
-    }
+  if (finalLeadId) {
+    await supabase.from("messages").insert([
+      { lead_id: finalLeadId, sender: "USER", content: msg.userMessageText },
+      { lead_id: finalLeadId, sender: "AI", content: aiReplyText },
+    ]);
   }
 
-  // ── Enviar WhatsApp + Alertas Push ──
-  const { evolutionApiUrl, evolutionApiKey, evolutionInstance } = options;
-  if (evolutionApiUrl && evolutionApiKey && evolutionInstance) {
-    try {
-      const humanDelayMs = Math.min(Math.floor(aiReplyText.length * 15), 1500);
-      await new Promise((resolve) => setTimeout(resolve, humanDelayMs));
-      await sendWhatsAppMessage(msg.rawPhoneNumber, aiReplyText, evolutionInstance, evolutionApiUrl, msg.payloadApiKey || evolutionApiKey || "");
+  // Enviar WhatsApp
+  const evoUrl = options.evolutionApiUrl || process.env.EVOLUTION_API_URL || "";
+  const evoKey = options.evolutionApiKey || process.env.EVOLUTION_API_KEY || "";
+  const evoInst = options.evolutionInstance || process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main";
 
-      // ── Motor de Alertas Push ──
-      if (isAppointmentCreated) {
-        let agentPhone = "";
-        if (finalLead?.assigned_agent_id) {
-          const { data: agentData } = await supabaseServer.from("users").select("phone_number").eq("id", finalLead.assigned_agent_id).single();
-          if (agentData?.phone_number) agentPhone = agentData.phone_number;
-        }
-        if (!agentPhone && aiConfig?.defaultAgentPhone) agentPhone = aiConfig.defaultAgentPhone;
-        if (!agentPhone && process.env.AGENT_PHONE_NUMBER) agentPhone = process.env.AGENT_PHONE_NUMBER;
-
-        if (agentPhone) {
-          const pushText = `*NUEVA VISITA AGENDADA* 🚨\n\n*Lead:* ${msg.senderName}\n*Teléfono:* ${msg.rawPhoneNumber}\n*Fecha/Hora:* ${appointmentDateString}\n*Inmueble:* ${bestMatch?.title || "Por definir"}\n*Presupuesto (BANT):* $${extractedBant?.budget || 0}\n\n👉 Accede al Kanban para más detalles.`;
-          await sendWhatsAppMessage(agentPhone, pushText, evolutionInstance, evolutionApiUrl, msg.payloadApiKey || evolutionApiKey || "");
-          console.log(`[Webhook] 📱 Push Alert enviado al agente (${agentPhone})`);
-        }
-      }
-    } catch (sendErr) {
-      console.error("[Webhook] Error enviando mensaje:", sendErr);
-    }
+  if (evoUrl && evoInst) {
+    await sendWhatsAppMessage(msg.rawPhoneNumber, aiReplyText, evoInst, evoUrl, msg.payloadApiKey || evoKey);
   }
 
-  return { status: "SUCCESS", leadId: finalLead?.id };
+  return { status: "SUCCESS", leadId: finalLeadId };
 }
 
-// ════════════════════════════════════════════════════════════════
-// 3. HANDLER HTTP (Vercel Serverless)
-// ════════════════════════════════════════════════════════════════
+// ── 7. HANDLER SERVERLESS VERCEL ──
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     return res.status(200).json({ status: "WEBHOOK_ACTIVE", system: "Property OS" });
@@ -259,7 +306,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    console.log("WEBHOOK_HIT:", JSON.stringify(req.body).substring(0, 300) + "...");
     const result = await processWebhookMessage(req.body || {}, {
       evolutionApiUrl: process.env.EVOLUTION_API_URL,
       evolutionApiKey: process.env.EVOLUTION_API_KEY,
