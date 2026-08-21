@@ -110,9 +110,10 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
 
           return {
             ...org,
+            primary_city: org.primary_city || org.ai_config?.primary_city || "Santa Cruz",
             leads_count: orgLeads.length,
             properties_count: orgProps.length,
-            modules: org.modules || {
+            modules: org.ai_config?.modules || org.modules || {
               module_sofia_ia: true,
               module_bant_kanban: true,
               module_social_marketing: true,
@@ -162,33 +163,45 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
 
     setIsCreatingAgency(true);
     try {
+      const defaultModules = {
+        module_sofia_ia: true,
+        module_bant_kanban: true,
+        module_social_marketing: true,
+        module_legal_audit: true,
+        module_contract_generator: true,
+      };
+
+      const instanceSlug = newAgencyInstance.trim() || `${newAgencyName.replace(/[^a-zA-Z0-9]/g, "") || "Agencia"}-${newAgencyCity.substring(0, 3).toUpperCase()}`;
+
       const { data, error } = await supabase
         .from("organizations")
         .insert({
           name: newAgencyName.trim(),
-          primary_city: newAgencyCity,
-          whatsapp_instance_id: newAgencyInstance.trim() || `PropertyOS-${newAgencyCity.substring(0, 3).toUpperCase()}`,
-          modules: {
-            module_sofia_ia: true,
-            module_bant_kanban: true,
-            module_social_marketing: true,
-            module_legal_audit: true,
-            module_contract_generator: true,
+          whatsapp_instance_id: instanceSlug,
+          ai_config: {
+            primary_city: newAgencyCity,
+            modules: defaultModules,
+            systemRules: "Eres Sofía, asesora inmobiliaria senior de Property OS. Califica al prospecto para crédito VIS/bancario.",
+            tone: "PROFESSIONAL_WARM",
+            keywords: "departamento, casa, venta, alquiler, crédito VIS",
           },
         })
         .select()
         .single();
 
       if (error) {
-        alert(`Error: ${error.message}`);
+        alert(`Error al registrar organización: ${error.message}`);
       } else {
         setIsNewAgencyModalOpen(false);
         setNewAgencyName("");
         setNewAgencyInstance("");
-        loadRealAgenciesAndMetrics();
+        setSaveToast(`Inmobiliaria "${newAgencyName.trim()}" creada exitosamente.`);
+        setTimeout(() => setSaveToast(null), 3000);
+        await loadRealAgenciesAndMetrics();
       }
     } catch (err) {
-      alert("Error creando la agencia.");
+      console.error("[SuperAdmin] Error creando agencia:", err);
+      alert("Error al crear la organización.");
     } finally {
       setIsCreatingAgency(false);
     }
@@ -216,7 +229,11 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
     );
 
     try {
-      await supabase.from("organizations").update({ modules: updatedModules }).eq("id", agencyId);
+      const updatedAiConfig = {
+        ...(target.ai_config || {}),
+        modules: updatedModules,
+      };
+      await supabase.from("organizations").update({ ai_config: updatedAiConfig }).eq("id", agencyId);
     } catch (e) {
       console.error("[SuperAdmin] Error actualizando módulo:", e);
     }
@@ -224,22 +241,25 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
 
   const handleSaveAgencyAiConfig = async (agency: DbAgency, customRules: string, tone: string, keywords: string, geminiKey: string) => {
     try {
+      const updatedAiConfig = {
+        ...(agency.ai_config || {}),
+        systemRules: customRules,
+        tone,
+        keywords,
+        gemini_api_key: geminiKey,
+      };
+
       await supabase
         .from("organizations")
         .update({
-          ai_keywords: keywords,
-          gemini_api_key: geminiKey,
-          ai_config: {
-            systemRules: customRules,
-            tone,
-            keywords,
-          },
+          ai_config: updatedAiConfig,
         })
         .eq("id", agency.id);
 
       setSaveToast(`Configuración IA guardada para ${agency.name}`);
       setTimeout(() => setSaveToast(null), 3000);
     } catch (e) {
+      console.error("[SuperAdmin] Error guardando config:", e);
       alert("Error guardando configuración IA.");
     }
   };
