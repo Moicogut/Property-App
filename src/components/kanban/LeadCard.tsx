@@ -15,7 +15,7 @@ interface LeadCardProps {
   userType?: 'INDEPENDENT_AGENT' | 'REAL_ESTATE_AGENCY';
 }
 
-export function LeadCard({
+export const LeadCard: React.FC<LeadCardProps> = ({
   lead,
   onOpenChat,
   onEditLead,
@@ -23,7 +23,7 @@ export function LeadCard({
   onMoveStage,
   onOpenAppointmentModal,
   userType = 'INDEPENDENT_AGENT',
-}: LeadCardProps) {
+}) => {
   const [showContractModal, setShowContractModal] = useState(false);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
 

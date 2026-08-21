@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (createError) {
         // Si el usuario ya existe, actualizar su contraseña y metadata
         const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-        const found = existingUsers?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+        const found = (existingUsers?.users as any[])?.find((u: any) => u.email?.toLowerCase() === cleanEmail);
         if (found) {
           authUserId = found.id;
           await supabaseAdmin.auth.admin.updateUserById(found.id, {

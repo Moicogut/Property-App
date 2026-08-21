@@ -114,7 +114,7 @@ async function startServer() {
 
         if (createErr) {
           const { data: existing } = await supabaseServer.auth.admin.listUsers();
-          const found = existing?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+          const found = (existing?.users as any[])?.find((u: any) => u.email?.toLowerCase() === cleanEmail);
           if (found) {
             authUserId = found.id;
             await supabaseServer.auth.admin.updateUserById(found.id, {
