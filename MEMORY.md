@@ -113,22 +113,35 @@
   - Gestión de equipo: Invitar y administrar asesores por email.
   - Configuración de personalidad y tono de Sofía IA con inyección de reglas locales.
 
-### 🟢 Módulo Nativo de Marketing Studio & Suite de Extensión Chrome (v2.0)
+### 🟢 Módulo Nativo de Marketing Studio & Suite de Extensión Chrome (v2.2)
 * **Componente UI Principal (`src/components/marketing/MarketingStudioView.tsx`):**
-  - **1. AI Script & Prompt Generator:** Generación y descarga instantánea de `script.json` para 9:16 (TikTok/Reels) y 16:9 (Web/YouTube) con tokens de consistencia inmutable (`HR-Personaje`, `HR-Escenario`).
-  - **2. Suite de Extensión Chrome Adaptada (`extension/property-content-generator`):** Integración del motor de automatización por lotes para Google Labs Flow y Vibes AI, con respeto explícito y atribución a la autoría comunitaria original (`hans1801/AI-Content-Automation-Engine`).
-  - **3. Biblioteca DMO & Social Selling:** Packs de 30 días con inyección automática de datos del asesor (`{{sponsor_link}}`, `{{whatsapp_link}}`).
-  - **4. Telemetría de Campañas:** Contadores en tiempo real de leads capturados por palabra clave (`CALCULAR`, `BOT`, `AUDITORIA`, `PRECIO`, `TOUR`).
+  - **1. AI Script & Prompt Generator Interactivo:** Generación y descarga instantánea de `script.json` para 9:16 (TikTok/Reels) y 16:9 (Web/YouTube).
+  - **2. Hojas de Referencia (HR Model Sheets) Personalizables:** Selector dinámico de género de asesor (`Hombre 33a` / `Mujer 30a`), set/escenario (`Penthouse 5600K`, `Depto Modelo`, `Oficina Minimalista`) y producto UI (`Tablet VIS`, `Smartphone Sofía`, `Semáforo Legal`).
+  - **3. Forzado de Audio en Español Neutro:** Interruptor de directiva de locución estricta (`Audio: Native clear neutral Latin American Spanish voiceover...`) en cada prompt de video.
+  - **4. Edición de Escenas en Tiempo Real:** Filtro por día de campaña (Lunes a Domingo), edición en línea de prompts y narración, adición y eliminación de escenas.
+  - **5. Suite de Extensión Chrome Adaptada (`extension/property-content-generator`):** Integración del motor de automatización por lotes para Google Labs Flow y Vibes AI con selector 9:16/16:9 y atribución comunitaria original a `hans1801/AI-Content-Automation-Engine`.
+  - **6. Biblioteca DMO & Social Selling:** Packs de 30 días con inyección automática de datos del asesor (`{{sponsor_link}}`, `{{whatsapp_link}}`).
+  - **7. Telemetría de Campañas:** Contadores en tiempo real de leads capturados por palabra clave (`CALCULAR`, `BOT`, `AUDITORIA`, `PRECIO`, `TOUR`).
 * **Gobernanza Multi-Tenant en SuperAdmin (`SuperAdminPanel.tsx`):**
   - Conmutador `module_marketing_studio` añadido para control de activación/desactivación por agencia inmobiliaria.
-* **Compilación y Type-Safety:** Verificado con build exitoso (0 errores en 1744 módulos).
+* **Compilación y Type-Safety:** Verificado con build exitoso (0 errores en 1,744 módulos).
 
 ---
 
 ## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA
 
-### 🟡 1. Testing End-to-End y UAT
-* Pruebas sintéticas con Facebook Lead Ads Testing Tool y simulación de webhooks de captación y venta en vivo.
+### 🟡 1. Mejoras y Adaptación Continua de la Extensión Chrome (`Property AI Content Generator`)
+* Implementar manejo resiliente de focus en editores **Slate.js** en Google Flow para evitar pérdidas de foco en prompts largos.
+* Integrar descarga automática y secuencial de archivos MP4 generados directamente en la carpeta del proyecto.
+
+### 🟡 2. Testing End-to-End y UAT de Campañas de Redes
+* Pruebas de publicación de los primeros 4 videos (9:16) con subtítulos y locución en español en TikTok e Instagram Reels.
+* Verificación de la captura de leads mediante palabras clave (`CALCULAR`, `BOT`, `AUDITORIA`) conectadas al webhook de WhatsApp y Kanban.
+
+### 🟡 3. Escalamiento del Programa de Embajadores
+* Distribución del playbook de onboarding (`PARTNER_ONBOARDING_PLAYBOOK.md`) a los primeros 15 asesores de la red.
+
+---
 
 ## 🔒 3. VARIABLES DE ENTORNO EN PRODUCCIÓN
 
