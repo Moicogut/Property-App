@@ -7,7 +7,6 @@
  * Flujo: Parse → Dedup → Lead Lookup → RAG → LLM → BANT → Upsert → Enviar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { waitUntil } from "@vercel/functions";
 import OpenAI from "openai";
 
 // ── Servicios ──
@@ -252,20 +251,24 @@ export async function processWebhookMessage(
 // 3. HANDLER HTTP (Vercel Serverless)
 // ════════════════════════════════════════════════════════════════
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "GET") return res.status(200).json({ status: "WEBHOOK_ACTIVE", system: "Property OS" });
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method === "GET") {
+    return res.status(200).json({ status: "WEBHOOK_ACTIVE", system: "Property OS" });
+  }
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-  console.log("WEBHOOK_HIT:", JSON.stringify(req.body).substring(0, 300) + "...");
-
-  // Responder inmediatamente para evitar timeout
-  res.status(200).json({ status: "OK" });
-
-  // Procesar en background
-  waitUntil(
-    processWebhookMessage(req.body || {}, {
+  try {
+    console.log("WEBHOOK_HIT:", JSON.stringify(req.body).substring(0, 300) + "...");
+    const result = await processWebhookMessage(req.body || {}, {
       evolutionApiUrl: process.env.EVOLUTION_API_URL,
       evolutionApiKey: process.env.EVOLUTION_API_KEY,
       evolutionInstance: process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main",
-    }).catch((err) => console.error("ERROR_PROCESSING_WEBHOOK:", err))
-  );
+    });
+    return res.status(200).json({ status: "OK", result });
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : "Internal error";
+    console.error("ERROR_PROCESSING_WEBHOOK:", errorMsg);
+    return res.status(500).json({ error: errorMsg });
+  }
 }
