@@ -153,10 +153,10 @@ export function KanbanBoard({
   }, [leads]);
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-[#F1F5F9] h-full overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-[#090D16] h-full overflow-hidden font-sans">
       
       {/* 1. BARRA SUPERIOR DE SELECTOR DE MULTI-PIPELINES */}
-      <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex flex-wrap justify-between items-center gap-3 shrink-0 shadow-xs">
+      <div className="bg-[#0B0F19] border-b border-slate-800/80 px-4 py-2.5 flex flex-wrap justify-between items-center gap-3 shrink-0 shadow-sm">
         
         {/* Selector de Pestañas de Embudos */}
         <div className="flex items-center gap-2">
@@ -171,15 +171,15 @@ export function KanbanBoard({
                 onClick={() => setActivePipeline(pType)}
                 className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   isActive
-                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    ? 'bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black'
+                    : 'bg-[#111622] hover:bg-[#1A2234] text-slate-400 hover:text-white border border-slate-800'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-emerald-400' : 'text-slate-500'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-[#D4AF37]'}`} />
                 <span>{pConfig.name}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isActive ? 'bg-slate-800 text-emerald-400 font-bold' : 'bg-slate-200 text-slate-700'
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    isActive ? 'bg-slate-950/40 text-slate-950' : 'bg-slate-900 text-slate-400'
                   }`}
                 >
                   {pipelineCounts[pType]}
@@ -190,19 +190,19 @@ export function KanbanBoard({
         </div>
 
         {/* Resumen Ejecutivo del Embudo Activo */}
-        <div className="hidden sm:flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5 text-slate-600">
-            <Layers className="w-3.5 h-3.5 text-slate-400" />
-            <span>En Cartera: <strong>{pipelineLeads.length}</strong></span>
+        <div className="hidden sm:flex items-center gap-4 text-xs font-medium">
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <Layers className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span>En Cartera: <strong className="text-white">{pipelineLeads.length}</strong></span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-slate-600">
-            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Volumen Estimado: <strong className="text-slate-900 font-mono">${totalVolume.toLocaleString('es-ES')} USD</strong></span>
+          <div className="flex items-center gap-1.5 text-slate-400">
+            <DollarSign className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span>Volumen Estimado: <strong className="text-[#F3E5AB] font-mono">${totalVolume.toLocaleString('es-ES')} USD</strong></span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-100 font-bold text-[11px]">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="flex items-center gap-1.5 bg-[#D4AF37]/10 text-[#F3E5AB] px-3 py-1 rounded-xl border border-[#D4AF37]/25 font-bold text-[11px]">
+            <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" />
             <span>{closedCount} Cierres Exitosos</span>
           </div>
         </div>
@@ -210,24 +210,24 @@ export function KanbanBoard({
       </div>
 
       {/* 2. TABLERO KANBAN MULTI-COLUMNAS */}
-      <div className="p-4 flex gap-4 overflow-x-auto h-full custom-scrollbar snap-x snap-mandatory">
+      <div className="p-4 flex gap-4 overflow-x-auto h-full custom-scrollbar snap-x snap-mandatory bg-[#090D16]">
         {currentConfig.columns.map((col) => {
           const stageLeads = pipelineLeads.filter((l) => l.pipelineStage === col.stage);
 
           return (
             <div
               key={col.stage}
-              className="flex-1 flex flex-col min-w-[85vw] sm:min-w-[280px] max-w-[320px] snap-center shrink-0"
+              className="flex-1 flex flex-col min-w-[85vw] sm:min-w-[290px] max-w-[330px] snap-center shrink-0"
             >
               {/* Column Header */}
-              <h3 className="text-xs font-bold text-slate-600 mb-3 flex items-center justify-between uppercase tracking-widest shrink-0">
-                <span>{col.label}</span>
+              <div className="bg-[#0D121F] border border-slate-800/80 rounded-xl px-3 py-2 mb-3 flex items-center justify-between shadow-xs shrink-0">
+                <span className="text-[11px] font-black text-slate-300 uppercase tracking-wider">{col.label}</span>
                 <span
-                  className={`${col.countBadge} px-2 py-0.5 rounded text-[10px] font-mono font-bold`}
+                  className="bg-[#111622] text-[#F3E5AB] border border-[#D4AF37]/30 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold"
                 >
                   {stageLeads.length}
                 </span>
-              </h3>
+              </div>
 
               {/* Card List Container */}
               <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
@@ -245,7 +245,7 @@ export function KanbanBoard({
                 ))}
 
                 {stageLeads.length === 0 && (
-                  <div className="p-5 text-center text-[11px] text-slate-400 border border-dashed border-slate-300 rounded-2xl bg-white/40">
+                  <div className="p-6 text-center text-[11px] text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-[#0B0F19]/40 font-medium">
                     Sin prospectos en esta etapa
                   </div>
                 )}

@@ -40,7 +40,63 @@ const DEFAULT_KEYWORDS = [
 const processedMessages = new Map<string, number>();
 const DEDUP_WINDOW_MS = 60_000;
 
-// ── 3. EMBEDDINGS Y BÚSQUEDA RAG ──
+// ── 3. EMBEDDINGS, ENTITY EXTRACTION Y BÚSQUEDA RAG GEOGRÁFICA ──
+interface GeoIntent {
+  city?: string;
+  zone?: string;
+  isRent: boolean;
+  isSale: boolean;
+  isMixed: boolean;
+  isOwner: boolean;
+  paymentMethodHint?: "CREDITO_VIS" | "CREDITO_BANCARIO" | "CONTADO";
+}
+
+function extractGeoAndIntent(text: string): GeoIntent {
+  const lower = text.toLowerCase();
+
+  let city: string | undefined = undefined;
+  if (lower.includes("la paz")) city = "La Paz";
+  else if (lower.includes("santa cruz") || lower.includes("scz")) city = "Santa Cruz";
+  else if (lower.includes("cochabamba") || lower.includes("cocha")) city = "Cochabamba";
+  else if (lower.includes("tarija")) city = "Tarija";
+
+  let zone: string | undefined = undefined;
+  // La Paz
+  if (lower.includes("calacoto")) { zone = "Calacoto"; city = city || "La Paz"; }
+  else if (lower.includes("sopocachi")) { zone = "Sopocachi"; city = city || "La Paz"; }
+  else if (lower.includes("achumani")) { zone = "Achumani"; city = city || "La Paz"; }
+  else if (lower.includes("san miguel")) { zone = "San Miguel"; city = city || "La Paz"; }
+  else if (lower.includes("miraflores")) { zone = "Miraflores"; city = city || "La Paz"; }
+  else if (lower.includes("obrajes")) { zone = "Obrajes"; city = city || "La Paz"; }
+  else if (lower.includes("cota cota")) { zone = "Cota Cota"; city = city || "La Paz"; }
+  else if (lower.includes("irpavi")) { zone = "Irpavi"; city = city || "La Paz"; }
+  
+  // Santa Cruz
+  else if (lower.includes("equipetrol")) { zone = "Equipetrol"; city = city || "Santa Cruz"; }
+  else if (lower.includes("sirari")) { zone = "Sirari"; city = city || "Santa Cruz"; }
+  else if (lower.includes("urubo") || lower.includes("urubó")) { zone = "Urubó"; city = city || "Santa Cruz"; }
+  else if (lower.includes("las palmas")) { zone = "Las Palmas"; city = city || "Santa Cruz"; }
+  else if (lower.includes("zona norte") || lower.includes("banzer")) { zone = "Zona Norte"; city = city || "Santa Cruz"; }
+
+  // Modalidades
+  const isRent = lower.includes("alquiler") || lower.includes("alquilar") || lower.includes("renta") || lower.includes("alquilo") || lower.includes("arriendo") || lower.includes("anticretico");
+  const isSale = lower.includes("compra") || lower.includes("comprar") || lower.includes("venta") || lower.includes("compro") || lower.includes("financiamiento") || lower.includes("vis") || lower.includes("credito") || lower.includes("banco");
+  const isMixed = isRent && isSale;
+  const isOwner = lower.includes("propietario") || lower.includes("vender mi") || lower.includes("consignar") || lower.includes("poner en venta");
+
+  // Tipo de pago
+  let paymentMethodHint: "CREDITO_VIS" | "CREDITO_BANCARIO" | "CONTADO" | undefined = undefined;
+  if (lower.includes("vis") || lower.includes("vivienda social") || lower.includes("asfi") || lower.includes("5.5")) {
+    paymentMethodHint = "CREDITO_VIS";
+  } else if (lower.includes("credito") || lower.includes("banco") || lower.includes("bancario") || lower.includes("financiar")) {
+    paymentMethodHint = "CREDITO_BANCARIO";
+  } else if (lower.includes("contado") || lower.includes("efectivo") || lower.includes("cash")) {
+    paymentMethodHint = "CONTADO";
+  }
+
+  return { city, zone, isRent, isSale, isMixed, isOwner, paymentMethodHint };
+}
+
 async function generateEmbedding(text: string): Promise<number[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -73,26 +129,90 @@ interface MatchedProperty {
   accepts_social_housing?: boolean;
 }
 
-async function searchProperties(userText: string): Promise<MatchedProperty[]> {
+async function searchProperties(
+  userText: string,
+  geo?: GeoIntent
+): Promise<{ matches: MatchedProperty[]; geoNotice?: string }> {
   try {
     const queryEmbedding = await generateEmbedding(userText);
-    const { data: matches, error: rpcError } = await supabase.rpc("match_properties", {
+    const { data: vectorMatches } = await supabase.rpc("match_properties", {
       query_embedding: JSON.stringify(queryEmbedding),
-      match_threshold: 0.2,
-      match_count: 3,
+      match_threshold: 0.15,
+      match_count: 5,
     });
-    if (rpcError || !matches || matches.length === 0) {
-      // Fallback: Si no hay match semántico estricto, traer 2 propiedades destacadas activas
-      const { data: fallbackProps } = await supabase
+
+    let rawList: MatchedProperty[] = (vectorMatches || []) as MatchedProperty[];
+
+    // Si no hay vector matches o son insuficientes, consultar DB directa con filtros
+    if (rawList.length === 0) {
+      let query = supabase
+        .from("properties")
+        .select("id, title, zone, city, price_usd, raw_description, property_code, accepts_social_housing");
+      
+      if (geo?.city) {
+        query = query.ilike("city", `%${geo.city}%`);
+      }
+      if (geo?.zone) {
+        query = query.ilike("zone", `%${geo.zone}%`);
+      }
+      const { data: fallbackProps } = await query.limit(3);
+      rawList = (fallbackProps || []) as MatchedProperty[];
+    }
+
+    // Filtrado y Priorización Geográfica Estricta
+    let prioritizedMatches: MatchedProperty[] = [];
+    let geoNotice: string | undefined = undefined;
+
+    if (geo?.zone) {
+      const zoneExact = rawList.filter(p => p.zone?.toLowerCase().includes(geo.zone!.toLowerCase()));
+      if (zoneExact.length > 0) {
+        prioritizedMatches = zoneExact;
+      } else {
+        // Buscar directamente en base de datos propiedades de esa zona
+        const { data: directZoneProps } = await supabase
+          .from("properties")
+          .select("id, title, zone, city, price_usd, raw_description, property_code, accepts_social_housing")
+          .ilike("zone", `%${geo.zone}%`)
+          .limit(3);
+
+        if (directZoneProps && directZoneProps.length > 0) {
+          prioritizedMatches = directZoneProps as MatchedProperty[];
+        } else if (geo?.city) {
+          // Si no hay en esa zona exacta, traer de la misma ciudad pero dar nota explicativa a Sofía
+          const sameCity = rawList.filter(p => p.city?.toLowerCase().includes(geo.city!.toLowerCase()));
+          if (sameCity.length > 0) {
+            prioritizedMatches = sameCity;
+            geoNotice = `El cliente solicitó específicamente zona "${geo.zone}" en ${geo.city}. En este instante no disponemos de un inmueble en esa zona exacta, pero contamos con opciones destacadas en la misma ciudad (${sameCity.map(p => p.zone).join(", ")}). Acláraselo amablemente con honestidad antes de presentarle la alternativa.`;
+          }
+        }
+      }
+    } else if (geo?.city) {
+      const cityExact = rawList.filter(p => p.city?.toLowerCase().includes(geo.city!.toLowerCase()));
+      if (cityExact.length > 0) {
+        prioritizedMatches = cityExact;
+      }
+    }
+
+    if (prioritizedMatches.length === 0) {
+      prioritizedMatches = rawList.slice(0, 3);
+    }
+
+    // Fallback absoluto si la DB está vacía
+    if (prioritizedMatches.length === 0) {
+      const { data: fallbackAll } = await supabase
         .from("properties")
         .select("id, title, zone, city, price_usd, raw_description, property_code, accepts_social_housing")
         .limit(2);
-      return (fallbackProps || []) as MatchedProperty[];
+      prioritizedMatches = (fallbackAll || []) as MatchedProperty[];
     }
-    return (matches || []) as MatchedProperty[];
+
+    return {
+      matches: prioritizedMatches,
+      geoNotice,
+    };
   } catch (err) {
     console.error("[RAG] Fallo:", err);
-    return [];
+    return { matches: [] };
   }
 }
 
@@ -191,7 +311,7 @@ export async function processWebhookMessage(
   // Lead Lookup
   const { data: existingLead } = await supabase
     .from("leads")
-    .select("id, pipeline_stage, ai_paused, full_name, budget_max_usd, assigned_agent_id")
+    .select("id, pipeline_stage, pipeline_type, lead_type, ai_paused, full_name, budget_max_usd, preferred_zone, payment_method, has_down_payment, down_payment_percent, bant_score, assigned_agent_id")
     .eq("phone_number", msg.rawPhoneNumber)
     .single();
 
@@ -204,14 +324,16 @@ export async function processWebhookMessage(
   // Org Config
   const { data: orgData } = await supabase.from("organizations").select("id, ai_config").limit(1).single();
   const orgId = orgData?.id || "org-1";
-  const aiConfig = (orgData?.ai_config as typeof DEFAULT_AI_CONFIG) || DEFAULT_AI_CONFIG;
+
+  // Extracción de intenciones y geografía
+  const geoIntent = extractGeoAndIntent(msg.userMessageText);
 
   // Historial Estructurado
   const conversationHistory: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
   if (existingLead?.id) {
     const { data: historyMsgs } = await supabase
       .from("messages")
-      .select("sender, content, created_at")
+      .select("sender, text, content, created_at")
       .eq("lead_id", existingLead.id)
       .order("created_at", { ascending: false })
       .limit(8);
@@ -219,42 +341,64 @@ export async function processWebhookMessage(
     if (historyMsgs && historyMsgs.length > 0) {
       historyMsgs.reverse().forEach((m) => {
         conversationHistory.push({
-          role: m.sender === "USER" ? "user" : "assistant",
-          content: m.content,
+          role: m.sender === "lead" || m.sender === "USER" ? "user" : "assistant",
+          content: m.text || m.content || "",
         });
       });
     }
   }
 
-  // RAG Search
-  const matchedProperties = await searchProperties(msg.userMessageText);
+  // RAG Search Geográfico y Semántico
+  const { matches: matchedProperties, geoNotice } = await searchProperties(msg.userMessageText, geoIntent);
   const bestMatch = matchedProperties[0] || null;
   const secondaryMatch = matchedProperties[1] || null;
 
   // Catálogo Contextual
   let inventoryContext = "";
   if (bestMatch) {
-    inventoryContext += `\n- INMUEBLE PRINCIPAL: "${bestMatch.title}" en ${bestMatch.zone}, ${bestMatch.city} | Precio: $${bestMatch.price_usd?.toLocaleString()} USD | Ref: ${bestMatch.property_code || "SCZ"} | Crédito VIS: ${bestMatch.accepts_social_housing ? "Sí (ASFI 5.5%)" : "Venta Bancaria"}`;
+    inventoryContext += `\n- INMUEBLE PRINCIPAL: "${bestMatch.title}" en ${bestMatch.zone}, ${bestMatch.city} | Precio: $${bestMatch.price_usd?.toLocaleString()} USD | Ref: ${bestMatch.property_code || "SCZ"} | Crédito VIS: ${bestMatch.accepts_social_housing ? "Sí (ASFI 5.5% interés regulado)" : "Venta Bancaria Tradicional / Contado"}`;
   }
   if (secondaryMatch) {
     inventoryContext += `\n- OTRA OPCIÓN DISPONIBLE: "${secondaryMatch.title}" en ${secondaryMatch.zone}, ${secondaryMatch.city} | Precio: $${secondaryMatch.price_usd?.toLocaleString()} USD`;
   }
 
-  // System Prompt de Alta Conversión Inmobiliaria
+  // System Prompt de Alta Conversión Inmobiliaria Calibrado
   const systemPrompt = `Eres Sofía, Asesora Inmobiliaria Senior de Property OS.
-Tu misión es asesorar al cliente de forma natural, cálida, consultiva y persuasiva, como una agente de bienes raíces de primer nivel en Bolivia.
+Tu misión es asesorar al cliente de forma natural, empática, consultiva y con alta persuasión comercial, como una agente de bienes raíces de primer nivel en Bolivia.
 
 REGLAS DE ORO OBLIGATORIAS:
-1. PROHIBICIÓN TOTAL DE BUCLES Y ROBOTISMO: NUNCA uses frases de call center como "Para poder ayudarte mejor...", "Sería ideal conocer...", "Esto nos permitirá encontrar opciones que se ajusten...". Sé directa, empática y fresca.
-2. MANEJO DE CLIENTES INDECISOS O SIN PRESUPUESTO CLARO:
-   - Si el cliente dice que "no tiene idea", "no sabe" o que solo tiene un "aporte", ¡felicítalo y dale referencias concretas!
-   - Ejemplo: "¡Excelente que cuentes con tu aporte inicial! Por ejemplo, para un departamento de $75,000 a $85,000 USD en Equipetrol o Sirari, con una inicial del 10% al 20% accedes a cuotas desde ~$480/mes con Crédito de Vivienda Social (VIS). ¿Te gustaría ver opciones en esas zonas o buscas otra ubicación?"
-3. SI EL CLIENTE PREGUNTA POR ALQUILER Y VENTA A LA VEZ:
-   - Responde a ambos puntos en un solo mensaje breve y ordenado.
-4. PRESENTA SIEMPRE OPCIONES CONCRETAS (A o B):
-   - Cita inmuebles de nuestro catálogo disponible cuando sea oportuno.
-   - Termina siempre con una pregunta comercial clara y fácil de responder.
-5. LONGITUD: Respuestas concisas (máximo 2 a 3 párrafos cortos), listas para leer rápidamente en WhatsApp con emojis elegantes (🏢, 🔑, 📍, ✨).
+1. PROHIBICIÓN TOTAL DE BUCLES Y ROBOTISMO:
+   - NUNCA uses frases acartonadas ("Para poder ayudarte mejor...", "Sería ideal conocer...", "Esto nos permitirá encontrar opciones...").
+   - Habla con frescura, profesionalismo y cercanía.
+
+2. MANEJO DE CLIENTES CON CONSULTAS MIXTAS (VENTA Y ALQUILER EN LA MISMA FRASE):
+   ${geoIntent.isMixed ? `⚠️ ATENCIÓN: El cliente preguntó por COMPRA y ALQUILER a la vez. Responde a ambos puntos de forma limpia y ordenada:
+     - 🏢 Opción en Venta: Presenta 1 opción con precio en USD y cuota referencial (ej. VIS o bancaria).
+     - 🔑 Opción en Alquiler: Menciona el canon mensual referencial en la zona deseada.
+     - Cierra preguntándole cuál de las dos alternativas se adapta mejor a su plan actual.` : `Si el usuario pregunta por compra y alquiler, presenta 1 opción de cada modalidad de manera ordenada.`}
+
+3. PRECISIÓN Y HONESTIDAD GEOGRÁFICA:
+   - Respeta estrictamente la ciudad y zona consultada por el cliente.
+   ${geoNotice ? `\n   - NOTA GEOGRÁFICA IMPORTANTE: ${geoNotice}\n` : ""}
+
+4. PROACTIVIDAD COMERCIAL HACIA VISITAS PRESENCIALES:
+   - En cuanto el cliente muestre interés (presupuesto, zonas, fotos, cuotas o consultas concretas), sé proactiva e invítalo a coordinar una visita presencial:
+     "¿Te gustaría que coordinemos una visita presencial para conocer el departamento en persona? 📅"
+   - Si el cliente acepta o consulta disponibilidad, propón turnos claros (ej. "mañana por la mañana a las 10:00 o por la tarde a las 16:00").
+
+5. CLIENTES SIN PRESUPUESTO CLARO O CON APORTE INICIAL:
+   - Si el cliente dice que "no sabe su presupuesto" o solo menciona su aporte inicial, ¡felicítalo y dale rangos reales!
+   - Ejemplo: "¡Excelente que cuentes con tu aporte inicial! Para un departamento de $75,000 a $85,000 USD en Equipetrol o Sirari, con una inicial del 10% al 20% accedes a cuotas desde ~$480/mes con Crédito de Vivienda Social (VIS)."
+
+6. FORMATO Y EXTENSIÓN:
+   - Máximo 2 a 3 párrafos concisos y listos para leer rápido en WhatsApp.
+   - Usa emojis elegantes con criterio (🏢, 🔑, 📍, 📅, ✨).
+   - Termina siempre con una sola pregunta comercial clara.
+
+7. PRIVACIDAD ESTRICTA Y CONFIDENCIALIDAD INMOBILIARIA:
+   - NUNCA reveles teléfonos, correos ni identidades privadas de los propietarios vendedores.
+   - NUNCA discutas comisiones inmobiliarias internas ni datos confidenciales del expediente notarial.
+   - Todas las visitas, reservas y negociaciones se gestionan exclusivamente a través del equipo autorizado de Property OS.
 
 INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equipetrol ($85,000 USD)\n- Loft Urbano Sirari ($68,000 USD)\n- Casa Familiar Urubó ($145,000 USD)"}`;
 
@@ -275,8 +419,8 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: messagesForLlm,
-        temperature: 0.75,
-        max_tokens: 300,
+        temperature: 0.72,
+        max_tokens: 350,
       });
 
       aiReplyText = response.choices[0]?.message?.content || "";
@@ -288,14 +432,15 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
   // Fallback inteligente en caso de error de OpenAI
   if (!aiReplyText) {
     if (bestMatch) {
-      aiReplyText = `¡Hola ${msg.senderName}! Claro que sí, tenemos opciones espectaculares en ${bestMatch.zone} como "${bestMatch.title}" por $${bestMatch.price_usd?.toLocaleString()} USD. Con tu aporte propio podemos simular financiamiento bancario o Crédito VIS. ¿Qué zona de la ciudad prefieres? 🏢`;
+      aiReplyText = `¡Hola ${msg.senderName}! Claro que sí, tenemos opciones ideales en ${bestMatch.zone} como "${bestMatch.title}" por $${bestMatch.price_usd?.toLocaleString()} USD (${bestMatch.accepts_social_housing ? "Apto para Crédito VIS ASFI" : "Venta Bancaria"}). Con tu aporte inicial podemos armar un plan de financiamiento. ¿Te gustaría que agendemos una visita para conocerlo? 🏢📅`;
     } else {
-      aiReplyText = `¡Hola ${msg.senderName}! Un gusto saludarte. Contamos con departamentos y casas en las mejores zonas (Equipetrol, Sirari, Urubó). Con tu aporte inicial podemos armar un plan a tu medida. ¿Buscas algo para entrega inmediata o en preventa? ✨`;
+      aiReplyText = `¡Hola ${msg.senderName}! Un gusto saludarte. Contamos con propiedades destacadas en las mejores zonas. Con tu aporte inicial podemos simular un plan a tu medida. ¿Buscas entrega inmediata o en preventa? ✨`;
     }
   }
 
-  const aiSummary = `[Último mensaje]: ${msg.userMessageText.substring(0, 80)}...`;
+  const aiSummary = `[${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]: ${msg.userMessageText.substring(0, 90)}...`;
 
+  // Detección de presupuesto
   let budget = existingLead?.budget_max_usd || null;
   const budgetMatch = msg.userMessageText.match(/\$?\s*(\d{2,6})\s*(usd|dolares|k)?/i);
   if (budgetMatch) {
@@ -306,18 +451,50 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
     budget = bestMatch.price_usd;
   }
 
-  let zone = existingLead?.preferred_zone || null;
-  if (lowerMsg.includes("sopocachi")) zone = "Sopocachi";
-  else if (lowerMsg.includes("equipetrol")) zone = "Equipetrol";
-  else if (lowerMsg.includes("urubo") || lowerMsg.includes("urubó")) zone = "Urubó";
-  else if (lowerMsg.includes("calacoto")) zone = "Calacoto";
-  else if (lowerMsg.includes("santa cruz")) zone = "Santa Cruz";
-  else if (lowerMsg.includes("la paz")) zone = "La Paz";
-  else if (bestMatch?.zone && !zone) zone = bestMatch.zone;
+  // Detección de zona preferida
+  let zone = geoIntent.zone || existingLead?.preferred_zone || null;
+  if (!zone && bestMatch?.zone) {
+    zone = bestMatch.zone;
+  }
 
-  const stage = (lowerMsg.includes("visita") || lowerMsg.includes("agendar") || lowerMsg.includes("cuando se puede") || lowerMsg.includes("ver"))
-    ? "VISITA_AGENDADA"
-    : (existingLead?.pipeline_stage || "EN_CALIFICACION");
+  // Detección de método de pago
+  const paymentMethod = geoIntent.paymentMethodHint || existingLead?.payment_method || "POR_DEFINIR";
+
+  // Detección de aporte propio
+  const hasDownPayment = lowerMsg.includes("inicial") || lowerMsg.includes("aporte") || existingLead?.has_down_payment || false;
+
+  // Detección de etapa y tipo de lead
+  const isAskingVisit = lowerMsg.includes("visita") || lowerMsg.includes("agendar") || lowerMsg.includes("cuando se puede") || lowerMsg.includes("verlo") || lowerMsg.includes("mañana") || lowerMsg.includes("hora");
+  
+  let stage = existingLead?.pipeline_stage || "EN_CALIFICACION";
+  if (isAskingVisit) {
+    stage = "VISITA_AGENDADA";
+  } else if (budget && zone) {
+    stage = "CALIFICADO_VISITA_PENDIENTE";
+  }
+
+  // Tipología de Pipeline y Lead
+  let pipelineType = existingLead?.pipeline_type || "VENTAS";
+  let leadType = existingLead?.lead_type || "BUYER";
+
+  if (geoIntent.isOwner) {
+    pipelineType = "CAPTACIONES";
+    leadType = "SELLER_OWNER";
+  } else if (geoIntent.isRent && !geoIntent.isSale) {
+    pipelineType = "ALQUILERES";
+    leadType = "TENANT";
+  } else if (geoIntent.isSale) {
+    pipelineType = "VENTAS";
+    leadType = "BUYER";
+  }
+
+  // Cálculo de Intent Score BANT Dinámico (60 - 98)
+  let intentScore = 65;
+  if (zone) intentScore += 10;
+  if (budget) intentScore += 10;
+  if (hasDownPayment || paymentMethod !== "POR_DEFINIR") intentScore += 8;
+  if (isAskingVisit) intentScore += 12;
+  intentScore = Math.min(intentScore, 98);
 
   // Upsert Lead con todos los campos calculados en tiempo real
   const { data: upsertedLead } = await supabase
@@ -328,15 +505,23 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
       phone_number: msg.rawPhoneNumber,
       full_name: existingLead?.full_name || msg.senderName,
       pipeline_stage: stage,
+      pipeline_type: pipelineType,
+      lead_type: leadType,
       budget_max_usd: budget,
       preferred_zone: zone,
+      payment_method: paymentMethod,
+      has_down_payment: hasDownPayment,
+      down_payment_percent: existingLead?.down_payment_percent || 20,
       property_interest_id: bestMatch?.id || undefined,
       ai_summary: aiSummary,
+      intent_score: intentScore,
       bant_score: {
         budget: budget || 0,
         preferred_zone: zone || "Por definir",
-        need: msg.userMessageText.substring(0, 50),
-        score: budget ? 85 : 65,
+        authority: true,
+        need: msg.userMessageText.substring(0, 60),
+        timeline: isAskingVisit ? "Inmediata" : "1 a 3 meses",
+        score: intentScore,
       },
       updated_at: new Date().toISOString(),
     })
@@ -345,7 +530,7 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
 
   const finalLeadId = upsertedLead?.id || existingLead?.id;
 
-  // Guardar mensajes en Supabase con compatibilidad total (text y content)
+  // Guardar mensajes en Supabase
   if (finalLeadId) {
     await supabase.from("messages").insert([
       { lead_id: finalLeadId, sender: "lead", text: msg.userMessageText },

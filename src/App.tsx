@@ -45,6 +45,7 @@ import { KanbanBoard } from "@/src/components/kanban/KanbanBoard";
 import { LandingPage } from "@/src/components/LandingPage";
 import { SaveToast } from "@/src/components/SaveToast";
 import { BotSimulatorView } from "@/src/components/simulator/BotSimulatorView";
+import { AgencySettingsModal } from "@/src/components/admin/AgencySettingsModal";
 
 import { supabase } from "@/src/lib/supabase";
 
@@ -108,7 +109,11 @@ const loadDataFromSupabase = async (
     setLeads(mappedLeads);
   }
 
-  const { data: propsData } = await supabase.from('properties').select('*').order('id', { ascending: false });
+  const { data: propsData } = await supabase
+    .from('properties')
+    .select('*, legalAudit:property_legal_audit(*)')
+    .order('id', { ascending: false });
+
   if (propsData) {
     const mappedProps: Property[] = propsData.map((p: any) => ({
       id: p.id,
@@ -126,6 +131,17 @@ const loadDataFromSupabase = async (
       imageUrl: p.image_url,
       vectorIndexed: true,
       vectorDimensions: 1536,
+      legalAudit: p.legalAudit && p.legalAudit.length > 0 ? {
+        id: p.legalAudit[0].id,
+        propertyId: p.legalAudit[0].property_id,
+        city: p.legalAudit[0].city,
+        folioRealStatus: p.legalAudit[0].folio_real_status || 'PENDIENTE',
+        taxStatus: p.legalAudit[0].tax_status || 'PENDIENTE',
+        cadastralStatus: p.legalAudit[0].cadastral_status || 'PENDIENTE',
+        globalLegalScore: p.legalAudit[0].global_legal_score || 'ROJO',
+        notes: p.legalAudit[0].notes || '',
+        updatedAt: p.legalAudit[0].updated_at,
+      } : undefined,
     }));
     setProperties(mappedProps);
   }
@@ -150,6 +166,7 @@ export default function App() {
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [isAgencySettingsOpen, setIsAgencySettingsOpen] = useState(false);
   const [leadForAppointment, setLeadForAppointment] = useState<Lead | null>(null);
   const [leadForPdf, setLeadForPdf] = useState<Lead | null>(null);
 
@@ -528,9 +545,9 @@ export default function App() {
 
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden">
+    <div className="flex flex-col h-screen w-full bg-[#090D16] font-sans text-slate-100 overflow-hidden selection:bg-[#D4AF37]/30 selection:text-[#F3E5AB]">
       
-      {/* 1. TOP EXECUTIVE HEADER - "Professional Polish" Theme */}
+      {/* 1. TOP EXECUTIVE HEADER - Luxury Suite Theme */}
       <AppHeader
         currentUser={currentUser}
         onLogout={handleLogout}
@@ -545,47 +562,48 @@ export default function App() {
         showNotifications={showNotifications}
         setShowNotifications={setShowNotifications}
         setCurrentView={setCurrentView}
+        onOpenAgencySettings={() => setIsAgencySettingsOpen(true)}
       />
 
       {/* 2. SUB-BAR NAVIGATION / TABS */}
-      <div className="bg-[#0F172A] border-b border-slate-800 px-2 md:px-6 py-2 flex items-center justify-between shrink-0 overflow-x-auto custom-scrollbar">
-        <div className="flex items-center gap-1">
+      <div className="bg-[#0B0F19] border-b border-slate-800/80 px-2 md:px-6 py-2 flex items-center justify-between shrink-0 overflow-x-auto custom-scrollbar">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setActiveTab("pipeline")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === "pipeline"
-                ? "bg-emerald-500 text-slate-950 shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
             }`}
           >
             <Kanban className="w-3.5 h-3.5" />
             <span>Kanban Pipeline</span>
-            <span className="px-1.5 py-0.2 bg-slate-900/40 rounded text-[10px] font-mono">
+            <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${activeTab === "pipeline" ? "bg-slate-950/40 text-slate-950" : "bg-slate-900 text-slate-400"}`}>
               {filteredLeads.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("rag")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === "rag"
-                ? "bg-emerald-500 text-slate-950 shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
             }`}
           >
             <Database className="w-3.5 h-3.5" />
             <span>Inventario RAG</span>
-            <span className="px-1.5 py-0.2 bg-slate-900/40 rounded text-[10px] font-mono">
+            <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${activeTab === "rag" ? "bg-slate-950/40 text-slate-950" : "bg-slate-900 text-slate-400"}`}>
               {properties.length}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("dashboard")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === "dashboard"
-                ? "bg-emerald-500 text-slate-950 shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
@@ -594,10 +612,10 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab("chat")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === "chat"
-                ? "bg-emerald-500 text-slate-950 shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -606,27 +624,27 @@ export default function App() {
 
           <button
             onClick={() => setActiveTab("simulator")}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
               activeTab === "simulator"
-                ? "bg-emerald-500 text-slate-950 shadow"
-                : "text-slate-400 hover:text-white hover:bg-slate-800"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
             }`}
           >
-            <Bot className="w-3.5 h-3.5 text-emerald-400" />
+            <Bot className={`w-3.5 h-3.5 ${activeTab === "simulator" ? "text-slate-950" : "text-[#D4AF37]"}`} />
             <span>Simulador IA (Sandbox)</span>
           </button>
         </div>
 
         {/* Quick VIS Toggle Filter */}
         <div className="flex items-center gap-2 text-xs text-slate-300">
-          <label className="flex items-center gap-1.5 cursor-pointer bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">
+          <label className="flex items-center gap-1.5 cursor-pointer bg-[#111622] hover:bg-[#182030] px-3 py-1 rounded-xl border border-slate-800 transition">
             <input
               type="checkbox"
               checked={visOnlyFilter}
               onChange={(e) => setVisOnlyFilter(e.target.checked)}
-              className="w-3.5 h-3.5 text-emerald-500 rounded border-slate-600 focus:ring-emerald-500"
+              className="w-3.5 h-3.5 text-[#D4AF37] accent-[#D4AF37] rounded border-slate-700 focus:ring-[#D4AF37]"
             />
-            <span className="text-[11px] font-semibold">Solo Crédito VIS (ASFI)</span>
+            <span className="text-[11px] font-bold text-slate-300">Solo Crédito VIS (ASFI)</span>
           </label>
         </div>
       </div>
@@ -801,6 +819,15 @@ export default function App() {
         message={toastMessage}
         onClose={() => setShowToast(false)}
       />
+
+      {/* Agency Administrator Settings Modal */}
+      {currentUser && (
+        <AgencySettingsModal
+          isOpen={isAgencySettingsOpen}
+          currentUser={currentUser}
+          onClose={() => setIsAgencySettingsOpen(false)}
+        />
+      )}
 
     </div>
   );

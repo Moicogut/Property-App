@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Building2, Mail, Lock, Eye, EyeOff, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { signIn, signUp } from "@/src/lib/auth";
 import type { AppUser } from "@/src/types/property";
+import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
 
 interface LoginPageProps {
   onAuthSuccess: (user: AppUser) => void;
@@ -53,41 +54,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0B0D12] flex items-center justify-center p-4 relative overflow-hidden font-sans">
       
-      {/* Animated background glow */}
+      {/* Animated luxury background glow */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-emerald-400/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1.5s" }} />
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-[#D4AF37]/5 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-[#F59E0B]/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1.5s" }} />
       </div>
 
       <div className="w-full max-w-md relative z-10">
         
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center font-black text-white text-3xl shadow-2xl shadow-emerald-500/30 mx-auto mb-4">
-            P
-          </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">
-            PROPERTY <span className="text-emerald-400">OS</span>
-          </h1>
-          <p className="text-slate-400 text-sm mt-1">
-            CRM Inmobiliario con IA · Eje Troncal Bolivia
-          </p>
+          <PropertyLogo variant="vertical" size="xl" showTagline className="mx-auto" />
         </div>
 
         {/* Card */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 shadow-2xl backdrop-blur-sm">
+        <div className="bg-[#111622]/90 border border-[#D4AF37]/25 rounded-3xl p-8 shadow-2xl backdrop-blur-md">
           
           {/* Mode Switcher */}
-          <div className="flex bg-slate-800 rounded-lg p-1 mb-6">
+          <div className="flex bg-[#0A0E17] rounded-xl p-1 mb-6 border border-slate-800">
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(null); setSuccessMsg(null); }}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
+                className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${
                   mode === m
-                    ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                    ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
@@ -101,7 +94,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
             {/* Full Name (register only) */}
             {mode === "register" && (
               <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                   Nombre Completo
                 </label>
                 <input
@@ -109,7 +102,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Tu nombre y apellido"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  className="w-full bg-[#0A0E17] border border-slate-800 focus:border-[#D4AF37] rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-[#D4AF37] transition-all"
                   required
                 />
               </div>
@@ -117,8 +110,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
 
             {/* Email */}
             <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Email
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                Email Corporativo
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
@@ -126,8 +119,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="correo@agencia.com"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  placeholder="correo@inmobiliaria.com"
+                  className="w-full bg-[#0A0E17] border border-slate-800 focus:border-[#D4AF37] rounded-xl px-4 py-3 pl-10 text-sm text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-[#D4AF37] transition-all"
                   required
                 />
               </div>
@@ -135,7 +128,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
 
             {/* Password */}
             <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
@@ -145,7 +138,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pl-10 pr-11 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all"
+                  className="w-full bg-[#0A0E17] border border-slate-800 focus:border-[#D4AF37] rounded-xl px-4 py-3 pl-10 pr-11 text-sm text-white placeholder-slate-600 outline-none focus:ring-1 focus:ring-[#D4AF37] transition-all"
                   required
                   minLength={6}
                 />
@@ -161,7 +154,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
 
             {/* Error / Success Messages */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium px-4 py-3 rounded-xl">
+              <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-medium px-4 py-3 rounded-xl">
                 ⚠️ {error}
               </div>
             )}
@@ -175,38 +168,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 font-black py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed text-slate-950 font-black py-3.5 rounded-xl text-sm transition-all shadow-lg shadow-[#D4AF37]/20 flex items-center justify-center gap-2 tracking-wide"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4 text-slate-950" />
               )}
               {isLoading
-                ? "Verificando..."
+                ? "Verificando Credenciales..."
                 : mode === "login"
-                ? "Acceder al CRM"
-                : "Crear mi Cuenta"}
+                ? "Acceder a Property OS"
+                : "Crear Cuenta de Asesor"}
             </button>
           </form>
 
           {/* Footer Info */}
-          <div className="mt-6 pt-5 border-t border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-500">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500/60" />
-            <span>Autenticación segura vía Supabase Auth</span>
+          <div className="mt-6 pt-5 border-t border-slate-800 flex items-center justify-center gap-2 text-[11px] text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span>Autenticación segura y encriptada vía Supabase Auth</span>
           </div>
         </div>
 
         {/* Bottom branding */}
-        <div className="text-center mt-6 flex items-center justify-center gap-4 text-xs text-slate-600">
+        <div className="text-center mt-6 flex items-center justify-center gap-3 text-[11px] text-slate-500 font-medium">
           <span className="flex items-center gap-1">
-            <Building2 className="w-3 h-3" /> Eje Troncal Bolivia
+            <Building2 className="w-3 h-3 text-[#D4AF37]" /> Eje Troncal Bolivia
           </span>
           <span>·</span>
           <span>Motor RAG 1536d</span>
           <span>·</span>
-          <span className="flex items-center gap-1 text-emerald-700">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="flex items-center gap-1 text-[#D4AF37]">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
             Evolution API
           </span>
         </div>

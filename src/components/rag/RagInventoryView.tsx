@@ -12,18 +12,22 @@ import {
   Edit3, 
   Ban, 
   Plus, 
-  Sparkles,
-  Layers,
-  Search,
-  Check,
-  Trash2,
-  PauseCircle,
-  Eye,
-  PlayCircle
+  Sparkles, 
+  Layers, 
+  Search, 
+  Check, 
+  Trash2, 
+  PauseCircle, 
+  Eye, 
+  PlayCircle,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX
 } from "lucide-react";
-import { Property } from "@/src/types/property";
+import { Property, PropertyLegalAudit } from "@/src/types/property";
 import { CopyManagementSection } from "./CopyManagementSection";
 import { PropertyImageUploader } from "@/src/components/PropertyImageUploader";
+import { PropertyLegalAuditModal } from "@/src/components/modals/PropertyLegalAuditModal";
 import { supabase } from "@/src/lib/supabase";
 
 interface RagInventoryViewProps {
@@ -44,12 +48,22 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("ALL");
   
-  // States for new management features
+  // States for management and legal audit
   const [viewingProperty, setViewingProperty] = useState<Property | null>(null);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [auditingProperty, setAuditingProperty] = useState<Property | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [loadingCopy, setLoadingCopy] = useState<boolean>(false);
+
+  const handleAuditUpdated = (propertyId: string, updatedAudit: PropertyLegalAudit) => {
+    if (onUpdateProperty) {
+      onUpdateProperty(propertyId, { legalAudit: updatedAudit });
+    }
+    if (viewingProperty && viewingProperty.id === propertyId) {
+      setViewingProperty(prev => prev ? { ...prev, legalAudit: updatedAudit } : null);
+    }
+  };
 
   const handleUploadFile = async (file: File): Promise<string | null> => {
     const fileExt = file.name.split('.').pop();
@@ -272,92 +286,136 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 <th className="px-3 md:px-6 py-3.5">Precio</th>
                 <th className="hidden sm:table-cell px-3 md:px-6 py-3.5">Tipo / Sup.</th>
                 <th className="hidden lg:table-cell px-3 md:px-6 py-3.5">Compat. VIS</th>
+                <th className="hidden lg:table-cell px-3 md:px-6 py-3.5">Semáforo Legal</th>
                 <th className="hidden xl:table-cell px-3 md:px-6 py-3.5">Vector Status</th>
                 <th className="px-3 md:px-6 py-3.5 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-sm">
-              {filteredProperties.map((prop) => (
-                <tr key={prop.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="hidden md:table-cell px-3 md:px-6 py-4">
-                    <div className="w-16 h-12 rounded-lg bg-slate-200 overflow-hidden border border-slate-300">
-                      <img 
-                        src={(prop.imageUrl || "").split(',')[0]?.trim() || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuKB4mqRHJLPsmjKEDw7p-COrNUcCLXZ8YQHIuRSoTNKL6L8isGXuS5J1etOj8S8i4_mle2cmdyloQCeiRjQeJiI4riUo_hXMDskWX2qnT2UABpd2bK2QE8lsm_y3M-pmEYfYA_Q5UGTe_aGYM8Aedk_VTQHS7Wb0zCvgf3Gb2VKtOtL6QdQ7kDWBxLyXLQ5NNjlucBj-XKi9PMtMQRPjBZXsTmHiV2J0beg6LhsFbwcr_c3cFutJ0yA'} 
-                        alt={prop.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </td>
-                  <td className="px-3 md:px-6 py-4">
-                    <p className="font-bold text-slate-900 text-xs md:text-sm">{prop.title}</p>
-                    <p className="text-[10px] md:text-xs text-slate-500">{prop.zone}, {prop.city}</p>
-                  </td>
-                  <td className="px-3 md:px-6 py-4">
-                    <p className="font-bold text-slate-900 text-xs md:text-sm">${(prop.priceUsd ?? 0).toLocaleString()} USD</p>
-                    <p className="text-[10px] md:text-xs text-slate-400">Bs. {((prop.priceUsd ?? 0) * 6.96).toLocaleString("es-BO")}</p>
-                  </td>
-                  <td className="hidden sm:table-cell px-3 md:px-6 py-4">
-                    <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-[10px] md:text-xs font-semibold whitespace-nowrap">
-                      {prop.bedrooms > 0 ? `${prop.bedrooms}D / ${prop.bathrooms}B` : 'Lote'} • {prop.areaSqm}m²
-                    </span>
-                  </td>
-                  <td className="hidden lg:table-cell px-3 md:px-6 py-4">
-                    {prop.acceptsSocialHousing ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] md:text-xs font-bold border border-emerald-200 whitespace-nowrap">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                        SÍ (VIS)
+              {filteredProperties.map((prop) => {
+                const legalScore = prop.legalAudit?.globalLegalScore || "PENDIENTE";
+
+                return (
+                  <tr key={prop.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="hidden md:table-cell px-3 md:px-6 py-4">
+                      <div className="w-16 h-12 rounded-lg bg-slate-200 overflow-hidden border border-slate-300">
+                        <img 
+                          src={(prop.imageUrl || "").split(',')[0]?.trim() || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&auto=format&fit=crop&q=80'} 
+                          alt={prop.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-3 md:px-6 py-4">
+                      <p className="font-bold text-slate-900 text-xs md:text-sm">{prop.title}</p>
+                      <p className="text-[10px] md:text-xs text-slate-500">{prop.zone}, {prop.city}</p>
+                    </td>
+                    <td className="px-3 md:px-6 py-4">
+                      <p className="font-bold text-slate-900 text-xs md:text-sm">${(prop.priceUsd ?? 0).toLocaleString()} USD</p>
+                      <p className="text-[10px] md:text-xs text-slate-400">Bs. {((prop.priceUsd ?? 0) * 6.96).toLocaleString("es-BO")}</p>
+                    </td>
+                    <td className="hidden sm:table-cell px-3 md:px-6 py-4">
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md text-[10px] md:text-xs font-semibold whitespace-nowrap">
+                        {prop.bedrooms > 0 ? `${prop.bedrooms}D / ${prop.bathrooms}B` : 'Lote'} • {prop.areaSqm}m²
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] md:text-xs font-bold border border-slate-200 whitespace-nowrap">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                        NO (Libre)
-                      </span>
-                    )}
-                  </td>
-                  <td className="hidden xl:table-cell px-3 md:px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-600 font-semibold bg-emerald-50/50 px-2 py-1 rounded-md border border-emerald-100 whitespace-nowrap">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Indexado pgvector (1536d)
-                    </div>
-                  </td>
-                  <td className="px-3 md:px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button 
-                        onClick={() => setViewingProperty(prop)}
-                        className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 transition-colors"
-                        title="Ver Ficha"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => setEditingProperty(prop)}
-                        className="p-1.5 bg-blue-50 hover:bg-blue-100 rounded text-blue-600 transition-colors"
-                        title="Editar Propiedad"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => onUpdateProperty && onUpdateProperty(prop.id, { status: prop.status === "AVAILABLE" ? "RESERVED" : "AVAILABLE" })}
-                        className={`p-1.5 ${prop.status === "RESERVED" ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "bg-slate-50 text-slate-400 hover:bg-slate-200"} rounded transition-colors`}
-                        title={prop.status === "RESERVED" ? "Reanudar" : "Pausar/Reservar"}
-                      >
-                        {prop.status === "RESERVED" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (window.confirm("¿Estás seguro de eliminar esta propiedad y todos sus vectores RAG?")) {
-                            onDeleteProperty && onDeleteProperty(prop.id);
-                          }
-                        }}
-                        className="p-1.5 bg-rose-50 hover:bg-rose-100 rounded text-rose-600 transition-colors"
-                        title="Borrar Propiedad"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="hidden lg:table-cell px-3 md:px-6 py-4">
+                      {prop.acceptsSocialHousing ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] md:text-xs font-bold border border-emerald-200 whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                          SÍ (VIS)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] md:text-xs font-bold border border-slate-200 whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          NO (Libre)
+                        </span>
+                      )}
+                    </td>
+                    
+                    {/* Semáforo Legal Pill */}
+                    <td className="hidden lg:table-cell px-3 md:px-6 py-4">
+                      {legalScore === "VERDE" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] md:text-xs font-bold border border-emerald-200 whitespace-nowrap shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          🟢 Viable (Limpio)
+                        </span>
+                      ) : legalScore === "AMARILLO" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] md:text-xs font-bold border border-amber-200 whitespace-nowrap shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          🟡 Observado
+                        </span>
+                      ) : legalScore === "ROJO" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-[10px] md:text-xs font-bold border border-rose-200 whitespace-nowrap shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          🔴 Bloqueado
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] md:text-xs font-bold border border-slate-200 whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          ⚪ Por Auditar
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="hidden xl:table-cell px-3 md:px-6 py-4">
+                      <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-600 font-semibold bg-emerald-50/50 px-2 py-1 rounded-md border border-emerald-100 whitespace-nowrap">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Indexado pgvector (1536d)
+                      </div>
+                    </td>
+                    <td className="px-3 md:px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          onClick={() => setViewingProperty(prop)}
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 transition-colors"
+                          title="Ver Ficha"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setAuditingProperty(prop)}
+                          className={`p-1.5 rounded transition-colors ${
+                            legalScore === "VERDE" 
+                              ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700" 
+                              : legalScore === "AMARILLO" 
+                              ? "bg-amber-50 hover:bg-amber-100 text-amber-700" 
+                              : "bg-purple-50 hover:bg-purple-100 text-purple-700"
+                          }`}
+                          title="Auditoría Legal (DDRR / RUAT / Catastro)"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => setEditingProperty(prop)}
+                          className="p-1.5 bg-blue-50 hover:bg-blue-100 rounded text-blue-600 transition-colors"
+                          title="Editar Propiedad"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => onUpdateProperty && onUpdateProperty(prop.id, { status: prop.status === "AVAILABLE" ? "RESERVED" : "AVAILABLE" })}
+                          className={`p-1.5 ${prop.status === "RESERVED" ? "bg-amber-100 text-amber-700 hover:bg-amber-200" : "bg-slate-50 text-slate-400 hover:bg-slate-200"} rounded transition-colors`}
+                          title={prop.status === "RESERVED" ? "Reanudar" : "Pausar/Reservar"}
+                        >
+                          {prop.status === "RESERVED" ? <PlayCircle className="w-4 h-4" /> : <PauseCircle className="w-4 h-4" />}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (window.confirm("¿Estás seguro de eliminar esta propiedad y todos sus vectores RAG?")) {
+                              onDeleteProperty && onDeleteProperty(prop.id);
+                            }
+                          }}
+                          className="p-1.5 bg-rose-50 hover:bg-rose-100 rounded text-rose-600 transition-colors"
+                          title="Borrar Propiedad"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -503,7 +561,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
         </div>
       )}
 
-      {/* Modal Ver Ficha de Propiedad */}
+      {/* Modal Ver Ficha de Propiedad con Auditoría Legal Dinámica */}
       {viewingProperty && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-2 sm:p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 max-h-[95vh] overflow-y-auto custom-scrollbar">
@@ -545,26 +603,71 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
             </div>
 
             {/* Auditoría Legal & Marketing */}
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 mb-4 text-xs">
-              <span className="font-bold text-slate-700 block mb-2">Auditoría Legal (DDRR / Municipal)</span>
-              <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100 mb-4 text-xs space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="font-bold text-slate-700">Auditoría Legal (DDRR / Municipal)</span>
+                <button
+                  type="button"
+                  onClick={() => setAuditingProperty(viewingProperty)}
+                  className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-[10px] rounded-lg border border-purple-200 flex items-center gap-1 transition-colors"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Editar Dictamen</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
                   <span className="text-slate-500">Folio Real</span>
-                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                  <span className={`font-bold ${
+                    viewingProperty.legalAudit?.folioRealStatus === 'AL_DIA' ? 'text-emerald-600' :
+                    viewingProperty.legalAudit?.folioRealStatus === 'CON_GRAVAMEN' ? 'text-amber-600' : 'text-slate-700'
+                  }`}>
+                    {viewingProperty.legalAudit?.folioRealStatus === 'AL_DIA' ? '✅ AL DÍA' :
+                     viewingProperty.legalAudit?.folioRealStatus === 'CON_GRAVAMEN' ? '⚠️ CON GRAVAMEN' : '🔍 PENDIENTE'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
                   <span className="text-slate-500">Impuestos</span>
-                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                  <span className={`font-bold ${
+                    viewingProperty.legalAudit?.taxStatus === 'AL_DIA' ? 'text-emerald-600' :
+                    viewingProperty.legalAudit?.taxStatus === 'DEUDA' ? 'text-rose-600' : 'text-slate-700'
+                  }`}>
+                    {viewingProperty.legalAudit?.taxStatus === 'AL_DIA' ? '✅ AL DÍA' :
+                     viewingProperty.legalAudit?.taxStatus === 'DEUDA' ? '❌ CON DEUDA' : '🔍 PENDIENTE'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
                   <span className="text-slate-500">Catastro</span>
-                  <span className="font-bold text-slate-700">PENDIENTE</span>
+                  <span className={`font-bold ${
+                    viewingProperty.legalAudit?.cadastralStatus === 'APROBADO' ? 'text-emerald-600' :
+                    viewingProperty.legalAudit?.cadastralStatus === 'EN_TRAMITE' ? 'text-amber-600' : 
+                    viewingProperty.legalAudit?.cadastralStatus === 'NO_TIENE' ? 'text-rose-600' : 'text-slate-700'
+                  }`}>
+                    {viewingProperty.legalAudit?.cadastralStatus === 'APROBADO' ? '✅ APROBADO' :
+                     viewingProperty.legalAudit?.cadastralStatus === 'EN_TRAMITE' ? '⚠️ TRÁMITE' : 
+                     viewingProperty.legalAudit?.cadastralStatus === 'NO_TIENE' ? '❌ NO TIENE' : '🔍 PENDIENTE'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded">
                   <span className="text-slate-500">Semáforo</span>
-                  <span className="font-bold text-emerald-600">VERDE</span>
+                  <span className={`font-bold ${
+                    viewingProperty.legalAudit?.globalLegalScore === 'VERDE' ? 'text-emerald-600' :
+                    viewingProperty.legalAudit?.globalLegalScore === 'AMARILLO' ? 'text-amber-600' : 'text-rose-600'
+                  }`}>
+                    {viewingProperty.legalAudit?.globalLegalScore === 'VERDE' ? '🟢 VERDE (Viable)' :
+                     viewingProperty.legalAudit?.globalLegalScore === 'AMARILLO' ? '🟡 AMARILLO (Obs)' : '🔴 ROJO (Bloqueado)'}
+                  </span>
                 </div>
               </div>
+
+              {viewingProperty.legalAudit?.notes && (
+                <div className="p-2 bg-white border border-slate-200 rounded text-[11px] text-slate-600">
+                  <span className="font-semibold text-slate-800">Nota Legal: </span>
+                  {viewingProperty.legalAudit.notes}
+                </div>
+              )}
+
               <CopyManagementSection property={viewingProperty} />
             </div>
           </div>
@@ -649,6 +752,15 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal Checklist Auditoría Legal Inmobiliaria */}
+      <PropertyLegalAuditModal
+        isOpen={!!auditingProperty}
+        property={auditingProperty}
+        onClose={() => setAuditingProperty(null)}
+        onAuditUpdated={handleAuditUpdated}
+      />
     </div>
   );
 };
+

@@ -37,6 +37,8 @@ export interface AppUser {
   email: string;
   fullName: string;
   role: UserRole;
+  organizationId?: string;
+  organizationName?: string;
   userType?: 'INDEPENDENT_AGENT' | 'REAL_ESTATE_AGENCY';
   phoneNumber?: string; // Para notificaciones push
 }
@@ -88,6 +90,7 @@ export interface Property {
   images?: string[];
   vectorIndexed?: boolean;
   vectorDimensions?: number;
+  legalAudit?: PropertyLegalAudit;
 }
 
 export interface BantScore {

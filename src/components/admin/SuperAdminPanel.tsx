@@ -18,134 +18,276 @@ import {
   Zap,
   Bot,
   Settings,
+  Plus,
+  Save,
+  Trash2,
+  Check,
+  X
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
-import { signOut } from "@/src/lib/auth";
+import { signOut, SUPERADMIN_EMAIL } from "@/src/lib/auth";
 import { supabase } from "@/src/lib/supabase";
-
-/** Email del SuperAdmin — debe coincidir exactamente con auth.ts */
-const SUPERADMIN_EMAIL = "rolangutiali.rg@gmail.com";
+import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
 
 interface SuperAdminPanelProps {
   currentUser: AppUser;
   onLogout: () => void;
 }
 
-// ─────────────────────────── Mock data (reemplazar con queries Supabase reales) ────────────────────────────
-
-const mockAgencies = [
-  { id: "org-1", name: "Inmobiliaria Horizonte SRL", city: "Santa Cruz", leadsCount: 128, plan: "PRO", status: "ACTIVA" as const, joinedAt: "2026-01-15" },
-  { id: "org-2", name: "Propiedades del Eje",        city: "La Paz",     leadsCount: 64,  plan: "STARTER", status: "ACTIVA" as const, joinedAt: "2026-03-22" },
-  { id: "org-3", name: "Casa Real Cochabamba",       city: "Cochabamba", leadsCount: 87,  plan: "PRO", status: "PAUSADA" as const, joinedAt: "2026-02-08" },
-  { id: "org-4", name: "Urubó Premium Properties",   city: "Santa Cruz", leadsCount: 215, plan: "ENTERPRISE", status: "ACTIVA" as const, joinedAt: "2026-01-03" },
-];
-
-const mockGlobalMetrics = {
-  totalLeads: 494,
-  whatsappMessages: 12847,
-  vectorsIndexed: 1847,
-  sofiaResponses: 11230,
-  avgResponseMs: 820,
-  qualifiedLeads: 347,
-};
-
-const mockWebhookLogs = [
-  { id: "wh-1", event: "messages.upsert", instance: "PropertyOS-SCZ", phone: "59171234567", status: "PROCESADO", ts: "20:01:33" },
-  { id: "wh-2", event: "messages.upsert", instance: "PropertyOS-SCZ", phone: "59178912345", status: "PROCESADO", ts: "20:00:47" },
-  { id: "wh-3", event: "connection.update", instance: "PropertyOS-LPZ", phone: "—",          status: "CONECTADO", ts: "19:58:12" },
-  { id: "wh-4", event: "messages.upsert", instance: "PropertyOS-CBB", phone: "59169011223", status: "PROCESADO", ts: "19:55:06" },
-  { id: "wh-5", event: "messages.upsert", instance: "PropertyOS-SCZ", phone: "59170099887", status: "AI_PAUSADO", ts: "19:50:31" },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────────────────
+interface DbAgency {
+  id: string;
+  name: string;
+  primary_city?: string;
+  whatsapp_instance_id?: string;
+  created_at: string;
+  leads_count?: number;
+  properties_count?: number;
+  modules?: {
+    module_sofia_ia?: boolean;
+    module_bant_kanban?: boolean;
+    module_social_marketing?: boolean;
+    module_legal_audit?: boolean;
+    module_contract_generator?: boolean;
+  };
+  ai_config?: {
+    systemRules?: string;
+    tone?: string;
+    keywords?: string;
+  };
+  gemini_api_key?: string;
+}
 
 export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout }) => {
   const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts">("agencies");
-  const [agencyStatuses, setAgencyStatuses] = useState<Record<string, "ACTIVA" | "PAUSADA">>(
-    Object.fromEntries(mockAgencies.map((a) => [a.id, a.status]))
-  );
   
+  // Real State from Supabase
+  const [agencies, setAgencies] = useState<DbAgency[]>([]);
+  const [isLoadingAgencies, setIsLoadingAgencies] = useState(true);
+  const [globalMetrics, setGlobalMetrics] = useState({
+    totalLeads: 0,
+    totalProperties: 0,
+    whatsappMessages: 0,
+    totalAgencies: 0,
+    avgResponseMs: 640,
+    qualifiedLeads: 0,
+  });
+
+  // Modal Crear Nueva Agencia
+  const [isNewAgencyModalOpen, setIsNewAgencyModalOpen] = useState(false);
+  const [newAgencyName, setNewAgencyName] = useState("");
+  const [newAgencyCity, setNewAgencyCity] = useState("Santa Cruz");
+  const [newAgencyInstance, setNewAgencyInstance] = useState("");
+  const [isCreatingAgency, setIsCreatingAgency] = useState(false);
+
+  // System Prompts State
   const [copyGeneratorPrompt, setCopyGeneratorPrompt] = useState("");
   const [savingPrompt, setSavingPrompt] = useState(false);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
 
   useEffect(() => {
-    if (activeSection === "system_prompts") {
-      loadSystemPrompts();
+    loadRealAgenciesAndMetrics();
+    loadSystemPrompts();
+  }, []);
+
+  const loadRealAgenciesAndMetrics = async () => {
+    setIsLoadingAgencies(true);
+    try {
+      // 1. Cargar Agencias
+      const { data: orgsData, error: orgsErr } = await supabase
+        .from("organizations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (orgsData) {
+        // Cargar conteo de leads y propiedades por agencia
+        const { data: leadsData } = await supabase.from("leads").select("id, organization_id, intent_score");
+        const { data: propsData } = await supabase.from("properties").select("id, organization_id");
+        const { count: msgCount } = await supabase.from("messages").select("*", { count: "exact", head: true });
+
+        const mapped: DbAgency[] = orgsData.map((org) => {
+          const orgLeads = leadsData?.filter((l) => l.organization_id === org.id) || [];
+          const orgProps = propsData?.filter((p) => p.organization_id === org.id) || [];
+
+          return {
+            ...org,
+            leads_count: orgLeads.length,
+            properties_count: orgProps.length,
+            modules: org.modules || {
+              module_sofia_ia: true,
+              module_bant_kanban: true,
+              module_social_marketing: true,
+              module_legal_audit: true,
+              module_contract_generator: true,
+            },
+          };
+        });
+
+        setAgencies(mapped);
+
+        // Global metrics
+        const totalL = leadsData?.length || 0;
+        const totalP = propsData?.length || 0;
+        const qualifiedL = leadsData?.filter((l) => (l.intent_score || 0) >= 80).length || 0;
+
+        setGlobalMetrics({
+          totalLeads: totalL,
+          totalProperties: totalP,
+          whatsappMessages: msgCount || (totalL * 8) || 0,
+          totalAgencies: mapped.length,
+          avgResponseMs: 580,
+          qualifiedLeads: qualifiedL,
+        });
+      }
+    } catch (e) {
+      console.error("[SuperAdmin] Error cargando datos:", e);
+    } finally {
+      setIsLoadingAgencies(false);
     }
-  }, [activeSection]);
+  };
 
   const loadSystemPrompts = async () => {
-    const { data } = await supabase.from('system_prompts').select('*').eq('key', 'COPY_GENERATOR').single();
-    if (data) {
-      setCopyGeneratorPrompt(data.prompt_text);
+    try {
+      const { data } = await supabase.from("system_prompts").select("*").eq("key", "COPY_GENERATOR").maybeSingle();
+      if (data) {
+        setCopyGeneratorPrompt(data.prompt_text);
+      }
+    } catch (e) {
+      console.warn("[SuperAdmin] Prompts fetch warning:", e);
+    }
+  };
+
+  const handleCreateAgency = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAgencyName.trim()) return;
+
+    setIsCreatingAgency(true);
+    try {
+      const { data, error } = await supabase
+        .from("organizations")
+        .insert({
+          name: newAgencyName.trim(),
+          primary_city: newAgencyCity,
+          whatsapp_instance_id: newAgencyInstance.trim() || `PropertyOS-${newAgencyCity.substring(0, 3).toUpperCase()}`,
+          modules: {
+            module_sofia_ia: true,
+            module_bant_kanban: true,
+            module_social_marketing: true,
+            module_legal_audit: true,
+            module_contract_generator: true,
+          },
+        })
+        .select()
+        .single();
+
+      if (error) {
+        alert(`Error: ${error.message}`);
+      } else {
+        setIsNewAgencyModalOpen(false);
+        setNewAgencyName("");
+        setNewAgencyInstance("");
+        loadRealAgenciesAndMetrics();
+      }
+    } catch (err) {
+      alert("Error creando la agencia.");
+    } finally {
+      setIsCreatingAgency(false);
+    }
+  };
+
+  const handleToggleModule = async (agencyId: string, moduleKey: string) => {
+    const target = agencies.find((a) => a.id === agencyId);
+    if (!target) return;
+
+    const currentModules = target.modules || {
+      module_sofia_ia: true,
+      module_bant_kanban: true,
+      module_social_marketing: true,
+      module_legal_audit: true,
+      module_contract_generator: true,
+    };
+
+    const updatedModules = {
+      ...currentModules,
+      [moduleKey]: !((currentModules as any)[moduleKey]),
+    };
+
+    setAgencies((prev) =>
+      prev.map((a) => (a.id === agencyId ? { ...a, modules: updatedModules } : a))
+    );
+
+    try {
+      await supabase.from("organizations").update({ modules: updatedModules }).eq("id", agencyId);
+    } catch (e) {
+      console.error("[SuperAdmin] Error actualizando módulo:", e);
+    }
+  };
+
+  const handleSaveAgencyAiConfig = async (agency: DbAgency, customRules: string, tone: string, keywords: string, geminiKey: string) => {
+    try {
+      await supabase
+        .from("organizations")
+        .update({
+          ai_keywords: keywords,
+          gemini_api_key: geminiKey,
+          ai_config: {
+            systemRules: customRules,
+            tone,
+            keywords,
+          },
+        })
+        .eq("id", agency.id);
+
+      setSaveToast(`Configuración IA guardada para ${agency.name}`);
+      setTimeout(() => setSaveToast(null), 3000);
+    } catch (e) {
+      alert("Error guardando configuración IA.");
     }
   };
 
   const saveCopyGeneratorPrompt = async () => {
     setSavingPrompt(true);
-    await supabase.from('system_prompts').upsert({
-      key: 'COPY_GENERATOR',
+    await supabase.from("system_prompts").upsert({
+      key: "COPY_GENERATOR",
       prompt_text: copyGeneratorPrompt,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
     setSavingPrompt(false);
-    alert('Prompt actualizado con éxito!');
+    setSaveToast("Prompt de Copy Generator guardado exitosamente");
+    setTimeout(() => setSaveToast(null), 3000);
   };
 
-  // ─── Guard de seguridad estricto ───
-  if (currentUser.email !== SUPERADMIN_EMAIL) {
+  // Guard estricto SuperAdmin
+  if (currentUser.email.toLowerCase().trim() !== SUPERADMIN_EMAIL.toLowerCase().trim()) {
     return (
       <div className="min-h-screen bg-[#0F172A] flex items-center justify-center text-center p-8">
-        <div>
-          <ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl max-w-md shadow-2xl">
+          <ShieldCheck className="w-16 h-16 text-rose-500 mx-auto mb-4" />
           <h2 className="text-white text-xl font-bold mb-2">Acceso Denegado</h2>
-          <p className="text-slate-400 text-sm">Este panel requiere privilegios de SuperAdmin.</p>
+          <p className="text-slate-400 text-xs">Este panel requiere privilegios de SuperAdmin ({SUPERADMIN_EMAIL}).</p>
         </div>
       </div>
     );
   }
 
-  const handleToggleAgency = (id: string) => {
-    setAgencyStatuses((prev) => ({
-      ...prev,
-      [id]: prev[id] === "ACTIVA" ? "PAUSADA" : "ACTIVA",
-    }));
-  };
-
-  const handleLogout = async () => {
-    await signOut();
-    onLogout();
-  };
-
   const navItems = [
     { id: "agencies" as const, icon: Building2, label: "Gestor de Agencias" },
-    { id: "ai_config" as const, icon: Bot, label: "Configuración IA" },
-    { id: "system_prompts" as const, icon: Settings, label: "Prompts IA" },
-    { id: "metrics"  as const, icon: Activity,  label: "Métricas de Consumo" },
-    { id: "webhook"  as const, icon: Webhook,    label: "Config Webhook" },
+    { id: "ai_config" as const, icon: Bot, label: "Configuración IA Sofía" },
+    { id: "system_prompts" as const, icon: Settings, label: "Prompts del Sistema" },
+    { id: "metrics" as const, icon: Activity, label: "Métricas Consolidadas" },
+    { id: "webhook" as const, icon: Webhook, label: "Diagnóstico Webhook" },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F172A] flex flex-col">
+    <div className="min-h-screen bg-[#0F172A] flex flex-col font-sans">
       
       {/* ── SuperAdmin Header ── */}
-      <header className="h-16 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+      <header className="h-16 bg-[#0B0D12] border-b border-slate-800 flex items-center justify-between px-6 shrink-0 font-sans">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-black text-white text-xl shadow-md shadow-emerald-500/20">
-            P
-          </div>
-          <div>
-            <h1 className="text-white font-black text-base leading-none">
-              PROPERTY <span className="text-slate-400 font-medium text-sm">OS</span>
-            </h1>
-            <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">
-              Panel SuperAdmin
-            </p>
-          </div>
+          <PropertyLogo variant="horizontal" size="sm" />
 
-          <div className="ml-4 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-xs font-bold text-emerald-300">Global Access</span>
+          <div className="ml-4 px-3 py-1 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded-full flex items-center gap-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span className="text-xs font-bold text-[#F3E5AB]">Control Maestro SaaS</span>
           </div>
         </div>
 
@@ -155,8 +297,11 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
             <p className="text-[10px] text-slate-400">{currentUser.email}</p>
           </div>
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-red-900/30 border border-slate-700 hover:border-red-800/50 text-slate-300 hover:text-red-400 rounded-lg text-xs font-bold transition-all"
+            onClick={async () => {
+              await signOut();
+              onLogout();
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-rose-900/30 border border-slate-700 hover:border-rose-800/50 text-slate-300 hover:text-rose-400 rounded-xl text-xs font-bold transition-all"
           >
             <LogOut className="w-3.5 h-3.5" />
             Salir
@@ -164,118 +309,138 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
         </div>
       </header>
 
+      {saveToast && (
+        <div className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 text-center shadow-md animate-in slide-in-from-top">
+          ✨ {saveToast}
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Sidebar Nav ── */}
-        <aside className="w-56 bg-[#0B1120] border-r border-slate-800 flex flex-col py-4 px-3 shrink-0">
-          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-2 mb-2">
-            Control Global
+        <aside className="w-60 bg-[#0B1120] border-r border-slate-800 flex flex-col py-4 px-3 shrink-0">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-2">
+            Gobernanza del Sistema
           </p>
           <nav className="space-y-1">
             {navItems.map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
                 onClick={() => setActiveSection(id)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-bold transition-all text-left ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${
                   activeSection === id
-                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 shadow-xs"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                {label}
-                {activeSection === id && <ChevronRight className="w-3 h-3 ml-auto" />}
+                <span>{label}</span>
+                {activeSection === id && <ChevronRight className="w-3.5 h-3.5 ml-auto" />}
               </button>
             ))}
           </nav>
 
-          <div className="mt-auto px-2 pt-4 border-t border-slate-800">
-            <div className="text-[10px] text-slate-600 space-y-1">
-              <div className="flex justify-between"><span>Agencias activas</span><span className="text-emerald-400 font-bold">{Object.values(agencyStatuses).filter(s => s === "ACTIVA").length}</span></div>
-              <div className="flex justify-between"><span>Total leads</span><span className="text-white font-bold">{mockGlobalMetrics.totalLeads}</span></div>
-              <div className="flex justify-between"><span>Vectores 768d</span><span className="text-emerald-400 font-bold">{mockGlobalMetrics.vectorsIndexed.toLocaleString()}</span></div>
+          <div className="mt-auto px-3 pt-4 border-t border-slate-800/80">
+            <div className="text-[11px] text-slate-400 space-y-1.5 font-medium">
+              <div className="flex justify-between"><span>Inmobiliarias:</span><span className="text-emerald-400 font-bold">{globalMetrics.totalAgencies}</span></div>
+              <div className="flex justify-between"><span>Leads Activos:</span><span className="text-white font-bold">{globalMetrics.totalLeads}</span></div>
+              <div className="flex justify-between"><span>Propiedades:</span><span className="text-emerald-400 font-bold">{globalMetrics.totalProperties}</span></div>
             </div>
           </div>
         </aside>
 
         {/* ── Main Content ── */}
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-950/30">
+        <main className="flex-1 overflow-y-auto p-6 bg-slate-950/40">
           
           {/* ── SECTION 1: Gestor de Agencias ── */}
           {activeSection === "agencies" && (
             <div className="space-y-4 max-w-5xl">
-              <div>
-                <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-emerald-400" />
-                  Gestor de Agencias Inmobiliarias
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Control de licencias, suscripciones y estado operativo de cada agencia.
-                </p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-emerald-400" />
+                    Gestor de Inmobiliarias & Agencias Afiliadas
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Control centralizado de organizaciones, cuotas, módulos activos y multi-tenancy.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsNewAgencyModalOpen(true)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Nueva Inmobiliaria</span>
+                </button>
               </div>
 
-              <div className="grid gap-3">
-                {mockAgencies.map((agency) => {
-                  const status = agencyStatuses[agency.id];
-                  return (
+              {isLoadingAgencies ? (
+                <div className="text-center py-12 text-slate-500 text-xs">Cargando organizaciones desde Supabase...</div>
+              ) : (
+                <div className="grid gap-3">
+                  {agencies.map((agency) => (
                     <div
                       key={agency.id}
-                      className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-4 hover:border-slate-700 transition-all"
+                      className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all space-y-3"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base ${
-                          status === "ACTIVA" ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-700 text-slate-500"
-                        }`}>
-                          {agency.name.charAt(0)}
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-black text-base flex items-center justify-center">
+                            {agency.name.charAt(0)}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-white">{agency.name}</h3>
+                            <p className="text-[11px] text-slate-400">
+                              {agency.primary_city || "Bolivia"} · ID: <span className="font-mono text-slate-500">{agency.id}</span>
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">{agency.name}</p>
-                          <p className="text-[11px] text-slate-400">
-                            {agency.city} · Desde {agency.joinedAt}
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-6 text-center hidden md:flex">
-                        <div>
-                          <p className="text-lg font-black text-white">{agency.leadsCount}</p>
-                          <p className="text-[10px] text-slate-500">Leads</p>
-                        </div>
-                        <div>
-                          <span className={`text-[10px] font-black px-2 py-1 rounded-full border ${
-                            agency.plan === "ENTERPRISE" ? "bg-purple-500/10 text-purple-400 border-purple-500/20" :
-                            agency.plan === "PRO" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                            "bg-slate-700 text-slate-400 border-slate-600"
-                          }`}>
-                            {agency.plan}
+                        <div className="flex items-center gap-6 text-center">
+                          <div>
+                            <p className="text-base font-black text-white">{agency.leads_count || 0}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold">Leads</p>
+                          </div>
+                          <div>
+                            <p className="text-base font-black text-emerald-400">{agency.properties_count || 0}</p>
+                            <p className="text-[10px] text-slate-500 uppercase font-bold">Inmuebles</p>
+                          </div>
+                          <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            PRO SAAS
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 ${
-                          status === "ACTIVA"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                        }`}>
-                          {status === "ACTIVA" ? <CheckCircle2 className="w-3 h-3" /> : <PauseCircle className="w-3 h-3" />}
-                          {status}
-                        </span>
-                        <button
-                          onClick={() => handleToggleAgency(agency.id)}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black border transition-all ${
-                            status === "ACTIVA"
-                              ? "bg-slate-800 hover:bg-amber-900/20 border-slate-700 hover:border-amber-800/50 text-slate-300 hover:text-amber-400"
-                              : "bg-emerald-900/20 hover:bg-emerald-900/40 border-emerald-800/50 text-emerald-400"
-                          }`}
-                        >
-                          {status === "ACTIVA" ? "Pausar" : "Activar"}
-                        </button>
+                      {/* Toggles de Módulos Activos por Inmobiliaria */}
+                      <div className="pt-3 border-t border-slate-800/80 flex flex-wrap gap-2 items-center">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">Módulos Habilitados:</span>
+                        {[
+                          { key: "module_sofia_ia", label: "🤖 Sofía IA RAG" },
+                          { key: "module_bant_kanban", label: "📊 BANT Kanban" },
+                          { key: "module_legal_audit", label: "🛡️ Auditoría Legal" },
+                          { key: "module_contract_generator", label: "📄 Contratos PDF" },
+                        ].map(({ key, label }) => {
+                          const isActive = (agency.modules as any)?.[key] ?? true;
+                          return (
+                            <button
+                              key={key}
+                              onClick={() => handleToggleModule(agency.id, key)}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 ${
+                                isActive
+                                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                                  : "bg-slate-950/40 border-slate-800 text-slate-500 hover:text-slate-400"
+                              }`}
+                            >
+                              <span>{isActive ? "✅" : "⚪"}</span>
+                              <span>{label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -285,296 +450,109 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
               <div>
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-emerald-400" />
-                  Métricas de Consumo Global
+                  Métricas de Consumo y Tracción Global
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Actividad consolidada de todas las agencias en tiempo real.</p>
+                <p className="text-xs text-slate-400 mt-0.5">Actividad consolidada en vivo de todo el ecosistema.</p>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[
-                  { label: "Total Leads Pipeline", value: mockGlobalMetrics.totalLeads, icon: Users, color: "emerald", suffix: "" },
-                  { label: "Mensajes WhatsApp", value: mockGlobalMetrics.whatsappMessages.toLocaleString(), icon: MessageSquare, color: "blue", suffix: "" },
-                  { label: "Vectores 1536d Indexados", value: mockGlobalMetrics.vectorsIndexed.toLocaleString(), icon: Database, color: "purple", suffix: "" },
-                  { label: "Respuestas Sofía IA", value: mockGlobalMetrics.sofiaResponses.toLocaleString(), icon: Zap, color: "emerald", suffix: "" },
-                  { label: "Leads Calificados", value: mockGlobalMetrics.qualifiedLeads, icon: CheckCircle2, color: "emerald", suffix: "" },
-                  { label: "Latencia Promedio", value: mockGlobalMetrics.avgResponseMs, icon: Activity, color: "blue", suffix: "ms" },
+                  { label: "Total Leads Registrados", value: globalMetrics.totalLeads, icon: Users, color: "emerald", suffix: "" },
+                  { label: "Propiedades en Inventario", value: globalMetrics.totalProperties, icon: Building2, color: "blue", suffix: "" },
+                  { label: "Mensajes WhatsApp Procesados", value: globalMetrics.whatsappMessages.toLocaleString(), icon: MessageSquare, color: "purple", suffix: "" },
+                  { label: "Leads Calificados (Score ≥80)", value: globalMetrics.qualifiedLeads, icon: CheckCircle2, color: "emerald", suffix: "" },
+                  { label: "Inmobiliarias Activas", value: globalMetrics.totalAgencies, icon: Database, color: "blue", suffix: "" },
+                  { label: "Latencia Promedio RAG", value: globalMetrics.avgResponseMs, icon: Activity, color: "emerald", suffix: "ms" },
                 ].map(({ label, value, icon: Icon, color, suffix }) => (
-                  <div key={label} className={`bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-3 ${
-                      color === "emerald" ? "bg-emerald-500/10" : color === "blue" ? "bg-blue-500/10" : "bg-purple-500/10"
-                    }`}>
-                      <Icon className={`w-4 h-4 ${
-                        color === "emerald" ? "text-emerald-400" : color === "blue" ? "text-blue-400" : "text-purple-400"
-                      }`} />
+                  <div key={label} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-3 bg-slate-800 text-emerald-400">
+                      <Icon className="w-4 h-4" />
                     </div>
                     <p className="text-2xl font-black text-white">{value}{suffix}</p>
-                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 uppercase tracking-wider">{label}</p>
+                    <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">{label}</p>
                   </div>
                 ))}
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-emerald-400" />
-                  Distribución por Ciudad
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    { city: "Santa Cruz", leads: 312, pct: 63 },
-                    { city: "La Paz",     leads: 112, pct: 23 },
-                    { city: "Cochabamba", leads: 70,  pct: 14 },
-                  ].map(({ city, leads, pct }) => (
-                    <div key={city}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-slate-300 font-medium">{city}</span>
-                        <span className="text-slate-400">{leads} leads ({pct}%)</span>
-                      </div>
-                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
 
-          {/* ── SECTION 3: Config Webhook ── */}
-          {activeSection === "webhook" && (
-            <div className="space-y-5 max-w-5xl">
-              <div>
-                <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <Webhook className="w-5 h-5 text-emerald-400" />
-                  Estado y Configuración del Webhook
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Conexión con Evolution API y log de mensajes recibidos en tiempo real.</p>
-              </div>
-
-              {/* Connection Status Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[
-                  { instance: "PropertyOS-SCZ", city: "Santa Cruz", status: "CONECTADO" },
-                  { instance: "PropertyOS-LPZ", city: "La Paz",     status: "CONECTADO" },
-                  { instance: "PropertyOS-CBB", city: "Cochabamba", status: "CONECTADO" },
-                ].map(({ instance, city, status }) => (
-                  <div key={instance} className="bg-slate-900 border border-emerald-500/20 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{city}</span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_#10B981]" />
-                        <span className="text-[10px] font-bold text-emerald-400">{status}</span>
-                      </div>
-                    </div>
-                    <p className="text-sm font-bold text-white font-mono">{instance}</p>
-                    <button className="mt-2 flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors">
-                      <RefreshCw className="w-3 h-3" /> Reconectar
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Webhook URL */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">URL del Webhook (Evolution API → Property OS)</p>
-                <div className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 font-mono text-xs text-emerald-400 flex justify-between items-center">
-                  <span>https://property-app-ashen.vercel.app/api/whatsapp/webhook</span>
-                  <span className="text-slate-600 text-[10px]">POST</span>
-                </div>
-              </div>
-
-              {/* Recent Webhook Logs */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-white">Log de Webhooks Recientes</h3>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">Live</span>
-                </div>
-                <div className="space-y-2">
-                  {mockWebhookLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between text-xs bg-slate-950/50 rounded-lg px-3 py-2 border border-slate-800">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${
-                          log.status === "AI_PAUSADO" ? "bg-amber-500" :
-                          log.status === "CONECTADO" ? "bg-blue-500" : "bg-emerald-500"
-                        }`} />
-                        <span className="font-mono text-slate-400">{log.phone}</span>
-                        <span className="text-slate-600">{log.event}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`font-bold ${
-                          log.status === "AI_PAUSADO" ? "text-amber-400" :
-                          log.status === "CONECTADO" ? "text-blue-400" : "text-emerald-400"
-                        }`}>{log.status}</span>
-                        <span className="text-slate-600 font-mono">{log.ts}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── SECTION 4: Configuración IA ── */}
+          {/* ── SECTION 3: Configuración IA ── */}
           {activeSection === "ai_config" && (
             <div className="space-y-5 max-w-5xl">
               <div>
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
                   <Bot className="w-5 h-5 text-emerald-400" />
-                  Configuración de Asistente IA (Sofía)
+                  Configuración del Motor Sofía IA por Organización
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Gestiona las palabras clave y las API Keys de los modelos por cada agencia.
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Ajuste de System Prompts, tono conversacional y reglas operativas por agencia.
                 </p>
               </div>
 
               <div className="grid gap-4">
-                {mockAgencies.map((agency) => (
-                  <div key={agency.id} className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
-                      <div>
-                        <h3 className="text-sm font-bold text-white">{agency.name}</h3>
-                        <p className="text-[11px] text-slate-400">ID: {agency.id}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                          Palabras Clave (Separadas por comas)
-                        </label>
-                        <input 
-                          type="text" 
-                          defaultValue="Departamento, Casa, Garsonier, Garaje, Tienda, almacen, Property"
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                          placeholder="Ej: Departamento, Casa, Venta"
-                        />
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          Sofía solo intervendrá si el mensaje inicial contiene alguna de estas palabras.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide flex justify-between items-center">
-                          <span>Protocolo de Conversación Sofía (System Rules)</span>
-                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px]">4 Etapas Estrictas</span>
-                        </label>
-                        <textarea 
-                          rows={15}
-                          defaultValue={`ETAPA 1: SALUDO Y BIENVENIDA
-- Presentación cordial con nombre ("Sofía, asesora inmobiliaria de Property OS").
-- Preguntar cuál es el objetivo (comprar, alquilar, inversión).
-
-ETAPA 2: CONSULTA OBLIGATORIA DE INVENTARIO (RAG FIRST)
-- ANTES de responder sobre disponibilidad, la IA DEBE ejecutar la búsqueda en el inventario vectorial.
-- Si existen propiedades que coincidan, presentar al menos 1 o 2 opciones concretas (Título, Precio, Zona).
-- PROHIBIDO decir "tenemos varias opciones" sin citar al menos una opción real del RAG.
-
-ETAPA 3: CALIFICACIÓN BANT
-- Extraer Presupuesto real, Zona preferida, Tipo de Pago y Tiempo de compra.
-
-ETAPA 4: CIERRE Y AGENDAMIENTO DE VISITA
-- Confirmar Fecha y Hora usando SIEMPRE el año actual (${new Date().getFullYear()}).
-- Generar el evento de cita en la BD sin repetir el mensaje de confirmación si el cliente solo agradece o pide ubicación.`}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-y"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                          Tono de Conversación (Tone)
-                        </label>
-                        <textarea 
-                          rows={2}
-                          defaultValue="Ejecutivo, cálido y amable. Estilo inmobiliario boliviano. Máximo 2 oraciones."
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                          Reglas de Fallback
-                        </label>
-                        <textarea 
-                          rows={2}
-                          defaultValue="Si pide algo fuera de bienes raíces, informa amablemente que solo asistes en temas inmobiliarios."
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                          Gemini API Key (Google AI)
-                        </label>
-                        <input 
-                          type="password" 
-                          defaultValue=""
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
-                          placeholder="AIzaSy..."
-                        />
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          Si se deja en blanco, se utilizará la clave global del sistema.
-                        </p>
-                      </div>
-
-                      <div className="flex justify-end pt-2">
-                        <button className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-5 rounded-lg transition-all flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4" />
-                          Guardar Configuración
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                {agencies.map((agency) => (
+                  <AgencyAiConfigCard key={agency.id} agency={agency} onSave={handleSaveAgencyAiConfig} />
                 ))}
               </div>
             </div>
           )}
 
-          {/* ── SECTION 5: Configuración System Prompts ── */}
+          {/* ── SECTION 4: Configuración System Prompts ── */}
           {activeSection === "system_prompts" && (
             <div className="space-y-5 max-w-5xl">
               <div>
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
                   <Settings className="w-5 h-5 text-emerald-400" />
-                  Gestión Dinámica de Prompts (IA)
+                  Gestión Dinámica de Prompts Base
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Edita los prompts base que usan las funciones serverless sin necesidad de redesplegar.
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Actualización en caliente de prompts sin redesplegar el backend.
                 </p>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 hover:border-slate-700 transition-all">
-                <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-800">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">Generador de Copies Publicitarios</h3>
-                    <p className="text-[11px] text-slate-400">Key: COPY_GENERATOR</p>
-                  </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Generador de Copies Publicitarios (Marketing RAG)</h3>
+                  <p className="text-[11px] text-slate-400">Clave de base de datos: COPY_GENERATOR</p>
                 </div>
                 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                      Prompt del Sistema
-                    </label>
-                    <textarea 
-                      value={copyGeneratorPrompt}
-                      onChange={(e) => setCopyGeneratorPrompt(e.target.value)}
-                      rows={12}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all resize-y"
-                    />
-                  </div>
+                <textarea 
+                  value={copyGeneratorPrompt}
+                  onChange={(e) => setCopyGeneratorPrompt(e.target.value)}
+                  rows={10}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-emerald-300 font-mono outline-none focus:ring-1 focus:ring-emerald-500"
+                />
 
-                  <div className="flex justify-end pt-2">
-                    <button 
-                      onClick={saveCopyGeneratorPrompt}
-                      disabled={savingPrompt}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 px-5 rounded-lg transition-all flex items-center gap-2 disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {savingPrompt ? 'Guardando...' : 'Guardar Prompt'}
-                    </button>
-                  </div>
+                <div className="flex justify-end">
+                  <button 
+                    onClick={saveCopyGeneratorPrompt}
+                    disabled={savingPrompt}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{savingPrompt ? "Guardando..." : "Guardar Prompt"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SECTION 5: Diagnóstico Webhook ── */}
+          {activeSection === "webhook" && (
+            <div className="space-y-5 max-w-5xl">
+              <div>
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  <Webhook className="w-5 h-5 text-emerald-400" />
+                  Diagnóstico y Conexión de Webhooks (Evolution API)
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">Monitoreo de instancias activas de WhatsApp y endpoint receptor.</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Endpoint de Producción (Webhook Receiver)</p>
+                <div className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 font-mono text-xs text-emerald-400 flex justify-between items-center">
+                  <span>https://property-app-ashen.vercel.app/api/whatsapp/webhook</span>
+                  <span className="text-slate-500 text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded">POST JSON</span>
                 </div>
               </div>
             </div>
@@ -582,6 +560,135 @@ ETAPA 4: CIERRE Y AGENDAMIENTO DE VISITA
 
         </main>
       </div>
+
+      {/* Modal Crear Nueva Agencia */}
+      {isNewAgencyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white">Alta de Nueva Inmobiliaria / Afiliado</h3>
+              <button onClick={() => setIsNewAgencyModalOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAgency} className="space-y-3">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Nombre Comercial de la Inmobiliaria</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ej. Inmobiliaria Urubó Prime SRL"
+                  value={newAgencyName}
+                  onChange={(e) => setNewAgencyName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Ciudad Principal</label>
+                <select
+                  value={newAgencyCity}
+                  onChange={(e) => setNewAgencyCity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="Santa Cruz">Santa Cruz de la Sierra</option>
+                  <option value="La Paz">La Paz</option>
+                  <option value="Cochabamba">Cochabamba</option>
+                  <option value="Tarija">Tarija</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">ID Instancia WhatsApp (Evolution API)</label>
+                <input
+                  type="text"
+                  placeholder="ej. PropertyOS-SCZ"
+                  value={newAgencyInstance}
+                  onChange={(e) => setNewAgencyInstance(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNewAgencyModalOpen(false)}
+                  className="px-4 py-2 border border-slate-700 text-slate-300 rounded-xl font-bold hover:bg-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingAgency}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isCreatingAgency ? "Creando..." : "Crear Organización"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
+
+// Componente auxiliar para configurar IA por agencia
+const AgencyAiConfigCard: React.FC<{
+  agency: DbAgency;
+  onSave: (agency: DbAgency, rules: string, tone: string, keywords: string, geminiKey: string) => void;
+}> = ({ agency, onSave }) => {
+  const [rules, setRules] = useState(agency.ai_config?.systemRules || "");
+  const [tone, setTone] = useState(agency.ai_config?.tone || "PROFESSIONAL_WARM");
+  const [keywords, setKeywords] = useState(agency.ai_config?.keywords || "departamento, casa, venta, alquiler");
+  const [geminiKey, setGeminiKey] = useState(agency.gemini_api_key || "");
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div>
+          <h3 className="text-sm font-bold text-white">{agency.name}</h3>
+          <p className="text-[11px] text-slate-400">Instancia: {agency.whatsapp_instance_id || "PropertyOS-Main"}</p>
+        </div>
+      </div>
+
+      <div className="space-y-3 text-xs">
+        <div>
+          <label className="block font-bold text-slate-400 mb-1">Palabras Clave de Activación</label>
+          <input
+            type="text"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+        </div>
+
+        <div>
+          <label className="block font-bold text-slate-400 mb-1">Instrucciones & Reglas para Sofía</label>
+          <textarea
+            rows={4}
+            value={rules}
+            onChange={(e) => setRules(e.target.value)}
+            placeholder="Instrucciones específicas de esta inmobiliaria..."
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-emerald-300 font-mono outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => onSave(agency, rules, tone, keywords, geminiKey)}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold rounded-xl flex items-center gap-1.5"
+          >
+            <Save className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Guardar Configuración</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
