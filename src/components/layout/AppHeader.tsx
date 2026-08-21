@@ -24,7 +24,7 @@ interface AppHeaderProps {
   selectedCity: string;
   setSelectedCity: (city: string) => void;
   setIsNewLeadModalOpen: (open: boolean) => void;
-  setActiveTab: (tab: "pipeline" | "rag" | "dashboard" | "chat" | "simulator") => void;
+  setActiveTab: (tab: "pipeline" | "rag" | "dashboard" | "chat" | "simulator" | "marketing") => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
   setCurrentView: (view: "landing" | "pipeline" | "admin") => void;

@@ -29,6 +29,7 @@ import {
   FileText,
   LogOut,
   Shield,
+  Clapperboard,
 } from "lucide-react";
 
 import { Lead, Property, PipelineStage, AppUser, AppView } from "@/src/types/property";
@@ -46,6 +47,7 @@ import { LandingPage } from "@/src/components/LandingPage";
 import { SaveToast } from "@/src/components/SaveToast";
 import { BotSimulatorView } from "@/src/components/simulator/BotSimulatorView";
 import { AgencySettingsModal } from "@/src/components/admin/AgencySettingsModal";
+import { MarketingStudioView } from "@/src/components/marketing/MarketingStudioView";
 
 import { supabase } from "@/src/lib/supabase";
 
@@ -58,7 +60,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState("");
 
   // ── Tabs de navegación ──────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat" | "simulator">("pipeline");
+  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat" | "simulator" | "marketing">("pipeline");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -578,7 +580,19 @@ export default function App() {
             }`}
           >
             <Bot className={`w-3.5 h-3.5 ${activeTab === "simulator" ? "text-slate-950" : "text-[#D4AF37]"}`} />
-            <span>Simulador IA (Sandbox)</span>
+            <span>Simulador IA</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("marketing")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "marketing"
+                ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
+                : "text-slate-400 hover:text-white hover:bg-[#111622]"
+            }`}
+          >
+            <Clapperboard className={`w-3.5 h-3.5 ${activeTab === "marketing" ? "text-slate-950" : "text-[#D4AF37]"}`} />
+            <span>Marketing Studio</span>
           </button>
         </div>
 
@@ -716,6 +730,13 @@ export default function App() {
         {/* VIEW 5: BOT SIMULATOR & PLAYGROUND */}
         {activeTab === "simulator" && (
           <BotSimulatorView properties={properties} />
+        )}
+
+        {/* VIEW 6: MARKETING STUDIO & VIDEO ENGINE */}
+        {activeTab === "marketing" && currentUser && (
+          <div className="p-4 md:p-6 overflow-y-auto h-full custom-scrollbar bg-[#0B0D12]">
+            <MarketingStudioView currentUser={currentUser} leads={leads} />
+          </div>
         )}
 
       </main>

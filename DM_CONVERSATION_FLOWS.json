@@ -1,0 +1,184 @@
+{
+  "project": "Property OS",
+  "version": "1.0",
+  "engine": "ManyChat / Meta Graph API / WhatsApp Evolution API",
+  "metadata_schema": {
+    "tenant_id": "{{user.tenant_id | default: 'default_agency'}}",
+    "sponsor_id": "{{user.sponsor_id | default: 'main_hq'}}",
+    "source_campaign": "{{trigger.campaign_name}}"
+  },
+  "flows": [
+    {
+      "flow_id": "flow_vis_calculator",
+      "name": "Embudo 1: Calculadora Hipotecaria & Crédito VIS",
+      "triggers": {
+        "instagram_comment_keywords": ["CALCULAR", "VIS", "CUOTA", "CALCULA"],
+        "direct_message_keywords": ["CALCULAR", "VIS", "SIMULADOR"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "action": "reply_public_comment",
+          "message": "¡Te acabo de enviar el simulador oficial a tu privado! Revisa tu bandeja de mensajes 📩"
+        },
+        {
+          "step": 2,
+          "action": "send_direct_message",
+          "delay_seconds": 2,
+          "message": "¡Hola {{user.first_name}}! 🏠 Aquí tienes el acceso directo al Cotizador Financiero Oficial con tasa VIS 5.5% regulada por ASFI.",
+          "buttons": [
+            {
+              "title": "📊 Abrir Cotizador VIS",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&modal=mortgage"
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "action": "qualification_question",
+          "delay_seconds": 15,
+          "message": "¿En qué ciudad estás buscando tu departamento? (Santa Cruz, La Paz o Cochabamba)",
+          "store_field": "preferred_city",
+          "next_step": "handoff_to_sofia_ai"
+        },
+        {
+          "step": 4,
+          "action": "sync_to_supabase",
+          "endpoint": "https://property-app-ashen.vercel.app/api/whatsapp/webhook",
+          "payload": {
+            "lead_name": "{{user.first_name}} {{user.last_name}}",
+            "instagram_handle": "{{user.username}}",
+            "pipeline_type": "VENTAS",
+            "pipeline_stage": "NUEVO",
+            "intent_tag": "CREDITO_VIS",
+            "tenant_id": "{{tenant_id}}",
+            "sponsor_id": "{{sponsor_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_bot_demo",
+      "name": "Embudo 2: Sofía IA & Expansión SaaS",
+      "triggers": {
+        "instagram_comment_keywords": ["BOT", "SISTEMA", "AGENCIA", "DEMO"],
+        "direct_message_keywords": ["BOT", "SISTEMA", "DEMO", "AGENCIA"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "action": "reply_public_comment",
+          "message": "¡Listo! Te acabo de mandar el acceso a la demo interactiva de Sofía IA por DM 🚀"
+        },
+        {
+          "step": 2,
+          "action": "send_direct_message",
+          "delay_seconds": 2,
+          "message": "¡Hola {{user.first_name}}! Sofía IA es nuestro motor que califica leads BANT en WhatsApp y agenda visitas automáticamente 24/7.",
+          "buttons": [
+            {
+              "title": "🤖 Probar Sandbox IA",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&view=bot_simulator"
+            },
+            {
+              "title": "💼 Alianza de Agencia",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&tab=partners"
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "action": "sync_to_supabase",
+          "payload": {
+            "lead_name": "{{user.first_name}} {{user.last_name}}",
+            "lead_type": "AGENCY_PARTNER",
+            "pipeline_type": "SAAS_PARTNER",
+            "pipeline_stage": "EN_CALIFICACION"
+          }
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_legal_audit",
+      "name": "Embudo 3: Auditoría Legal & Folio Real",
+      "triggers": {
+        "instagram_comment_keywords": ["AUDITORIA", "FOLIO", "LEGAL", "SEMAFORO"],
+        "direct_message_keywords": ["AUDITORIA", "FOLIO", "LEGAL"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "action": "send_direct_message",
+          "message": "¡Hola {{user.first_name}}! 🛡️ Para evitar fraudes, en Property OS evaluamos Folio Real (DDRR), Impuestos al día (RUAT) y Catastro Municipal visado.",
+          "buttons": [
+            {
+              "title": "📋 Ver Semáforo Legal",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&view=legal_audit"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "action": "qualification_question",
+          "message": "¿Eres comprador buscando verificar un inmueble o propietario buscando poner en regla tus papeles?",
+          "options": ["Soy Comprador", "Soy Propietario"],
+          "store_field": "lead_profile"
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_valuation_pricing",
+      "name": "Embudo 4: Captación de Propietarios & Valuación m²",
+      "triggers": {
+        "instagram_comment_keywords": ["PRECIO", "VALUAR", "VENDER", "CAPTAR"],
+        "direct_message_keywords": ["PRECIO", "VALUAR", "VENDER"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "action": "send_direct_message",
+          "message": "¡Hola {{user.first_name}}! 📈 El 70% de las casas no se venden por estar fuera del precio m² de su zona. Cuéntanos: ¿en qué zona está tu propiedad y cuántos m² tiene?"
+        },
+        {
+          "step": 2,
+          "action": "sync_to_supabase",
+          "payload": {
+            "pipeline_type": "CAPTACIONES",
+            "pipeline_stage": "PROSPECTO_PROPIETARIO"
+          }
+        }
+      ]
+    },
+    {
+      "flow_id": "flow_property_tour",
+      "name": "Embudo 5: Solicitud de Ficha Técnica & Tour",
+      "triggers": {
+        "instagram_comment_keywords": ["TOUR", "DEPTO", "FOTOS", "INFO"],
+        "direct_message_keywords": ["TOUR", "DEPTO", "FOTOS"]
+      },
+      "steps": [
+        {
+          "step": 1,
+          "action": "send_direct_message",
+          "message": "¡Excelente {{user.first_name}}! 🏙️ Te comparto la ficha completa, fotos HD, ubicación exacta y opciones de financiamiento directo / VIS.",
+          "buttons": [
+            {
+              "title": "📍 Ver Ficha & Ubicación",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&tab=inventory"
+            },
+            {
+              "title": "📅 Agendar Visita Presencial",
+              "type": "web_url",
+              "url": "https://property-app-ashen.vercel.app?ref={{sponsor_id}}&action=appointment"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

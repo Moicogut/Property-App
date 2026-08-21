@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Property AI Content Generator",
+  "version": "2.0.0",
+  "description": "Automatizador de generación de video e imágenes en lote para Property OS en Google Labs Flow y Vibes AI.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "https://vibes.ai/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Property AI Content Generator"
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

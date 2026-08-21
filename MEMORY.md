@@ -113,8 +113,15 @@
   - Gestión de equipo: Invitar y administrar asesores por email.
   - Configuración de personalidad y tono de Sofía IA con inyección de reglas locales.
 
-### 🟢 Privacidad Inmobiliaria & Datos RAG (`api/whatsapp/webhook.ts`)
-* **Blindaje del System Prompt:** Cláusula estricta que prohíbe a Sofía divulgar números de contacto o identidad de propietarios vendedores ni comisiones pactadas.
+### 🟢 Módulo Nativo de Marketing Studio & Suite de Extensión Chrome (v2.0)
+* **Componente UI Principal (`src/components/marketing/MarketingStudioView.tsx`):**
+  - **1. AI Script & Prompt Generator:** Generación y descarga instantánea de `script.json` para 9:16 (TikTok/Reels) y 16:9 (Web/YouTube) con tokens de consistencia inmutable (`HR-Personaje`, `HR-Escenario`).
+  - **2. Suite de Extensión Chrome Adaptada (`extension/property-content-generator`):** Integración del motor de automatización por lotes para Google Labs Flow y Vibes AI, con respeto explícito y atribución a la autoría comunitaria original (`hans1801/AI-Content-Automation-Engine`).
+  - **3. Biblioteca DMO & Social Selling:** Packs de 30 días con inyección automática de datos del asesor (`{{sponsor_link}}`, `{{whatsapp_link}}`).
+  - **4. Telemetría de Campañas:** Contadores en tiempo real de leads capturados por palabra clave (`CALCULAR`, `BOT`, `AUDITORIA`, `PRECIO`, `TOUR`).
+* **Gobernanza Multi-Tenant en SuperAdmin (`SuperAdminPanel.tsx`):**
+  - Conmutador `module_marketing_studio` añadido para control de activación/desactivación por agencia inmobiliaria.
+* **Compilación y Type-Safety:** Verificado con build exitoso (0 errores en 1744 módulos).
 
 ---
 

@@ -29,7 +29,7 @@ export type PipelineStage =
 export type UserRole = 'superadmin' | 'agency_admin' | 'agent';
 
 /** Vista activa en el SPA — controla el routing sin librerías externas */
-export type AppView = 'login' | 'pipeline' | 'rag' | 'dashboard' | 'chat' | 'admin' | 'landing';
+export type AppView = 'login' | 'pipeline' | 'rag' | 'dashboard' | 'chat' | 'admin' | 'landing' | 'marketing';
 
 /** Usuario autenticado de Supabase Auth */
 export interface AppUser {
@@ -51,6 +51,7 @@ export interface Organization {
     module_sofia_ia: boolean;
     module_bant_kanban: boolean;
     module_social_marketing: boolean;
+    module_marketing_studio?: boolean;
     module_legal_audit: boolean;
     module_contract_generator: boolean;
   };

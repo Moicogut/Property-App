@@ -619,6 +619,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                         {[
                           { key: "module_sofia_ia", label: "🤖 Sofía IA RAG" },
                           { key: "module_bant_kanban", label: "📊 BANT Kanban" },
+                          { key: "module_marketing_studio", label: "🎬 Marketing Studio" },
                           { key: "module_legal_audit", label: "🛡️ Auditoría Legal" },
                           { key: "module_contract_generator", label: "📄 Contratos PDF" },
                         ].map(({ key, label }) => {

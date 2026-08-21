@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Property AI Content Generator</title>
+  <style>
+    :root {
+      --bg: #0B0D12;
+      --card: #111622;
+      --primary: #D4AF37;
+      --primary-hover: #E5C158;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --border: #1E293B;
+      --emerald: #10B981;
+    }
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 900;
+      font-size: 14px;
+      color: var(--primary);
+    }
+    .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: rgba(212, 175, 55, 0.15);
+      border: 1px solid var(--primary);
+      border-radius: 999px;
+      color: #F3E5AB;
+      font-weight: bold;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background: var(--primary);
+      color: #0B0D12;
+      font-weight: 800;
+      font-size: 12px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: #1E293B;
+      color: var(--text);
+      margin-top: 8px;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+    .ratio-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .ratio-btn {
+      padding: 6px;
+      background: #0F172A;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+    .ratio-btn.active {
+      border-color: var(--primary);
+      background: rgba(212, 175, 55, 0.15);
+      color: var(--primary);
+    }
+    .status {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+    .credits {
+      font-size: 9px;
+      color: #64748B;
+      text-align: center;
+      margin-top: 12px;
+    }
+    .credits a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <span>Property AI</span>
+    </div>
+    <span class="badge">v2.0 Flow</span>
+  </div>
+
+  <div class="card">
+    <div style="font-size: 11px; font-weight: bold; margin-bottom: 6px; color: #CBD5E1;">Orientación de Video:</div>
+    <div class="ratio-selector">
+      <div id="btn916" class="ratio-btn active">9:16 Vertical</div>
+      <div id="btn169" class="ratio-btn">16:9 Horizontal</div>
+    </div>
+
+    <button id="btnSelectFolder" class="btn">
+      📁 Cargar Carpeta con script.json
+    </button>
+
+    <button id="btnStartBatch" class="btn btn-secondary" style="display:none;">
+      ▶️ Iniciar Lote en Google Flow
+    </button>
+
+    <div id="statusText" class="status">
+      Selecciona la carpeta donde guardaste tu <b>script.json</b> generado en Property OS.
+    </div>
+  </div>
+
+  <div class="credits">
+    Basado en el motor abierto de <a href="https://github.com/hans1801/AI-Content-Automation-Engine" target="_blank">hans1801</a> para Property OS.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
