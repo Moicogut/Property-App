@@ -567,64 +567,105 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 text-xs">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-white">Alta de Nueva Inmobiliaria / Afiliado</h3>
-              <button onClick={() => setIsNewAgencyModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setIsNewAgencyModalOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateAgency} className="space-y-3">
+            <form onSubmit={handleCreateAgency} className="space-y-4">
               <div>
-                <label className="block font-bold text-slate-300 mb-1">Nombre Comercial de la Inmobiliaria</label>
+                <label className="block font-bold text-slate-200 text-xs mb-1.5">Nombre Comercial de la Inmobiliaria</label>
                 <input
                   type="text"
                   required
-                  placeholder="ej. Inmobiliaria Urubó Prime SRL"
+                  placeholder="ej. ALFA CONTINENTAL"
                   value={newAgencyName}
-                  onChange={(e) => setNewAgencyName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNewAgencyName(val);
+                    // Auto-slugify instance
+                    const cityCode = newAgencyCity === "Santa Cruz" ? "SCZ" : newAgencyCity === "La Paz" ? "LPZ" : newAgencyCity === "Cochabamba" ? "CBBA" : "TJA";
+                    const cleanSlug = val.replace(/[^a-zA-Z0-9]/g, "");
+                    if (cleanSlug) {
+                      setNewAgencyInstance(`${cleanSlug}-${cityCode}`);
+                    }
+                  }}
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-3 text-white outline-none font-bold text-sm transition"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 mb-1">Ciudad Principal</label>
+                <label className="block font-bold text-slate-200 text-xs mb-1.5">Ciudad Principal</label>
                 <select
                   value={newAgencyCity}
-                  onChange={(e) => setNewAgencyCity(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                  onChange={(e) => {
+                    const city = e.target.value;
+                    setNewAgencyCity(city);
+                    const cityCode = city === "Santa Cruz" ? "SCZ" : city === "La Paz" ? "LPZ" : city === "Cochabamba" ? "CBBA" : "TJA";
+                    const cleanSlug = newAgencyName.replace(/[^a-zA-Z0-9]/g, "");
+                    if (cleanSlug) {
+                      setNewAgencyInstance(`${cleanSlug}-${cityCode}`);
+                    }
+                  }}
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-3 text-white outline-none text-xs font-semibold cursor-pointer"
                 >
-                  <option value="Santa Cruz">Santa Cruz de la Sierra</option>
-                  <option value="La Paz">La Paz</option>
-                  <option value="Cochabamba">Cochabamba</option>
-                  <option value="Tarija">Tarija</option>
+                  <option value="Santa Cruz">Santa Cruz de la Sierra (SCZ)</option>
+                  <option value="La Paz">La Paz (LPZ)</option>
+                  <option value="Cochabamba">Cochabamba (CBBA)</option>
+                  <option value="Tarija">Tarija (TJA)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-300 mb-1">ID Instancia WhatsApp (Evolution API)</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block font-bold text-slate-200 text-xs">ID Instancia WhatsApp (Evolution API)</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cityCode = newAgencyCity === "Santa Cruz" ? "SCZ" : newAgencyCity === "La Paz" ? "LPZ" : newAgencyCity === "Cochabamba" ? "CBBA" : "TJA";
+                      const cleanSlug = newAgencyName.replace(/[^a-zA-Z0-9]/g, "") || "Agencia";
+                      setNewAgencyInstance(`${cleanSlug}-${cityCode}`);
+                    }}
+                    className="text-[10px] text-[#D4AF37] hover:underline font-bold"
+                  >
+                    🪄 Auto-Generar
+                  </button>
+                </div>
                 <input
                   type="text"
-                  placeholder="ej. PropertyOS-SCZ"
+                  placeholder="ej. AlfaContinental-CBBA"
                   value={newAgencyInstance}
                   onChange={(e) => setNewAgencyInstance(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-3 text-white outline-none text-xs font-mono font-bold transition"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              {/* Guía Explicativa de Evolution API */}
+              <div className="bg-[#090D16] border border-slate-800 rounded-xl p-3 text-[11px] text-slate-400 space-y-1 leading-relaxed">
+                <div className="flex items-center gap-1.5 text-[#F3E5AB] font-bold">
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>¿Cómo funciona el ID de Instancia?</span>
+                </div>
+                <p>
+                  Es el nombre único de la sesión de WhatsApp para esta agencia (ej: <strong>{newAgencyInstance || "AlfaContinental-CBBA"}</strong>). Al guardar, el sistema conectará con Evolution API para que la agencia pueda escanear su código QR y activar a Sofía en su propio número.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsNewAgencyModalOpen(false)}
-                  className="px-4 py-2 border border-slate-700 text-slate-300 rounded-xl font-bold hover:bg-slate-800"
+                  className="px-4 py-2.5 border border-slate-700 text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-800 transition"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isCreatingAgency}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-[#D4AF37]/20 flex items-center gap-2 disabled:opacity-50 hover:brightness-110 transition"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>{isCreatingAgency ? "Creando..." : "Crear Organización"}</span>
+                  <span>{isCreatingAgency ? "Creando..." : "+ Crear Organización"}</span>
                 </button>
               </div>
             </form>

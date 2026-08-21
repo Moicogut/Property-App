@@ -4,6 +4,7 @@ import { PropertyDetailModal } from './PropertyDetailModal';
 import { SofiaButton } from './SofiaButton';
 import { getSafeImageUrl } from '../utils/imageHelper';
 import { PropertyLogo } from './brand/PropertyLogo';
+import { SofiaPublicChatModal } from './chat/SofiaPublicChatModal';
 
 interface Property {
   id: string;
@@ -27,13 +28,21 @@ interface Property {
 interface Props {
   properties: Property[];
   onLoginClick: () => void;
-  onOpenSofia: () => void;
+  onOpenSofia?: () => void;
 }
 
 export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenSofia }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [isSofiaModalOpen, setIsSofiaModalOpen] = useState(false);
+  const [sofiaContextProperty, setSofiaContextProperty] = useState<Property | null>(null);
+
+  const handleOpenSofiaDirect = (prop?: Property) => {
+    setSofiaContextProperty(prop || null);
+    setIsSofiaModalOpen(true);
+    if (onOpenSofia) onOpenSofia();
+  };
 
   const filteredProperties = properties.filter((p) => {
     const titleMatch = p.title || '';
@@ -54,17 +63,17 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
         <div className="flex items-center gap-3">
           {/* BOTÓN SOFÍA IA EN NAVBAR */}
           <button
-            onClick={onOpenSofia}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#F3E5AB] font-bold text-xs rounded-xl transition shadow-xs"
+            onClick={() => handleOpenSofiaDirect()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#F3E5AB] font-bold text-xs rounded-xl transition shadow-xs cursor-pointer hover:scale-105 active:scale-95"
           >
             <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span className="hidden sm:inline">Sofía IA</span>
+            <span className="hidden sm:inline">Sofía IA Asesora</span>
           </button>
 
           {/* BOTÓN LOGIN */}
           <button
             onClick={onLoginClick}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-[#D4AF37]/20 transition hover:scale-[1.02] tracking-wide"
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] hover:brightness-110 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-[#D4AF37]/20 transition hover:scale-[1.02] tracking-wide cursor-pointer"
           >
             <LogIn className="w-4 h-4 text-slate-950" />
             <span className="hidden sm:inline">Acceso Usuarios / Admin</span>
@@ -77,10 +86,13 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
         {/* Glow ambient */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[350px] bg-[#D4AF37]/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 text-[#F3E5AB] text-xs font-bold mb-6">
+        <button
+          onClick={() => handleOpenSofiaDirect()}
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/25 text-[#F3E5AB] text-xs font-bold mb-6 hover:bg-[#D4AF37]/20 transition cursor-pointer hover:scale-105"
+        >
           <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-          <span>Propiedades Seleccionadas & Asistencia IA con Sofía</span>
-        </div>
+          <span>Propiedades Seleccionadas & Asistencia IA con Sofía → Consultar</span>
+        </button>
 
         <h2 className="text-4xl md:text-6xl font-black tracking-tight max-w-4xl mx-auto leading-tight text-white font-serif">
           Encuentra tu próximo espacio <span className="text-gold-gradient font-serif">exclusivo</span>
@@ -152,7 +164,7 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
                         Ref: {property.id.substring(0, 8)}
                       </span>
                     </div>
-                    <div className="absolute bottom-3 right-3 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-xl backdrop-blur-md shadow-lg">
+                    <div className="absolute bottom-3 right-3 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-xl backdrop-blur-md shadow-lg font-mono">
                       ${price > 0 ? price.toLocaleString() : 'Consulte'} USD
                     </div>
                     <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2 text-white text-xs font-bold backdrop-blur-xs">
@@ -195,13 +207,21 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
       </main>
 
       {/* BOTÓN FLOTANTE SOFÍA IA */}
-      <SofiaButton onClick={onOpenSofia} />
+      <SofiaButton onClick={() => handleOpenSofiaDirect()} />
 
       {/* MODAL DE DETALLE EXPANDIDO */}
       <PropertyDetailModal
         property={selectedProperty}
         onClose={() => setSelectedProperty(null)}
-        onOpenSofia={onOpenSofia}
+        onOpenSofia={() => handleOpenSofiaDirect(selectedProperty || undefined)}
+      />
+
+      {/* MODAL DE CHAT CONCIERGE SOFÍA IA */}
+      <SofiaPublicChatModal
+        isOpen={isSofiaModalOpen}
+        onClose={() => setIsSofiaModalOpen(false)}
+        properties={properties}
+        initialProperty={sofiaContextProperty}
       />
     </div>
   );
