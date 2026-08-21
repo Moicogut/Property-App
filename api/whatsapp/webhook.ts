@@ -25,16 +25,16 @@ const supabase = new Proxy({} as SupabaseClient, {
 
 // ── 2. CONSTANTES Y CONFIGURACIÓN ──
 const DEFAULT_AI_CONFIG = {
-  systemRules: "Eres Sofía, Asesora Inmobiliaria de Property OS. Califica al prospecto (Cuota inicial, presupuesto).",
-  tone: "Cálida, profesional y ejecutiva. Máximo 2 oraciones.",
-  fallbacks: "Si pregunta por temas no inmobiliarios, deniega amablemente.",
+  systemRules: "Eres Sofía, Asesora Inmobiliaria Senior de Property OS. Tu objetivo es calificar y entusiasmar al prospecto presentándole opciones concretas y guiándolo comercialmente hacia una visita.",
+  tone: "Empática, ultra-resolutiva, persuasiva, cercana y profesional. Estilo inmobiliario boliviano de alto nivel.",
+  fallbacks: "Si el usuario no sabe su presupuesto, no insistas en números abstractos: dale rangos y ejemplos de inmuebles reales.",
   defaultAgentPhone: "",
 };
 
 const DEFAULT_KEYWORDS = [
   "departamento", "casa", "garsonier", "garaje", "tienda", "almacen",
   "property", "informacion", "precio", "venta", "hola", "buen dia",
-  "buenas", "info", "ubicacion", "agente",
+  "buenas", "info", "ubicacion", "agente", "alquiler", "renta", "terreno", "lote"
 ];
 
 const processedMessages = new Map<string, number>();
@@ -70,6 +70,7 @@ interface MatchedProperty {
   raw_description: string;
   property_code?: string;
   similarity: number;
+  accepts_social_housing?: boolean;
 }
 
 async function searchProperties(userText: string): Promise<MatchedProperty[]> {
@@ -77,12 +78,16 @@ async function searchProperties(userText: string): Promise<MatchedProperty[]> {
     const queryEmbedding = await generateEmbedding(userText);
     const { data: matches, error: rpcError } = await supabase.rpc("match_properties", {
       query_embedding: JSON.stringify(queryEmbedding),
-      match_threshold: 0.25,
-      match_count: 2,
+      match_threshold: 0.2,
+      match_count: 3,
     });
-    if (rpcError) {
-      console.warn("[RAG] RPC error:", rpcError);
-      return [];
+    if (rpcError || !matches || matches.length === 0) {
+      // Fallback: Si no hay match semántico estricto, traer 2 propiedades destacadas activas
+      const { data: fallbackProps } = await supabase
+        .from("properties")
+        .select("id, title, zone, city, price_usd, raw_description, property_code, accepts_social_housing")
+        .limit(2);
+      return (fallbackProps || []) as MatchedProperty[];
     }
     return (matches || []) as MatchedProperty[];
   } catch (err) {
@@ -117,7 +122,7 @@ function parseEvolutionPayload(body: Record<string, unknown>): ParsedIncomingMes
   const extText = messageContent?.extendedTextMessage as Record<string, unknown> | undefined;
   const userMessageText = (messageContent?.conversation as string) || (extText?.text as string) || (body.message as string) || "";
 
-  const senderName = (msgData.pushName as string) || (body.pushName as string) || "Cliente WhatsApp";
+  const senderName = (msgData.pushName as string) || (body.pushName as string) || "Cliente";
 
   return { rawPhoneNumber, senderName, userMessageText, messageId, fromMe, rawRemoteJid, payloadApiKey };
 }
@@ -147,7 +152,7 @@ async function sendWhatsAppMessage(
       body: JSON.stringify({
         number: String(recipientNumber),
         text,
-        delay: Math.floor(Math.random() * (2000 - 1000 + 1) + 1000),
+        delay: Math.floor(Math.random() * (1500 - 800 + 1) + 800),
         presence: "composing",
       }),
     });
@@ -160,7 +165,7 @@ async function sendWhatsAppMessage(
   }
 }
 
-// ── 6. PROCESAMIENTO PRINCIPAL ──
+// ── 6. PROCESAMIENTO PRINCIPAL CON IA CONSULTIVA DE ÉLITE ──
 export async function processWebhookMessage(
   body: Record<string, unknown>,
   options: { evolutionApiUrl?: string; evolutionApiKey?: string; evolutionInstance?: string }
@@ -201,62 +206,92 @@ export async function processWebhookMessage(
   const orgId = orgData?.id || "org-1";
   const aiConfig = (orgData?.ai_config as typeof DEFAULT_AI_CONFIG) || DEFAULT_AI_CONFIG;
 
-  // Historial
-  let chatHistoryText = "";
+  // Historial Estructurado
+  const conversationHistory: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
   if (existingLead?.id) {
     const { data: historyMsgs } = await supabase
       .from("messages")
       .select("sender, content, created_at")
       .eq("lead_id", existingLead.id)
       .order("created_at", { ascending: false })
-      .limit(6);
+      .limit(8);
+
     if (historyMsgs && historyMsgs.length > 0) {
-      chatHistoryText = historyMsgs
-        .reverse()
-        .map((m) => `${m.sender === "USER" ? "Cliente" : "Sofía"}: ${m.content}`)
-        .join("\n");
+      historyMsgs.reverse().forEach((m) => {
+        conversationHistory.push({
+          role: m.sender === "USER" ? "user" : "assistant",
+          content: m.content,
+        });
+      });
     }
   }
 
   // RAG Search
   const matchedProperties = await searchProperties(msg.userMessageText);
   const bestMatch = matchedProperties[0] || null;
+  const secondaryMatch = matchedProperties[1] || null;
 
-  // LLM Generation
+  // Catálogo Contextual
+  let inventoryContext = "";
+  if (bestMatch) {
+    inventoryContext += `\n- INMUEBLE PRINCIPAL: "${bestMatch.title}" en ${bestMatch.zone}, ${bestMatch.city} | Precio: $${bestMatch.price_usd?.toLocaleString()} USD | Ref: ${bestMatch.property_code || "SCZ"} | Crédito VIS: ${bestMatch.accepts_social_housing ? "Sí (ASFI 5.5%)" : "Venta Bancaria"}`;
+  }
+  if (secondaryMatch) {
+    inventoryContext += `\n- OTRA OPCIÓN DISPONIBLE: "${secondaryMatch.title}" en ${secondaryMatch.zone}, ${secondaryMatch.city} | Precio: $${secondaryMatch.price_usd?.toLocaleString()} USD`;
+  }
+
+  // System Prompt de Alta Conversión Inmobiliaria
+  const systemPrompt = `Eres Sofía, Asesora Inmobiliaria Senior de Property OS.
+Tu misión es asesorar al cliente de forma natural, cálida, consultiva y persuasiva, como una agente de bienes raíces de primer nivel en Bolivia.
+
+REGLAS DE ORO OBLIGATORIAS:
+1. PROHIBICIÓN TOTAL DE BUCLES Y ROBOTISMO: NUNCA uses frases de call center como "Para poder ayudarte mejor...", "Sería ideal conocer...", "Esto nos permitirá encontrar opciones que se ajusten...". Sé directa, empática y fresca.
+2. MANEJO DE CLIENTES INDECISOS O SIN PRESUPUESTO CLARO:
+   - Si el cliente dice que "no tiene idea", "no sabe" o que solo tiene un "aporte", ¡felicítalo y dale referencias concretas!
+   - Ejemplo: "¡Excelente que cuentes con tu aporte inicial! Por ejemplo, para un departamento de $75,000 a $85,000 USD en Equipetrol o Sirari, con una inicial del 10% al 20% accedes a cuotas desde ~$480/mes con Crédito de Vivienda Social (VIS). ¿Te gustaría ver opciones en esas zonas o buscas otra ubicación?"
+3. SI EL CLIENTE PREGUNTA POR ALQUILER Y VENTA A LA VEZ:
+   - Responde a ambos puntos en un solo mensaje breve y ordenado.
+4. PRESENTA SIEMPRE OPCIONES CONCRETAS (A o B):
+   - Cita inmuebles de nuestro catálogo disponible cuando sea oportuno.
+   - Termina siempre con una pregunta comercial clara y fácil de responder.
+5. LONGITUD: Respuestas concisas (máximo 2 a 3 párrafos cortos), listas para leer rápidamente en WhatsApp con emojis elegantes (🏢, 🔑, 📍, ✨).
+
+INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equipetrol ($85,000 USD)\n- Loft Urbano Sirari ($68,000 USD)\n- Casa Familiar Urubó ($145,000 USD)"}`;
+
+  // LLM Generation con Memoria Real de Turnos
   let aiReplyText = "";
-  let isAppointmentCreated = false;
-  let appointmentDateString = "";
   const openAiKey = process.env.OPENAI_API_KEY;
 
   if (openAiKey) {
     try {
       const openai = new OpenAI({ apiKey: openAiKey });
-      const systemPrompt = `Eres Sofía, asistente virtual inmobiliaria de Property OS.
-Reglas: ${aiConfig.systemRules}
-Tono: ${aiConfig.tone}
-${bestMatch ? `Inmueble destacado en inventario: "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd} USD.` : "No hay inmueble exacto, pregunta por zona y presupuesto."}
-${chatHistoryText ? `\nHistorial:\n${chatHistoryText}` : ""}`;
+      
+      const messagesForLlm = [
+        { role: "system" as const, content: systemPrompt },
+        ...conversationHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        { role: "user" as const, content: msg.userMessageText },
+      ];
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: msg.userMessageText },
-        ],
-        temperature: 0.7,
-        max_tokens: 250,
+        messages: messagesForLlm,
+        temperature: 0.75,
+        max_tokens: 300,
       });
 
-      aiReplyText = response.choices[0].message.content || "";
+      aiReplyText = response.choices[0]?.message?.content || "";
     } catch (err) {
       console.error("[Webhook] OpenAI Error:", err);
     }
   }
 
+  // Fallback inteligente en caso de error de OpenAI
   if (!aiReplyText) {
-    aiReplyText = bestMatch
-      ? `¡Hola ${msg.senderName}! Te saluda Sofía de Property OS. Tenemos disponible "${bestMatch.title}" en ${bestMatch.zone} por $${bestMatch.price_usd} USD. ¿Te gustaría agendar una visita?`
-      : `¡Hola ${msg.senderName}! Soy Sofía de Property OS. ¿En qué tipo de inmueble estás interesado hoy o en qué zona buscas?`;
+    if (bestMatch) {
+      aiReplyText = `¡Hola ${msg.senderName}! Claro que sí, tenemos opciones espectaculares en ${bestMatch.zone} como "${bestMatch.title}" por $${bestMatch.price_usd?.toLocaleString()} USD. Con tu aporte propio podemos simular financiamiento bancario o Crédito VIS. ¿Qué zona de la ciudad prefieres? 🏢`;
+    } else {
+      aiReplyText = `¡Hola ${msg.senderName}! Un gusto saludarte. Contamos con departamentos y casas en las mejores zonas (Equipetrol, Sirari, Urubó). Con tu aporte inicial podemos armar un plan a tu medida. ¿Buscas algo para entrega inmediata o en preventa? ✨`;
+    }
   }
 
   // Upsert Lead
@@ -276,6 +311,7 @@ ${chatHistoryText ? `\nHistorial:\n${chatHistoryText}` : ""}`;
 
   const finalLeadId = upsertedLead?.id || existingLead?.id;
 
+  // Guardar mensajes en Supabase
   if (finalLeadId) {
     await supabase.from("messages").insert([
       { lead_id: finalLeadId, sender: "USER", content: msg.userMessageText },
