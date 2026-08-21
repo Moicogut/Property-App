@@ -60,8 +60,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
         const formatted = data.map((msg) => ({
           id: msg.id,
           leadId: msg.lead_id,
-          sender: msg.sender as any,
-          text: msg.text,
+          sender: (msg.sender === "lead" || msg.sender === "USER") ? "lead" : "ai_sofia",
+          text: msg.text || msg.content || "",
           timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }));
         setMessages(formatted);

@@ -294,7 +294,32 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
     }
   }
 
-  // Upsert Lead
+  const aiSummary = `[Último mensaje]: ${msg.userMessageText.substring(0, 80)}...`;
+
+  let budget = existingLead?.budget_max_usd || null;
+  const budgetMatch = msg.userMessageText.match(/\$?\s*(\d{2,6})\s*(usd|dolares|k)?/i);
+  if (budgetMatch) {
+    let parsed = parseInt(budgetMatch[1]);
+    if (parsed < 1000) parsed *= 1000;
+    budget = parsed;
+  } else if (bestMatch?.price_usd && !budget) {
+    budget = bestMatch.price_usd;
+  }
+
+  let zone = existingLead?.preferred_zone || null;
+  if (lowerMsg.includes("sopocachi")) zone = "Sopocachi";
+  else if (lowerMsg.includes("equipetrol")) zone = "Equipetrol";
+  else if (lowerMsg.includes("urubo") || lowerMsg.includes("urubó")) zone = "Urubó";
+  else if (lowerMsg.includes("calacoto")) zone = "Calacoto";
+  else if (lowerMsg.includes("santa cruz")) zone = "Santa Cruz";
+  else if (lowerMsg.includes("la paz")) zone = "La Paz";
+  else if (bestMatch?.zone && !zone) zone = bestMatch.zone;
+
+  const stage = (lowerMsg.includes("visita") || lowerMsg.includes("agendar") || lowerMsg.includes("cuando se puede") || lowerMsg.includes("ver"))
+    ? "VISITA_AGENDADA"
+    : (existingLead?.pipeline_stage || "EN_CALIFICACION");
+
+  // Upsert Lead con todos los campos calculados en tiempo real
   const { data: upsertedLead } = await supabase
     .from("leads")
     .upsert({
@@ -302,8 +327,17 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
       organization_id: orgId,
       phone_number: msg.rawPhoneNumber,
       full_name: existingLead?.full_name || msg.senderName,
-      pipeline_stage: existingLead?.pipeline_stage || "EN_CALIFICACION",
+      pipeline_stage: stage,
+      budget_max_usd: budget,
+      preferred_zone: zone,
       property_interest_id: bestMatch?.id || undefined,
+      ai_summary: aiSummary,
+      bant_score: {
+        budget: budget || 0,
+        preferred_zone: zone || "Por definir",
+        need: msg.userMessageText.substring(0, 50),
+        score: budget ? 85 : 65,
+      },
       updated_at: new Date().toISOString(),
     })
     .select("id")
@@ -311,11 +345,11 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
 
   const finalLeadId = upsertedLead?.id || existingLead?.id;
 
-  // Guardar mensajes en Supabase
+  // Guardar mensajes en Supabase con compatibilidad total (text y content)
   if (finalLeadId) {
     await supabase.from("messages").insert([
-      { lead_id: finalLeadId, sender: "USER", content: msg.userMessageText },
-      { lead_id: finalLeadId, sender: "AI", content: aiReplyText },
+      { lead_id: finalLeadId, sender: "lead", text: msg.userMessageText },
+      { lead_id: finalLeadId, sender: "ai_sofia", text: aiReplyText },
     ]);
   }
 

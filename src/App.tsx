@@ -303,16 +303,22 @@ export default function App() {
     };
   }, []);
 
-  // Suscripción Realtime
+  // Suscripción Realtime & Polling de alta fidelidad
   useEffect(() => {
     const channel = supabase.channel('realtime-leads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        // Al haber cualquier cambio en leads, recargar desde DB (para mantener simplicidad y uniones correctas)
         loadDataFromSupabase(setLeads, setProperties);
       })
       .subscribe();
+
+    const interval = setInterval(() => {
+      loadDataFromSupabase(setLeads, setProperties);
+    }, 4000);
     
-    return () => { supabase.removeChannel(channel); };
+    return () => { 
+      supabase.removeChannel(channel); 
+      clearInterval(interval);
+    };
   }, [currentUser]);
 
   const handleLogout = async () => {
