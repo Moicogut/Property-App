@@ -1,14 +1,41 @@
+import "dotenv/config";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-// ── Supabase singleton ──
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
-export const supabaseServer = createClient(supabaseUrl, supabaseKey);
+// ── Supabase singleton resiliente con Lazy Init Proxy ──
+const FALLBACK_SUPABASE_URL = "https://lqagnlbygzurddkzbbwn.supabase.co";
+
+let _supabaseServer: SupabaseClient | null = null;
+
+export function getSupabaseServer(): SupabaseClient {
+  if (!_supabaseServer) {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+    if (!supabaseKey) {
+      console.warn("[Shared] Advertencia: SUPABASE_SERVICE_ROLE_KEY o VITE_SUPABASE_ANON_KEY no están definidos en variables de entorno.");
+    }
+    _supabaseServer = createClient(supabaseUrl, supabaseKey || "dummy-key-for-init");
+  }
+  return _supabaseServer;
+}
+
+export const supabaseServer = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    const client = getSupabaseServer();
+    const val = (client as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof val === "function" ? (val as (...args: unknown[]) => unknown).bind(client) : val;
+  },
+});
 
 // ── OpenAI Embeddings (text-embedding-3-small 768d) ──
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn("[OpenAI] OPENAI_API_KEY no definida, usando fallback de embedding.");
+    return Array.from({ length: 768 }, () => (Math.random() - 0.5) * 0.1);
+  }
+
+  const openai = new OpenAI({ apiKey });
   try {
     const response = await openai.embeddings.create({
       model: "text-embedding-3-small",

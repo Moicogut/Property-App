@@ -146,9 +146,10 @@ export async function processWebhookMessage(
   let isAppointmentCreated = false;
   let appointmentDateString = "";
 
-  if (process.env.OPENAI_API_KEY) {
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
     try {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const openai = new OpenAI({ apiKey: openAiKey });
       const sofiaPrompt = buildSofiaPrompt(aiConfig, bestMatch, chatHistoryText);
       const tools = buildSofiaTools(existingLead?.pipeline_stage);
 
