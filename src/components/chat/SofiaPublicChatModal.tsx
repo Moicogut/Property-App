@@ -149,8 +149,44 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
       const pBeds = targetProp?.bedrooms || 0;
       const pBaths = targetProp?.bathrooms || 0;
 
+      // ── DETECCIÓN DE PATRONES POR REGEX Y PRIORIDAD ──
+      const isVisitIntent = /\b(visita|visitar|agendar|agenda|verlo|verla|conocerlo|conocerla|ir a ver|cita|horario|s[aá]bado|domingo|lunes|martes|mi[eé]rcoles|jueves|viernes|ma[nñ]ana|tarde|hrs|hora|10am|11am|pm|am|pasado ma[nñ]ana)\b/i.test(lower) ||
+        (lower.includes('quedamos en') && lower.includes('visita')) ||
+        lower.includes('puede ser a partir') ||
+        lower.includes('se puede visitar');
+
+      const isPapersQuery = /\b(papel|papeles|documento|documentos|documentaci[oó]n|folio|folio real|derechos reales|ddrr|al d[ií]a|saneado|saneada|legal|gravamen|grav[aá]menes|catastro|impuestos)\b/i.test(lower);
+
+      const isCreditQuery = !isVisitIntent && (/\b(vis|cr[eé]dito|financiamiento|financiar|banco|bancario|cuota|cuotas|inter[eé]s social|asfi)\b/i.test(lower));
+
+      // 1. PRIORIDAD MÁXIMA: Agendar Visita Presencial o Selección de Horario
+      if (isVisitIntent) {
+        newGrade = "FULL";
+        setShowLeadForm(true);
+
+        // Extraer horario mencionado por el usuario para pre-llenar
+        let extractedDate = "";
+        if (lower.includes('sábado') || lower.includes('sabado')) extractedDate += "Sábado ";
+        else if (lower.includes('domingo')) extractedDate += "Domingo ";
+        else if (lower.includes('mañana') || lower.includes('maña')) extractedDate += "Mañana ";
+        else if (lower.includes('lunes') || lower.includes('martes') || lower.includes('miercoles') || lower.includes('miércoles') || lower.includes('jueves') || lower.includes('viernes')) extractedDate += "Día de semana ";
+
+        if (lower.includes('10am') || lower.includes('10 am') || lower.includes('10:00')) extractedDate += "10:00 AM";
+        else if (lower.includes('11am') || lower.includes('11 am')) extractedDate += "11:00 AM";
+        else if (lower.includes('mañana') || lower.includes('por la mañana')) extractedDate += "por la mañana";
+        else if (lower.includes('tarde') || lower.includes('por la tarde')) extractedDate += "por la tarde";
+
+        if (extractedDate.trim()) {
+          setPreferredVisitDate(extractedDate.trim());
+          reply = `¡Perfecto! He registrado tu preferencia de visita para **${extractedDate.trim()}** en **"${pTitle}"**.\n\n` +
+            `Por favor confirma tu nombre y número de WhatsApp en la tarjeta aquí abajo para que el asesor oficial te confirme el acceso y te comparta la ubicación GPS exacta.`;
+        } else {
+          reply = `¡Excelente! Vamos a coordinar la **visita guiada presencial** para **"${pTitle}"**.\n\n` +
+            `Por favor déjanos tu nombre y WhatsApp en el formulario para coordinar la hora exacta que mejor te convenga.`;
+        }
+      }
       // 2. Consulta sobre Papeles, Derechos Reales, Folio Real o Documentación
-      if (lower.includes('papel') || lower.includes('document') || lower.includes('folio') || lower.includes('derechos reales') || lower.includes('ddrr') || lower.includes('al dia') || lower.includes('al día') || lower.includes('sanead') || lower.includes('legal')) {
+      else if (isPapersQuery) {
         newGrade = "ALTA";
         if (targetProp) {
           reply = `Sí, totalmente. **"${pTitle}"** ($${pPrice.toLocaleString()} USD) cuenta con **documentación 100% saneada y al día**:\n\n` +
@@ -163,7 +199,7 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
         }
       }
       // 3. Consulta sobre Crédito VIS, Tasas o Financiamiento
-      else if (lower.includes('vis') || lower.includes('credito') || lower.includes('crédito') || lower.includes('banco') || lower.includes('financiam') || lower.includes('cuota') || lower.includes('interes social') || lower.includes('interés social')) {
+      else if (isCreditQuery) {
         newGrade = "ALTA";
         if (targetProp) {
           reply = `¡Excelente! **"${pTitle}"** ($${pPrice.toLocaleString()} USD en ${pZone}) **califica para Crédito VIS (Vivienda de Interés Social)**.\n\n` +
@@ -175,13 +211,6 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
         } else {
           reply = `El Crédito VIS (Vivienda de Interés Social) financia hasta el 80%-90% del valor del inmueble con tasas preferenciales del 5.5% al 6.5% anual. ¿Qué rango de precio estás buscando para presentarte las opciones aptas para VIS?`;
         }
-      }
-      // 4. Intención de Agendar Visita / Día / Horario
-      else if (lower.includes('visita') || lower.includes('agendar') || lower.includes('verla') || lower.includes('conocerla') || lower.includes('sabado') || lower.includes('sábado') || lower.includes('domingo') || lower.includes('lunes') || lower.includes('martes') || lower.includes('miercoles') || lower.includes('miércoles') || lower.includes('jueves') || lower.includes('viernes') || lower.includes('mañana') || lower.includes('tarde') || lower.includes('hora') || lower.includes('si') || lower.includes('sí') || lower.includes('claro') || lower.includes('perfecto')) {
-        newGrade = "FULL";
-        setShowLeadForm(true);
-        reply = `¡Excelente! Vamos a coordinar la **visita guiada oficial** para **"${pTitle}"**.\n\n` +
-          `Por favor ingresa tu nombre y número de WhatsApp en el recuadro de agenda aquí abajo para que el asesor inmobiliario asignado te confirme el ingreso y te envíe la ubicación GPS exacta.`;
       }
       // 5. Consulta de más información o detalles de la propiedad
       else if (targetProp && (lower.includes('mas info') || lower.includes('más info') || lower.includes('detalle') || lower.includes('dormitorio') || lower.includes('baño') || lower.includes('metro') || lower.includes('m2') || lower.includes('precio') || lower.includes('garaje'))) {
