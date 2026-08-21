@@ -86,7 +86,10 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Lógica de respuesta interactiva con búsqueda en inventario RAG
+  // Lógica de respuesta inteligente y contextual
+  const [activeOptions, setActiveOptions] = useState<Property[]>([]);
+  const [focusedProperty, setFocusedProperty] = useState<Property | null>(initialProperty || null);
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const query = input.trim();
@@ -103,38 +106,97 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
     setInput('');
     setIsThinking(true);
 
-    // Simulación de búsqueda contextual y respuesta experta
     setTimeout(() => {
-      const lowerQuery = query.toLowerCase();
-      
-      // Filtrar propiedades relevantes
-      let matchingProps = properties.filter((p) => {
-        const titleMatch = (p.title || '').toLowerCase().includes(lowerQuery);
-        const cityMatch = (p.city || '').toLowerCase().includes(lowerQuery);
-        const zoneMatch = (p.zone || '').toLowerCase().includes(lowerQuery);
-        const typeMatch = (p.type || '').toLowerCase().includes(lowerQuery);
-        return titleMatch || cityMatch || zoneMatch || typeMatch;
-      });
+      const lower = query.toLowerCase();
+      let reply = '';
+      let suggestedProps: Property[] | undefined = undefined;
+      let targetProp = focusedProperty;
 
-      if (matchingProps.length === 0 && properties.length > 0) {
-        // Fallback a propiedades destacadas
-        matchingProps = properties.slice(0, 2);
+      // 1. Detectar referencia a "la primera", "la segunda", "el primero", etc.
+      if ((lower.includes('segund') || lower.includes('2da') || lower.includes('2da') || lower.includes('segunda')) && activeOptions.length >= 2) {
+        targetProp = activeOptions[1];
+        setFocusedProperty(targetProp);
+      } else if ((lower.includes('primer') || lower.includes('1ra') || lower.includes('primera')) && activeOptions.length >= 1) {
+        targetProp = activeOptions[0];
+        setFocusedProperty(targetProp);
+      } else if (activeOptions.length > 0) {
+        const foundInOptions = activeOptions.find((p) => 
+          lower.includes((p.title || '').toLowerCase()) || 
+          lower.includes((p.zone || '').toLowerCase())
+        );
+        if (foundInOptions) {
+          targetProp = foundInOptions;
+          setFocusedProperty(targetProp);
+        }
       }
 
-      let reply = '';
-      if (lowerQuery.includes('precio') || lowerQuery.includes('cuesta') || lowerQuery.includes('cuanto') || lowerQuery.includes('$')) {
-        reply = `Tenemos excelentes opciones en el mercado. En nuestro catálogo actual los inmuebles oscilan entre $45.000 USD y $280.000 USD. ¿Tienes un presupuesto objetivo o requieres simulación de financiamiento con Crédito de Vivienda de Interés Social (VIS ASFI a tasa regulada)?`;
-      } else if (lowerQuery.includes('vis') || lowerQuery.includes('credito') || lowerQuery.includes('banco') || lowerQuery.includes('interes')) {
-        reply = `¡Por supuesto! En Bolivia el Crédito de Vivienda de Interés Social (VIS) cuenta con tasas preferenciales reguladas por ASFI (5.5% a 6.5% anual en bolivianos) y hasta el 100% de financiamiento si cuentas con respaldo de aporte. ¿Te gustaría que registremos tus datos para que un asesor te elabore una corrida financiera detallada?`;
+      // 2. Si el usuario pregunta por detalles de un inmueble ya seleccionado o referenciado
+      if (targetProp && (
+        lower.includes('mas info') || 
+        lower.includes('más info') || 
+        lower.includes('informacion') || 
+        lower.includes('información') || 
+        lower.includes('segunda') || 
+        lower.includes('primer') || 
+        lower.includes('detalle') || 
+        lower.includes('cuenta con') || 
+        lower.includes('precio') || 
+        lower.includes('venta')
+      )) {
+        const pPrice = targetProp.price || targetProp.priceUsd || 0;
+        const pLoc = targetProp.zone || targetProp.city || targetProp.location || 'Bolivia';
+        const pBeds = targetProp.bedrooms ? `${targetProp.bedrooms} habitaciones` : 'amplios ambientes';
+        const pBaths = targetProp.bathrooms ? `${targetProp.bathrooms} baños` : 'baños completos';
+        
+        reply = `¡Excelente elección! El **${targetProp.title}** es una de nuestras mejores opciones en **${pLoc}**.\n\n` +
+          `📌 **Precio:** $${pPrice.toLocaleString()} USD\n` +
+          `📐 **Distribución:** ${pBeds}, ${pBaths} y acabados de primera calidad.\n` +
+          `📑 **Estado Jurídico:** Papeles al día, folio real verificado y listo para entrega inmediata (aplica a compra al contado o financiamiento bancario regulado).\n\n` +
+          `¿Te gustaría que te agende una visita guiada esta semana o prefieres que un asesor te envíe el dossier técnico completo a tu WhatsApp?`;
+        
         setShowLeadForm(true);
-      } else if (lowerQuery.includes('visita') || lowerQuery.includes('ver') || lowerQuery.includes('contacto') || lowerQuery.includes('asesor') || lowerQuery.includes('telefono') || lowerQuery.includes('agendar')) {
-        reply = `Con mucho gusto coordinamos una visita presencial o virtual. Por favor indícame tu nombre y número de WhatsApp para sincronizar la agenda del asesor a cargo.`;
+        suggestedProps = [targetProp];
+      }
+      // 3. Si el usuario busca por ciudad o zona específica
+      else if (lower.includes('sopocachi') || lower.includes('la paz') || lower.includes('lapaz') || lower.includes('calacoto') || lower.includes('equipetrol') || lower.includes('santa cruz') || lower.includes('cochabamba') || lower.includes('sirari') || lower.includes('urubo') || lower.includes('urubó') || lower.includes('departamento') || lower.includes('casa') || lower.includes('loft') || lower.includes('oficina')) {
+        // Filtrar propiedades relevantes por coincidencia geográfica o de tipo
+        let matches = properties.filter((p) => {
+          const locStr = `${p.title || ''} ${p.zone || ''} ${p.city || ''} ${p.location || ''} ${p.type || ''}`.toLowerCase();
+          
+          if (lower.includes('sopocachi') && locStr.includes('sopocachi')) return true;
+          if (lower.includes('la paz') && (locStr.includes('la paz') || locStr.includes('sopocachi') || locStr.includes('calacoto'))) return true;
+          if (lower.includes('calacoto') && locStr.includes('calacoto')) return true;
+          if (lower.includes('equipetrol') && locStr.includes('equipetrol')) return true;
+          if (lower.includes('santa cruz') && (locStr.includes('santa cruz') || locStr.includes('equipetrol') || locStr.includes('sirari') || locStr.includes('urubo'))) return true;
+          if (lower.includes('cochabamba') && locStr.includes('cochabamba')) return true;
+          if (lower.includes('departamento') && (locStr.includes('departamento') || locStr.includes('loft'))) return true;
+          if (lower.includes('casa') && locStr.includes('casa')) return true;
+          return false;
+        });
+
+        if (matches.length === 0) {
+          matches = properties.slice(0, 2);
+        }
+
+        const chosen = matches.slice(0, 2);
+        setActiveOptions(chosen);
+        suggestedProps = chosen;
+
+        reply = `He encontrado estas opciones verificadas que se adaptan a tu búsqueda. Cuéntame cuál de ellas te llama la atención o si requieres una cotización personalizada:`;
+      }
+      // 4. Si el usuario pregunta por crédito VIS o financiamiento bancario
+      else if (lower.includes('vis') || lower.includes('credito') || lower.includes('crédito') || lower.includes('interes social') || lower.includes('banco') || lower.includes('cuota')) {
+        reply = `¡Con gusto te asesoro sobre financiamiento! En Bolivia, el Crédito de Vivienda de Interés Social (VIS ASFI) ofrece tasas preferenciales (5.5% a 6.5% anual) para primera vivienda. Además, gestionamos compras con crédito hipotecario tradicional con los principales bancos del país.\n\n¿Cuentas con aporte propio para la cuota inicial o te gustaría calcular las cuotas mensuales estimadas?`;
         setShowLeadForm(true);
-      } else if (matchingProps.length > 0) {
-        reply = `He seleccionado estas opciones de nuestro inventario verificado que coinciden con tu búsqueda. Puedes revisar los detalles o dejar tus datos para coordinar una reunión ejecutiva:`;
-      } else {
-        reply = `Entendido. Te puedo orientar sobre inmuebles en Equipetrol, Urubó, Calacoto, Sopocachi o la zona norte de Cochabamba. ¿Te gustaría dejar tu número de contacto para enviarte el dossier completo por WhatsApp?`;
+      }
+      // 5. Si el usuario quiere visita o contacto
+      else if (lower.includes('visita') || lower.includes('ver') || lower.includes('agendar') || lower.includes('contacto') || lower.includes('asesor') || lower.includes('telefono') || lower.includes('celular') || lower.includes('whatsapp')) {
+        reply = `¡Perfecto! Para coordinar el día y hora con el asesor inmobiliario asignado, por favor completa tu nombre y número de WhatsApp en el formulario aquí abajo y te contactaremos de inmediato.`;
         setShowLeadForm(true);
+      }
+      // 6. Respuesta general consultiva
+      else {
+        reply = `Comprendo tu consulta. En Property OS disponemos de un portafolio exclusivo con inmuebles residenciales y comerciales en Santa Cruz, La Paz y Cochabamba. ¿Tienes alguna preferencia de zona, número de dormitorios o rango de precio en mente?`;
       }
 
       const sofiaMsg: Message = {
@@ -142,12 +204,12 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
         sender: 'sofia',
         text: reply,
         timestamp: new Date(),
-        suggestedProperties: matchingProps.length > 0 ? matchingProps.slice(0, 2) : undefined,
+        suggestedProperties: suggestedProps,
       };
 
       setMessages((prev) => [...prev, sofiaMsg]);
       setIsThinking(false);
-    }, 900);
+    }, 850);
   };
 
   const handleRegisterLead = async (e: React.FormEvent) => {
