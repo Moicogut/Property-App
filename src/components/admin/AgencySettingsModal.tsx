@@ -117,9 +117,9 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
           .from("organizations")
           .update({
             name: agencyName,
-            primary_city: primaryCity,
             whatsapp_instance_id: whatsappInstance,
             ai_config: {
+              primary_city: primaryCity,
               tone: sofiaTone,
               systemRules: sofiaCustomRules,
             },

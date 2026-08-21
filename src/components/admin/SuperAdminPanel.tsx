@@ -324,7 +324,6 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
         .from("organizations")
         .update({
           name: editAgencyName.trim(),
-          primary_city: editAgencyCity,
           whatsapp_instance_id: editWhatsappInstance.trim(),
           ai_config: updatedAiConfig,
         })
