@@ -32,9 +32,28 @@ const DEFAULT_AI_CONFIG = {
 };
 
 const DEFAULT_KEYWORDS = [
-  "departamento", "casa", "garsonier", "garaje", "tienda", "almacen",
-  "property", "informacion", "precio", "venta", "hola", "buen dia",
-  "buenas", "info", "ubicacion", "agente", "alquiler", "renta", "terreno", "lote"
+  "property",
+  "departamento",
+  "depto",
+  "casa",
+  "garsonier",
+  "garaje",
+  "tienda",
+  "almacen",
+  "terreno",
+  "lote",
+  "alquiler",
+  "renta",
+  "anticretico",
+  "inmueble",
+  "inmobiliaria",
+  "oficina",
+  "condominio",
+  "credito vis",
+  "vivienda social",
+  "comprar",
+  "vender",
+  "agendar visita"
 ];
 
 const processedMessages = new Map<string, number>();
@@ -308,22 +327,73 @@ export async function processWebhookMessage(
     }
   }
 
-  // Lead Lookup
+  // 1. Lead Lookup
   const { data: existingLead } = await supabase
     .from("leads")
-    .select("id, pipeline_stage, pipeline_type, lead_type, ai_paused, full_name, budget_max_usd, preferred_zone, payment_method, has_down_payment, down_payment_percent, bant_score, assigned_agent_id")
+    .select("id, pipeline_stage, pipeline_type, lead_type, ai_paused, full_name, budget_max_usd, preferred_zone, payment_method, has_down_payment, down_payment_percent, bant_score, assigned_agent_id, organization_id")
     .eq("phone_number", msg.rawPhoneNumber)
     .single();
 
   if (existingLead?.ai_paused) return { status: "AI_PAUSED", leadId: existingLead.id };
 
-  const lowerMsg = msg.userMessageText.toLowerCase();
-  const hasKeyword = DEFAULT_KEYWORDS.some((kw) => lowerMsg.includes(kw));
-  if (!existingLead && !hasKeyword) return { status: "IGNORED", reason: "No matching keywords" };
+  // 2. Org Lookup (por instancia de WhatsApp o lead existente)
+  const instanceName = options.evolutionInstance || (body.instance as string);
+  let orgData: any = null;
 
-  // Org Config
-  const { data: orgData } = await supabase.from("organizations").select("id, ai_config").limit(1).single();
+  if (existingLead?.organization_id) {
+    const { data: orgById } = await supabase.from("organizations").select("id, name, whatsapp_instance_id, ai_config").eq("id", existingLead.organization_id).maybeSingle();
+    orgData = orgById;
+  } else if (instanceName) {
+    const { data: orgByInstance } = await supabase.from("organizations").select("id, name, whatsapp_instance_id, ai_config").eq("whatsapp_instance_id", instanceName).maybeSingle();
+    orgData = orgByInstance;
+  }
+
+  if (!orgData) {
+    const { data: defaultOrg } = await supabase.from("organizations").select("id, name, whatsapp_instance_id, ai_config").limit(1).maybeSingle();
+    orgData = defaultOrg;
+  }
   const orgId = orgData?.id || "org-1";
+
+  // 3. Obtener Palabras Clave Activas (Personalizadas de la Agencia o Estrictas por Defecto)
+  let activeKeywords = DEFAULT_KEYWORDS;
+  if (orgData?.ai_config?.keywords && typeof orgData.ai_config.keywords === "string") {
+    const customList = orgData.ai_config.keywords
+      .split(",")
+      .map((k: string) => k.trim().toLowerCase())
+      .filter((k: string) => k.length >= 2);
+    if (customList.length > 0) {
+      activeKeywords = customList;
+    }
+  }
+
+  // 4. Verificación Estricta de Palabras Clave
+  const lowerMsg = msg.userMessageText.toLowerCase();
+  const hasKeyword = activeKeywords.some((kw) => lowerMsg.includes(kw));
+
+  // Verificar si hay una sesión de chat activa inmediata (últimos 15 minutos)
+  let hasActiveRecentSession = false;
+  if (existingLead?.id) {
+    const { data: lastMsgs } = await supabase
+      .from("messages")
+      .select("created_at")
+      .eq("lead_id", existingLead.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (lastMsgs && lastMsgs.length > 0) {
+      const lastMsgTime = new Date(lastMsgs[0].created_at).getTime();
+      const diffMinutes = (Date.now() - lastMsgTime) / (1000 * 60);
+      if (diffMinutes <= 15) {
+        hasActiveRecentSession = true;
+      }
+    }
+  }
+
+  // REGLA CRÍTICA: Si el mensaje NO contiene palabras clave y NO es parte de una conversación activa en curso, se ignora completamente.
+  if (!hasKeyword && !hasActiveRecentSession) {
+    console.log(`[Webhook Gate] 🛑 Mensaje ignorado de ${msg.rawPhoneNumber} (No contiene palabras clave inmobiliarias: "${msg.userMessageText}")`);
+    return { status: "IGNORED", reason: "Mensaje sin palabras clave inmobiliarias" };
+  }
 
   // Extracción de intenciones y geografía
   const geoIntent = extractGeoAndIntent(msg.userMessageText);

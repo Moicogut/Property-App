@@ -89,7 +89,26 @@ export const DEFAULT_AI_CONFIG: AiConfig = {
 };
 
 export const DEFAULT_KEYWORDS = [
-  "departamento", "casa", "garsonier", "garaje", "tienda", "almacen",
-  "property", "informacion", "precio", "venta", "hola", "buen dia",
-  "buenas", "info", "ubicacion", "agente",
+  "property",
+  "departamento",
+  "depto",
+  "casa",
+  "garsonier",
+  "garaje",
+  "tienda",
+  "almacen",
+  "terreno",
+  "lote",
+  "alquiler",
+  "renta",
+  "anticretico",
+  "inmueble",
+  "inmobiliaria",
+  "oficina",
+  "condominio",
+  "credito vis",
+  "vivienda social",
+  "comprar",
+  "vender",
+  "agendar visita"
 ];
