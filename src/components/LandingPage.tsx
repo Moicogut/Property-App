@@ -25,6 +25,19 @@ interface Property {
   type?: string;
 }
 
+export function getPropertyCategory(p: { title?: string; rawDescription?: string; description?: string; type?: string }): string {
+  if (p.type && p.type !== "Inmueble" && p.type !== "inmueble") return p.type;
+  const t = `${p.title || ""} ${p.rawDescription || ""} ${p.description || ""}`.toLowerCase();
+  if (t.includes("penthouse")) return "Penthouse";
+  if (t.includes("loft")) return "Loft";
+  if (t.includes("garzonier") || t.includes("monoambiente") || t.includes("estudio") || t.includes("studio")) return "Garzonier";
+  if (t.includes("departamento") || t.includes("depto") || t.includes("condominio") || t.includes("edificio") || t.includes("piso")) return "Departamento";
+  if (t.includes("casa") || t.includes("chalet") || t.includes("villa") || t.includes("residencia") || t.includes("townhouse")) return "Casa";
+  if (t.includes("terreno") || t.includes("lote") || t.includes("parcela") || t.includes("hectarea") || t.includes("hectárea")) return "Terreno";
+  if (t.includes("oficina") || t.includes("local") || t.includes("comercial") || t.includes("consultorio") || t.includes("galpon") || t.includes("galpón")) return "Oficina";
+  return "Departamento";
+}
+
 interface Props {
   properties: Property[];
   onLoginClick: () => void;
@@ -33,6 +46,7 @@ interface Props {
 
 export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenSofia }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [codeSearch, setCodeSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isSofiaModalOpen, setIsSofiaModalOpen] = useState(false);
@@ -45,13 +59,47 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
   };
 
   const filteredProperties = properties.filter((p) => {
-    const titleMatch = p.title || '';
-    const locMatch = p.location || p.city || p.zone || '';
+    const category = getPropertyCategory(p);
+    const title = (p.title || '').toLowerCase();
+    const loc = `${p.city || ''} ${p.zone || ''} ${p.location || ''}`.toLowerCase();
+    const desc = (p.rawDescription || p.description || '').toLowerCase();
+    const refCode = (p.id || '').toLowerCase();
+    const shortRef = refCode.substring(0, 8);
+
+    // 1. Filtro por término general (zona, ciudad, palabra clave o código)
+    const cleanSearch = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      titleMatch.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      locMatch.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'all' || p.type === filterType;
-    return matchesSearch && matchesType;
+      !cleanSearch ||
+      title.includes(cleanSearch) ||
+      loc.includes(cleanSearch) ||
+      desc.includes(cleanSearch) ||
+      refCode.includes(cleanSearch) ||
+      shortRef.includes(cleanSearch);
+
+    // 2. Filtro específico por código de referencia
+    const cleanCode = codeSearch.trim().toLowerCase().replace(/^ref:\s*/i, "");
+    const matchesCode =
+      !cleanCode ||
+      refCode.includes(cleanCode) ||
+      shortRef.includes(cleanCode);
+
+    // 3. Filtro por tipo de propiedad
+    let matchesType = true;
+    if (filterType !== 'all') {
+      if (filterType === 'Departamento') {
+        matchesType = ['Departamento', 'Loft', 'Penthouse', 'Garzonier'].includes(category);
+      } else if (filterType === 'Casa') {
+        matchesType = ['Casa'].includes(category);
+      } else if (filterType === 'Terreno') {
+        matchesType = ['Terreno'].includes(category);
+      } else if (filterType === 'Oficina') {
+        matchesType = ['Oficina'].includes(category);
+      } else {
+        matchesType = category.toLowerCase() === filterType.toLowerCase();
+      }
+    }
+
+    return matchesSearch && matchesCode && matchesType;
   });
 
   return (
@@ -101,8 +149,9 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
           Explora nuestro portafolio de alta gama en Bolivia. Haz clic en cualquier propiedad para ver la galería completa y detalles.
         </p>
 
-        {/* BUSCADOR Y FILTROS */}
-        <div className="mt-8 max-w-3xl mx-auto bg-[#111622]/90 border border-slate-800 p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-3">
+        {/* BUSCADOR Y FILTROS INTEGRADOS CON CASILLA DE CÓDIGO REF */}
+        <div className="mt-8 max-w-4xl mx-auto bg-[#111622]/90 border border-slate-800 p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-3">
+          {/* Búsqueda por Zona, Ciudad o Palabra Clave */}
           <div className="flex-1 flex items-center gap-3 px-4 bg-[#090D16] rounded-xl border border-slate-800 focus-within:border-[#D4AF37] transition">
             <Search className="w-4 h-4 text-[#D4AF37]" />
             <input
@@ -114,18 +163,44 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
             />
           </div>
 
+          {/* Casilla Específica de Búsqueda por Código Ref */}
+          <div className="w-full md:w-56 flex items-center gap-2 px-3 bg-[#090D16] rounded-xl border border-slate-800 focus-within:border-[#D4AF37] transition">
+            <span className="text-[10px] font-mono font-bold text-[#D4AF37] shrink-0"># Ref:</span>
+            <input
+              type="text"
+              placeholder="ej. ff103c41"
+              value={codeSearch}
+              onChange={(e) => setCodeSearch(e.target.value)}
+              className="w-full py-3 bg-transparent text-xs text-white font-mono focus:outline-none placeholder:text-slate-500"
+            />
+          </div>
+
+          {/* Selector de Tipo / Categoría */}
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
             className="px-4 py-3 bg-[#090D16] rounded-xl border border-slate-800 text-xs font-bold text-slate-300 focus:outline-none focus:border-[#D4AF37] cursor-pointer"
           >
             <option value="all">Todos los tipos</option>
-            <option value="Casa">Casas</option>
-            <option value="Departamento">Departamentos</option>
-            <option value="Terreno">Terrenos</option>
-            <option value="Oficina">Oficinas</option>
+            <option value="Departamento">Departamentos & Lofts</option>
+            <option value="Casa">Casas & Chalets</option>
+            <option value="Terreno">Terrenos & Lotes</option>
+            <option value="Oficina">Oficinas & Comerciales</option>
           </select>
         </div>
+
+        {/* Indicador de resultados activos cuando hay filtros */}
+        {(searchTerm || codeSearch || filterType !== 'all') && (
+          <div className="mt-3 flex items-center justify-center gap-3 text-xs text-slate-400">
+            <span>Encontrados: <strong className="text-[#F3E5AB]">{filteredProperties.length}</strong> inmuebles</span>
+            <button
+              onClick={() => { setSearchTerm(''); setCodeSearch(''); setFilterType('all'); }}
+              className="text-[#D4AF37] underline text-[11px] hover:text-white transition cursor-pointer"
+            >
+              Limpiar filtros
+            </button>
+          </div>
+        )}
       </header>
 
       {/* CATÁLOGO DE INMUEBLES */}
@@ -157,8 +232,8 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
                       onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80'; }}
                     />
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
-                      <span className="bg-[#090D16]/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-[#F3E5AB] border border-[#D4AF37]/30 w-max">
-                        {property.type || 'Inmueble'}
+                      <span className="bg-[#090D16]/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-[#F3E5AB] border border-[#D4AF37]/30 w-max shadow-md">
+                        {getPropertyCategory(property)}
                       </span>
                       <span className="bg-slate-900/90 backdrop-blur-md px-2 py-0.5 rounded-md text-[9px] font-mono text-slate-400 border border-slate-800 w-max">
                         Ref: {property.id.substring(0, 8)}

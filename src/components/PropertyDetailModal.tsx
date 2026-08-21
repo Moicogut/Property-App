@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, MapPin, Bed, Bath, Maximize, Phone, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Calculator } from 'lucide-react';
 import { getSafeImageUrl, getSafeImageArray } from '../utils/imageHelper';
 import { MortgageCalculatorModal } from './modals/MortgageCalculatorModal';
+import { getPropertyCategory } from './LandingPage';
 
 interface Property {
   id: string;
@@ -97,8 +98,8 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
               </>
             )}
 
-            <div className="absolute top-4 left-4 bg-indigo-600 text-white font-bold text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
-              {property.type || 'Inmueble'}
+            <div className="absolute top-4 left-4 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] text-slate-950 font-black text-xs px-3.5 py-1 rounded-full uppercase tracking-wider shadow-lg">
+              {getPropertyCategory(property)}
             </div>
           </div>
 
