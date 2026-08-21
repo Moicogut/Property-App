@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Clapperboard,
   Sparkles,
@@ -20,7 +20,15 @@ import {
   Zap,
   Globe,
   Sliders,
-  CheckCircle2
+  CheckCircle2,
+  Plus,
+  Trash2,
+  RotateCcw,
+  Volume2,
+  User,
+  Image as ImageIcon,
+  Building,
+  Edit3
 } from "lucide-react";
 import type { AppUser, Lead } from "@/src/types/property";
 
@@ -29,8 +37,10 @@ interface MarketingStudioViewProps {
   leads?: Lead[];
 }
 
-interface SceneItem {
+export interface SceneItem {
   scene_number: number;
+  day_label?: string;
+  theme_key?: string;
   image_prompt: string;
   video_prompt: string;
   narration: string;
@@ -38,77 +48,183 @@ interface SceneItem {
 
 export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ currentUser, leads = [] }) => {
   const [activeSubTab, setActiveSubTab] = useState<"generator" | "extension" | "dmo" | "telemetry">("generator");
-  const [campaignType, setCampaignType] = useState<"VIS" | "CAPTACION" | "BOT_SAAS" | "LEGAL_AUDIT" | "TOUR" | "WEEK_PACK">("WEEK_PACK");
+  
+  // ── Controles de Configuración General ──
   const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9">("9:16");
   const [targetCity, setTargetCity] = useState<string>("Santa Cruz");
+  const [selectedDayFilter, setSelectedDayFilter] = useState<string>("TODOS");
+  const [forceSpanishAudio, setForceSpanishAudio] = useState<boolean>(true);
+
+  // ── Hojas de Referencia (HR Model Sheets) Personalizables ──
+  const [characterGender, setCharacterGender] = useState<"male" | "female">("male");
+  const [characterStyle, setCharacterStyle] = useState<string>("Traje Obsidian Black con pin dorado");
+  const [environmentType, setEnvironmentType] = useState<string>("Penthouse de Lujo con bokeh urbano");
+  const [productDisplay, setProductDisplay] = useState<string>("Tablet de cristal con interfaz Property OS");
+  const [isHrDrawerOpen, setIsHrDrawerOpen] = useState<boolean>(false);
+
+  // ── Datos de Contacto de Red ──
   const [advisorName, setAdvisorName] = useState<string>(currentUser.fullName || "Asesor Property OS");
   const [advisorPhone, setAdvisorPhone] = useState<string>("59170000000");
+
+  // ── Feedback UI ──
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [editingSceneIdx, setEditingSceneIdx] = useState<number | null>(null);
 
-  // Lote Maestro de 7 Escenas Oficiales
-  const [scenes, setScenes] = useState<SceneItem[]>([
-    {
-      scene_number: 1,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 portrait" : "horizontal 16:9"}, a sharp 33-year-old latino male real estate advisor with neat short dark hair, wearing an impeccably tailored obsidian black suit, ivory shirt and a subtle gold lapel pin, holding a sleek glass tablet displaying a glowing real estate mortgage chart, modern penthouse background in ${targetCity} with warm city bokeh, 5600K diffused key lighting with champagne gold edge light, hyperrealistic 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Camera performs a slow cinematic push-in in ${aspectRatio} towards the 33-year-old advisor in tailored black suit as he smiles confidently and taps the glass tablet screen showing a 5.5 percent mortgage calculation, luxury penthouse office background, smooth 24fps movement, 5600K lighting, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `Si sigues creyendo que necesitas cincuenta mil dólares para comprar tu primer departamento en ${targetCity}, estás perdiendo dinero. Con el Crédito de Vivienda Social VIS, la tasa de interés está fijada al 5.5% regulada por ley. Eso significa que por un departamento de 48,000 dólares, tu cuota mensual queda en solo 285 dólares... exactamente lo que hoy pagas de alquiler. Comenta la palabra CALCULAR abajo y te envío el simulador oficial a tu WhatsApp.`
-    },
-    {
-      scene_number: 2,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 shot" : "horizontal 16:9"}, luxury modern office at 2:30 AM with dark ambient night aesthetic, glowing neon accents, 33-year-old advisor sleeping peacefully in a leather chair while in the foreground a smartphone on the desk illuminates showing an automated WhatsApp AI assistant Sofia closing a real estate appointment, photorealistic, 8k resolution, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Slow camera pan in ${aspectRatio} from the peaceful advisor in suit to the glowing smartphone on the desk, displaying incoming WhatsApp messages where Sofia AI automatically qualifies the buyer's budget and books a visit in Google Calendar, cinematic lighting, 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar minuta. Mientras descansas, nuestra asistente Sofía IA atiende a tus clientes en WhatsApp, califica su presupuesto con telemetría BANT y te agenda la visita en Google Calendar. Comenta BOT para probar el simulador gratis.`
-    },
-    {
-      scene_number: 3,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 shot" : "horizontal 16:9"}, close-up of a high-tech transparent screen showing a green real estate legal audit shield with three verified checks for Folio Real, Municipal Taxes, and Approved Cadastre, the 33-year-old male advisor in black suit standing behind with a professional trustworthy look, warm champagne gold lighting accents, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Camera zooms slightly in ${aspectRatio} into the digital legal audit interface as three green verification checkmarks light up in sequence for Folio Real, Taxes, and Cadastre, while the advisor points to the screen with confidence, cinematic depth of field, 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `Nunca des un centavo de reserva por un inmueble sin antes revisar este semáforo legal. En Bolivia, 4 de cada 10 inmuebles tienen problemas en Derechos Reales: hipotecas no canceladas, deudas en el RUAT o planos no visados. En Property OS auditamos los 3 pilares legales antes de emitir cualquier contrato. Comenta AUDITORIA para evaluar tu caso.`
-    },
-    {
-      scene_number: 4,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 medium shot" : "horizontal 16:9"}, 33-year-old real estate advisor standing beside an architectural model of a modern apartment tower in ${targetCity}, reviewing an analytical real estate valuation heatmap on a tablet, elegant obsidian interior design with gold highlights, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Gentle camera orbit in ${aspectRatio} around the advisor as he examines the architectural scale model, comparing market square meter values on his tablet with smooth gestures, modern luxury aesthetic, 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `¿Tu casa lleva 6 meses en venta y nadie llama? Este es el motivo exacto: el precio por metro cuadrado está desalineado del mercado real. Con nuestro estudio comparativo ACM analizamos la zona exacta para que vendas al mejor valor sin quemar tu propiedad. Comenta PRECIO y valuamos tu inmueble.`
-    },
-    {
-      scene_number: 5,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 split screen concept" : "horizontal 16:9"}, on the left an exhausted real estate agent buried under messy paper folders, on the right the sharp 33-year-old advisor in black suit operating Property OS on a single lightweight laptop with automated CRM pipelines, high contrast lighting, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Dynamic split comparison in ${aspectRatio} transitioning into a full shot of the modern advisor effortlessly generating a digital PDF reservation contract with one click on Property OS, sleek UI glow, cinematic 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `El 90% de los agentes inmobiliarios perderá clientes este año por seguir usando hojas de cálculo y notas en papel. Property OS es el sistema operativo completo con contratos en PDF, cotizador bancario y pipeline automatizado. Si quieres usar esta tecnología o unirte a nuestro equipo de embajadores, comenta SISTEMA.`
-    },
-    {
-      scene_number: 6,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 wide shot" : "horizontal 16:9"}, beautiful bright modern living room in ${targetCity} with floor-to-ceiling glass windows, sunny natural light illuminating an open-concept kitchen with quartz countertops, the 33-year-old male advisor in black suit gesturing welcomingly towards the balcony, architectural photography quality, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Smooth forward tracking shot in ${aspectRatio} walking into the luxurious 65,000-dollar apartment, showing the spacious living room, modern kitchen, and panoramic balcony view with soft sun flare, 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `Te muestro este departamento de 65,000 dólares en la mejor zona residencial de ${targetCity}. Dos dormitorios, cocina equipada y balcón panorámico, apto para crédito VIS con cuota bancaria súper accesible. Comenta TOUR y te paso la ficha técnica completa con ubicación exacta.`
-    },
-    {
-      scene_number: 7,
-      image_prompt: `Cinematic ${aspectRatio === "9:16" ? "vertical 9:16 portrait" : "horizontal 16:9"}, the 33-year-old advisor sitting comfortably in a modern leather armchair holding a coffee cup, looking genuinely into the camera with an engaging, approachable expression, warm ambient lighting in a premium executive lounge, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      video_prompt: `Close-up conversational camera angle in ${aspectRatio} as the advisor addresses the audience directly with authentic micro-expressions and gestures, warm atmospheric lighting, 24fps, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
-      narration: `Muchas personas me preguntan cuál es el mayor freno para comprar casa este 2026: ¿el aporte inicial o el miedo a las tasas? La clave no es esperar el momento perfecto, sino estructurar tu financiamiento con datos reales. Escríbeme un mensaje directo con tu caso y te asesoramos paso a paso.`
+  // ── Generador Dinámico de Tokens según Hojas de Referencia ──
+  const getCharacterToken = () => {
+    if (characterGender === "male") {
+      return "33-year-old professional latino male real estate advisor, short neat dark hair, wearing an impeccably tailored obsidian black suit with an open-collar ivory shirt and a subtle gold lapel pin, confident and trustworthy look";
+    } else {
+      return "30-year-old professional latina female real estate advisor, elegant dark brown hair, wearing a sleek tailored obsidian black blazer with ivory silk blouse and subtle champagne gold jewelry, charismatic and authoritative expression";
     }
-  ]);
-
-  // Actualizar prompts al cambiar ratio o ciudad
-  const handleConfigChange = (newRatio: "9:16" | "16:9", newCity: string) => {
-    setAspectRatio(newRatio);
-    setTargetCity(newCity);
-    setScenes((prev) =>
-      prev.map((s) => ({
-        ...s,
-        image_prompt: s.image_prompt.replace(/9:16|16:9/g, newRatio),
-        video_prompt: s.video_prompt.replace(/9:16|16:9/g, newRatio),
-      }))
-    );
   };
 
-  // Descarga instantánea de script.json
+  const getEnvironmentToken = () => {
+    switch (environmentType) {
+      case "Departamento Modelo":
+        return `bright sunny luxury model apartment in ${targetCity} with open-concept quartz kitchen, floor-to-ceiling panoramic glass windows and warm morning natural light`;
+      case "Oficina Minimalista":
+        return `high-tech minimalist real estate boardroom in ${targetCity} with dark graphite walls, architectural glass desks and accent edge lighting`;
+      default:
+        return `modern luxury executive penthouse in ${targetCity} with soft cinematic city bokeh at sunset, key light 5600K diffused, subtle 3200K champagne gold rim lighting`;
+    }
+  };
+
+  const getProductToken = () => {
+    switch (productDisplay) {
+      case "Smartphone WhatsApp":
+        return "modern smartphone illuminating showing automated WhatsApp assistant Sofia IA actively qualifying real estate BANT buyer appointments";
+      case "Semáforo Legal":
+        return "high-tech transparent holographic screen showing a green real estate legal audit shield with three verified checks for Folio Real, Taxes, and Cadastre";
+      default:
+        return "sleek glass tablet displaying a glowing interactive real estate mortgage amortization chart and property valuation heatmap";
+    }
+  };
+
+  // ── Generación de Escenas por Defecto ──
+  const generateInitialScenes = (ratio: "9:16" | "16:9", city: string, spanishAudio: boolean): SceneItem[] => {
+    const charToken = getCharacterToken();
+    const envToken = getEnvironmentToken();
+    const prodToken = getProductToken();
+    const audioToken = spanishAudio
+      ? "Audio: Native clear neutral Latin American Spanish male voiceover speaking strictly in Spanish: "
+      : "";
+
+    return [
+      {
+        scene_number: 1,
+        day_label: "Lunes",
+        theme_key: "Crédito VIS & Cuotas ($285/mes)",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 portrait" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, ${charToken}, holding ${prodToken}, ${envToken}, 5600K diffused key lighting with champagne gold edge light, hyperrealistic 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Camera performs a slow cinematic push-in in ${ratio} towards the advisor as he smiles confidently and taps the glass tablet screen showing a 5.5 percent mortgage calculation, ${envToken}, smooth 24fps movement, 5600K lighting, ${audioToken}'Con el Crédito VIS compras tu departamento con cuota de 285 dólares al mes', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `Si sigues creyendo que necesitas cincuenta mil dólares para comprar tu primer departamento en ${city}, estás perdiendo dinero. Con el Crédito de Vivienda Social VIS, la tasa de interés está fijada al 5.5% regulada por ley. Eso significa que por un departamento de 48,000 dólares, tu cuota mensual queda en solo 285 dólares... exactamente lo que hoy pagas de alquiler. Comenta la palabra CALCULAR abajo y te envío el simulador oficial a tu WhatsApp.`
+      },
+      {
+        scene_number: 2,
+        day_label: "Martes",
+        theme_key: "Sofía IA Calificando a las 2:30 AM",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 shot" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, luxury modern office at 2:30 AM with dark ambient night aesthetic, glowing neon accents, ${charToken} sleeping peacefully in a leather chair while in the foreground a smartphone on the desk illuminates showing Sofia IA, photorealistic 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Slow camera pan in ${ratio} from the peaceful advisor to the glowing smartphone displaying incoming WhatsApp messages where Sofia IA automatically qualifies buyer budget and books visits in Google Calendar, 24fps, ${audioToken}'Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar minuta. Mientras descansas, nuestra asistente Sofía IA atiende a tus clientes en WhatsApp, califica su presupuesto con telemetría BANT y te agenda la visita en Google Calendar. Comenta BOT para probar el simulador gratis.`
+      },
+      {
+        scene_number: 3,
+        day_label: "Miércoles",
+        theme_key: "Semáforo Legal & Folio Real",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 shot" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, close-up of a transparent screen showing a green real estate legal audit shield with three verified checks for Folio Real, Municipal Taxes, and Approved Cadastre, ${charToken} standing behind with professional trustworthy look, 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Camera zooms slightly in ${ratio} into the digital legal audit interface as three green checkmarks light up in sequence for Folio Real, Taxes, and Cadastre while the advisor points with confidence, 24fps, ${audioToken}'Nunca des un centavo de reserva sin antes revisar este semáforo legal', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `Nunca des un centavo de reserva por un inmueble sin antes revisar este semáforo legal. En Bolivia, 4 de cada 10 inmuebles tienen problemas en Derechos Reales: hipotecas no canceladas, deudas en el RUAT o planos no visados. En Property OS auditamos los 3 pilares legales antes de emitir cualquier contrato. Comenta AUDITORIA para evaluar tu caso.`
+      },
+      {
+        scene_number: 4,
+        day_label: "Jueves",
+        theme_key: "Estudio ACM & Valuación de Inmuebles",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 medium shot" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, ${charToken} standing beside an architectural model of a modern apartment tower in ${city}, reviewing an analytical real estate valuation heatmap on a tablet, 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Gentle camera orbit in ${ratio} around the advisor as he examines the architectural scale model, comparing market square meter values on his tablet with smooth gestures, 24fps, ${audioToken}'Si tu casa lleva seis meses en venta y nadie llama este es el motivo exacto', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `¿Tu casa lleva 6 meses en venta y nadie llama? Este es el motivo exacto: el precio por metro cuadrado está desalineado del mercado real. Con nuestro estudio comparativo ACM analizamos la zona exacta para que vendas al mejor valor sin quemar tu propiedad. Comenta PRECIO y valuamos tu inmueble.`
+      },
+      {
+        scene_number: 5,
+        day_label: "Viernes",
+        theme_key: "Asesor Tradicional vs. Asesor con Property OS",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 split screen" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, on the left an exhausted agent buried under messy paper folders, on the right ${charToken} operating Property OS on a single lightweight laptop with automated CRM pipelines, 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Dynamic split comparison in ${ratio} transitioning into a full shot of the modern advisor effortlessly generating a digital PDF reservation contract with one click on Property OS, 24fps, ${audioToken}'El noventa por ciento de los agentes inmobiliarios perderá clientes este año por seguir en papel', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `El 90% de los agentes inmobiliarios perderá clientes este año por seguir usando hojas de cálculo y notas en papel. Property OS es el sistema operativo completo con contratos en PDF, cotizador bancario y pipeline automatizado. Si quieres usar esta tecnología o unirte a nuestro equipo de embajadores, comenta SISTEMA.`
+      },
+      {
+        scene_number: 6,
+        day_label: "Sábado",
+        theme_key: "Tour Departamento $65,000 en Zona Residencial",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 wide shot" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, beautiful bright modern living room in ${city} with floor-to-ceiling glass windows, sunny natural light illuminating an open-concept kitchen, ${charToken} gesturing welcomingly towards the balcony, 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Smooth forward tracking shot in ${ratio} walking into the luxurious 65,000-dollar apartment, showing the spacious living room, kitchen, and panoramic balcony view with soft sun flare, 24fps, ${audioToken}'Te muestro este departamento de sesenta y cinco mil dólares en la mejor zona', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `Te muestro este departamento de 65,000 dólares en la mejor zona residencial de ${city}. Dos dormitorios, cocina equipada y balcón panorámico, apto para crédito VIS con cuota bancaria súper accesible. Comenta TOUR y te paso la ficha técnica completa con ubicación exacta.`
+      },
+      {
+        scene_number: 7,
+        day_label: "Domingo",
+        theme_key: "DMO Social Selling & Objeciones",
+        image_prompt: `Cinematic vertical ${ratio === "9:16" ? "9:16 portrait" : "16:9"}, full ${ratio === "9:16" ? "1080x1920" : "1920x1080"}, ${charToken} sitting comfortably in a modern leather armchair holding a coffee cup, looking genuinely into the camera with an engaging, approachable expression, warm ambient lighting, 8k, aspect ratio ${ratio} --ar ${ratio}`,
+        video_prompt: `Close-up conversational camera angle in ${ratio} as the advisor addresses the audience directly with authentic micro-expressions and gestures, warm atmospheric lighting, 24fps, ${audioToken}'Cuál es tu mayor freno para comprar casa este año escríbeme y te asesoramos', aspect ratio ${ratio} --ar ${ratio}`,
+        narration: `Muchas personas me preguntan cuál es el mayor freno para comprar casa este 2026: ¿el aporte inicial o el miedo a las tasas? La clave no es esperar el momento perfecto, sino estructurar tu financiamiento con datos reales. Escríbeme un mensaje directo con tu caso y te asesoramos paso a paso.`
+      }
+    ];
+  };
+
+  const [scenes, setScenes] = useState<SceneItem[]>(() =>
+    generateInitialScenes(aspectRatio, targetCity, forceSpanishAudio)
+  );
+
+  // Recalcular escenas cuando cambian las configuraciones de HR o globales
+  const handleRegenerateBatch = () => {
+    const updated = generateInitialScenes(aspectRatio, targetCity, forceSpanishAudio);
+    setScenes(updated);
+    setEditingSceneIdx(null);
+  };
+
+  // Añadir nueva escena manual
+  const handleAddScene = () => {
+    const nextNum = scenes.length + 1;
+    const newScene: SceneItem = {
+      scene_number: nextNum,
+      day_label: `Día ${nextNum}`,
+      theme_key: "Nueva Escena Personalizada",
+      image_prompt: `Cinematic vertical ${aspectRatio === "9:16" ? "9:16 portrait" : "16:9"}, full ${aspectRatio === "9:16" ? "1080x1920" : "1920x1080"}, ${getCharacterToken()}, ${getEnvironmentToken()}, 8k, aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
+      video_prompt: `Cinematic video in ${aspectRatio}, advisor presenting real estate property with natural movement, 24fps, ${forceSpanishAudio ? "Audio: Native clear neutral Latin American Spanish voiceover speaking in Spanish: '[Texto]', " : ""}aspect ratio ${aspectRatio} --ar ${aspectRatio}`,
+      narration: `Texto de locución personalizado para la escena ${nextNum} en ${targetCity}.`
+    };
+    setScenes([...scenes, newScene]);
+    setEditingSceneIdx(scenes.length);
+  };
+
+  // Eliminar escena
+  const handleDeleteScene = (idxToDelete: number) => {
+    const filtered = scenes.filter((_, idx) => idx !== idxToDelete).map((s, idx) => ({
+      ...s,
+      scene_number: idx + 1
+    }));
+    setScenes(filtered);
+    if (editingSceneIdx === idxToDelete) setEditingSceneIdx(null);
+  };
+
+  // Actualizar campo de escena
+  const handleUpdateSceneField = (idx: number, field: keyof SceneItem, value: any) => {
+    const updated = [...scenes];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setScenes(updated);
+  };
+
+  // Descargar script.json con estructura raíz {"scenes": [...]}
   const handleDownloadScriptJson = () => {
-    const dataObj = { scenes };
-    const jsonStr = JSON.stringify(dataObj, null, 2);
+    const exportData = {
+      scenes: scenes.map((s) => ({
+        scene_number: s.scene_number,
+        image_prompt: s.image_prompt,
+        video_prompt: s.video_prompt,
+        narration: s.narration
+      }))
+    };
+    const jsonStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -129,6 +245,11 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2500);
   };
+
+  // Filtrado de escenas por día
+  const filteredScenes = selectedDayFilter === "TODOS"
+    ? scenes
+    : scenes.filter((s) => s.day_label === selectedDayFilter);
 
   // Conteo de leads por palabra clave
   const keywordStats = {
@@ -157,7 +278,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                   Marketing Studio & Video Engine
                   <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#F3E5AB]">
-                    IA Batch v2.0
+                    IA Batch v2.2
                   </span>
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -168,6 +289,18 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsHrDrawerOpen(!isHrDrawerOpen)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                isHrDrawerOpen
+                  ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.4)]"
+                  : "bg-[#111622] hover:bg-[#1A2234] text-[#F3E5AB] border-slate-700 hover:border-[#D4AF37]/50"
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Hojas de Referencia (HR)</span>
+            </button>
+
             <a
               href="https://labs.google/flow"
               target="_blank"
@@ -216,6 +349,124 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
         </div>
       </div>
 
+      {/* ── DRAWER INTERACTIVO: HOJAS DE REFERENCIA (HR MODEL SHEETS) ── */}
+      {isHrDrawerOpen && (
+        <div className="bg-[#111622] border-2 border-[#D4AF37]/60 rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-3">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-[#D4AF37]" />
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">
+                Hojas de Referencia Oficiales (HR Model Sheets)
+              </h3>
+            </div>
+            <button
+              onClick={handleRegenerateBatch}
+              className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#C29D2D] text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Aplicar y Recalcular Prompts</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+            {/* 1. Personaje */}
+            <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2">
+              <label className="text-[10px] font-bold text-[#D4AF37] uppercase flex items-center gap-1">
+                <User className="w-3 h-3" />
+                HR-Personaje (Asesor)
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => setCharacterGender("male")}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                    characterGender === "male"
+                      ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]"
+                      : "bg-slate-950 border-slate-800 text-slate-400"
+                  }`}
+                >
+                  Hombre (33a)
+                </button>
+                <button
+                  onClick={() => setCharacterGender("female")}
+                  className={`py-1.5 px-2 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                    characterGender === "female"
+                      ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]"
+                      : "bg-slate-950 border-slate-800 text-slate-400"
+                  }`}
+                >
+                  Mujer (30a)
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 italic mt-1">
+                Vestimenta: Traje entallado Obsidian Black (`#0B0D12`) y pin dorado (`#D4AF37`).
+              </p>
+            </div>
+
+            {/* 2. Escenario */}
+            <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2">
+              <label className="text-[10px] font-bold text-emerald-400 uppercase flex items-center gap-1">
+                <Building className="w-3 h-3" />
+                HR-Escenario (Set)
+              </label>
+              <select
+                value={environmentType}
+                onChange={(e) => setEnvironmentType(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-[#D4AF37]"
+              >
+                <option value="Penthouse de Lujo">Penthouse de Lujo (5600K)</option>
+                <option value="Departamento Modelo">Departamento Modelo (Luz Día)</option>
+                <option value="Oficina Minimalista">Oficina Ejecutiva Minimalista</option>
+              </select>
+              <p className="text-[10px] text-slate-500 italic mt-1">
+                Iluminación fija 5600K key light + 3200K rim light dorado en hombros.
+              </p>
+            </div>
+
+            {/* 3. Producto / UI */}
+            <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2">
+              <label className="text-[10px] font-bold text-blue-400 uppercase flex items-center gap-1">
+                <Smartphone className="w-3 h-3" />
+                HR-Producto & UI
+              </label>
+              <select
+                value={productDisplay}
+                onChange={(e) => setProductDisplay(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-200 outline-none focus:ring-1 focus:ring-[#D4AF37]"
+              >
+                <option value="Tablet con Property OS">Tablet con Cotizador VIS</option>
+                <option value="Smartphone WhatsApp">Smartphone con Sofía IA</option>
+                <option value="Semáforo Legal">Pantalla con Semáforo Legal</option>
+              </select>
+              <p className="text-[10px] text-slate-500 italic mt-1">
+                Muestra la app en modo oscuro con acentos dorados y esmeraldas.
+              </p>
+            </div>
+
+            {/* 4. Idioma de Audio Forzado */}
+            <div className="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 space-y-2">
+              <label className="text-[10px] font-bold text-[#F3E5AB] uppercase flex items-center gap-1">
+                <Volume2 className="w-3 h-3 text-[#D4AF37]" />
+                Audio & Idioma Forzado
+              </label>
+              <button
+                onClick={() => setForceSpanishAudio(!forceSpanishAudio)}
+                className={`w-full py-2 px-2.5 rounded-lg font-bold text-[11px] border transition flex items-center justify-between cursor-pointer ${
+                  forceSpanishAudio
+                    ? "bg-emerald-950/60 border-emerald-500/60 text-emerald-300"
+                    : "bg-slate-950 border-slate-800 text-slate-400"
+                }`}
+              >
+                <span>Voz en Español Neutro</span>
+                <span>{forceSpanishAudio ? "✅ ACTIVO" : "⚪ OFF"}</span>
+              </button>
+              <p className="text-[10px] text-slate-500 italic mt-1">
+                Inyecta directivas explícitas de locución en español para evitar voces en inglés.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── SUBTAB 1: Generador de Scripts & Prompts (AI Batch Generator) ── */}
       {activeSubTab === "generator" && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -224,15 +475,43 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
             <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 space-y-4">
               <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-[#D4AF37]" />
-                Parámetros de Producción
+                Filtros & Personalización
               </h3>
+
+              {/* Selector de Día */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-400 block mb-1.5">Filtrar por Día de Campaña</label>
+                <select
+                  value={selectedDayFilter}
+                  onChange={(e) => setSelectedDayFilter(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 outline-none focus:ring-1 focus:ring-[#D4AF37]"
+                >
+                  <option value="TODOS">📅 Toda la Semana (7 Días Lote)</option>
+                  <option value="Lunes">Lunes (Crédito VIS & Cuotas)</option>
+                  <option value="Martes">Martes (Sofía IA 24/7)</option>
+                  <option value="Miércoles">Miércoles (Semáforo Legal)</option>
+                  <option value="Jueves">Jueves (Estudio ACM Precios)</option>
+                  <option value="Viernes">Viernes (SaaS Asesores B2B)</option>
+                  <option value="Sábado">Sábado (Tour Departamento)</option>
+                  <option value="Domingo">Domingo (DMO & Objeciones)</option>
+                </select>
+              </div>
 
               {/* Relación de Aspecto */}
               <div>
                 <label className="text-[11px] font-bold text-slate-400 block mb-1.5">Relación de Aspecto</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => handleConfigChange("9:16", targetCity)}
+                    onClick={() => {
+                      setAspectRatio("9:16");
+                      setScenes((prev) =>
+                        prev.map((s) => ({
+                          ...s,
+                          image_prompt: s.image_prompt.replace(/16:9/g, "9:16"),
+                          video_prompt: s.video_prompt.replace(/16:9/g, "9:16"),
+                        }))
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       aspectRatio === "9:16"
                         ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]"
@@ -244,7 +523,16 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                   </button>
 
                   <button
-                    onClick={() => handleConfigChange("16:9", targetCity)}
+                    onClick={() => {
+                      setAspectRatio("16:9");
+                      setScenes((prev) =>
+                        prev.map((s) => ({
+                          ...s,
+                          image_prompt: s.image_prompt.replace(/9:16/g, "16:9"),
+                          video_prompt: s.video_prompt.replace(/9:16/g, "16:9"),
+                        }))
+                      );
+                    }}
                     className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       aspectRatio === "16:9"
                         ? "bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]"
@@ -262,7 +550,9 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 <label className="text-[11px] font-bold text-slate-400 block mb-1.5">Ciudad de Campaña</label>
                 <select
                   value={targetCity}
-                  onChange={(e) => handleConfigChange(aspectRatio, e.target.value)}
+                  onChange={(e) => {
+                    setTargetCity(e.target.value);
+                  }}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 >
                   <option value="Santa Cruz">📍 Santa Cruz (Equipetrol / Urubó)</option>
@@ -272,25 +562,23 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 </select>
               </div>
 
-              {/* Motor Generativo Compatible */}
-              <div className="pt-2 border-t border-slate-800/80">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-2">Compatibilidad Validada:</span>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                    <span className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Google Labs Flow / Veo 2
-                    </span>
-                    <span className="text-[10px] font-mono text-[#D4AF37]">Batch OK</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-300 bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800">
-                    <span className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      Vibes AI (Batch 9:16)
-                    </span>
-                    <span className="text-[10px] font-mono text-[#D4AF37]">Batch OK</span>
-                  </div>
-                </div>
+              {/* Botones de Acción de Escenas */}
+              <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                <button
+                  onClick={handleAddScene}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-[#D4AF37]/50 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>+ Añadir Escena al Lote</span>
+                </button>
+
+                <button
+                  onClick={handleRegenerateBatch}
+                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Restablecer Guión de la Semana</span>
+                </button>
               </div>
 
               {/* Botón de Descarga script.json */}
@@ -309,64 +597,122 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-white flex items-center gap-2">
                 <Film className="w-4 h-4 text-[#D4AF37]" />
-                Lote de Producción Semanal ({scenes.length} Escenas / {aspectRatio})
+                Lote de Producción ({filteredScenes.length} Escenas en {aspectRatio})
               </h3>
-              <span className="text-xs text-slate-400">
-                Formato estructurado con tokens de anclaje inmutable (Obsidian Black & Champagne Gold)
-              </span>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400">Audio:</span>
+                <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${forceSpanishAudio ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" : "bg-slate-800 text-slate-400"}`}>
+                  {forceSpanishAudio ? "Español Neutro Forzado" : "Estándar"}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-3">
-              {scenes.map((scene, idx) => (
-                <div
-                  key={scene.scene_number}
-                  className="bg-[#111622] border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition-all space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#F3E5AB] font-black text-xs flex items-center justify-center">
-                        {scene.scene_number}
-                      </span>
-                      <h4 className="text-xs font-bold text-white">
-                        {idx === 0 && "Lunes: Crédito VIS & Cuotas ($285/mes) [CALCULAR]"}
-                        {idx === 1 && "Martes: Sofía IA Calificando a las 2:30 AM [BOT]"}
-                        {idx === 2 && "Miércoles: Semáforo Legal (Folio Real & Impuestos) [AUDITORIA]"}
-                        {idx === 3 && "Jueves: Estudio ACM & Valuación de Inmuebles [PRECIO]"}
-                        {idx === 4 && "Viernes: Asesor Tradicional vs. Asesor con Property OS [SISTEMA]"}
-                        {idx === 5 && "Sábado: Tour Departamento $65,000 en Zona Residencial [TOUR]"}
-                        {idx === 6 && "Domingo: DMO Social Selling & Manejo de Objeciones"}
-                      </h4>
+              {filteredScenes.map((scene, idx) => {
+                const isEditing = editingSceneIdx === idx;
+                return (
+                  <div
+                    key={scene.scene_number}
+                    className={`bg-[#111622] border rounded-2xl p-4 transition-all space-y-3 ${
+                      isEditing ? "border-[#D4AF37] shadow-lg shadow-[#D4AF37]/10" : "border-slate-800 hover:border-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#F3E5AB] font-black text-xs flex items-center justify-center">
+                          {scene.scene_number}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-900 text-[#D4AF37] border border-slate-800">
+                            {scene.day_label || `Escena ${scene.scene_number}`}
+                          </span>
+                          <h4 className="text-xs font-bold text-white">
+                            {scene.theme_key || `Escena ${scene.scene_number}`}
+                          </h4>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setEditingSceneIdx(isEditing ? null : idx)}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3 text-[#D4AF37]" />
+                          <span>{isEditing ? "Listo" : "Editar"}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleCopyPrompt(JSON.stringify(scene, null, 2), idx)}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1 transition cursor-pointer"
+                          title="Copiar JSON de esta escena"
+                        >
+                          {copiedIndex === idx ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedIndex === idx ? "¡Copiado!" : "Copiar"}</span>
+                        </button>
+
+                        {scenes.length > 1 && (
+                          <button
+                            onClick={() => handleDeleteScene(idx)}
+                            className="p-1.5 bg-slate-900 hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 rounded-lg text-[11px] border border-slate-800 transition cursor-pointer"
+                            title="Eliminar escena"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <button
-                      onClick={() => handleCopyPrompt(JSON.stringify(scene, null, 2), idx)}
-                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1 transition cursor-pointer"
-                      title="Copiar JSON de esta escena"
-                    >
-                      {copiedIndex === idx ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedIndex === idx ? "¡Copiado!" : "Copiar"}</span>
-                    </button>
-                  </div>
+                    {/* Prompts Desglosados (Modo Lectura o Edición) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
+                      <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
+                        <span className="text-[10px] font-bold text-[#D4AF37] uppercase block mb-1">Prompt de Imagen / Start Frame:</span>
+                        {isEditing ? (
+                          <textarea
+                            value={scene.image_prompt}
+                            onChange={(e) => handleUpdateSceneField(idx, "image_prompt", e.target.value)}
+                            rows={3}
+                            className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs font-mono outline-none border border-slate-700 focus:border-[#D4AF37]"
+                          />
+                        ) : (
+                          <p className="text-slate-300 line-clamp-3 font-mono">{scene.image_prompt}</p>
+                        )}
+                      </div>
 
-                  {/* Prompts Desglosados */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-                    <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
-                      <span className="text-[10px] font-bold text-[#D4AF37] uppercase block mb-1">Prompt de Imagen / Start Frame:</span>
-                      <p className="text-slate-300 line-clamp-3 font-mono">{scene.image_prompt}</p>
+                      <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
+                        <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Prompt de Video / Animación:</span>
+                        {isEditing ? (
+                          <textarea
+                            value={scene.video_prompt}
+                            onChange={(e) => handleUpdateSceneField(idx, "video_prompt", e.target.value)}
+                            rows={3}
+                            className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs font-mono outline-none border border-slate-700 focus:border-[#D4AF37]"
+                          />
+                        ) : (
+                          <p className="text-slate-300 line-clamp-3 font-mono">{scene.video_prompt}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
-                      <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Prompt de Video / Animación:</span>
-                      <p className="text-slate-300 line-clamp-3 font-mono">{scene.video_prompt}</p>
-                    </div>
-                  </div>
 
-                  {/* Guión de Locución */}
-                  <div className="bg-[#0B0D12] p-2.5 rounded-xl border border-slate-800/80 flex items-start gap-2">
-                    <MessageSquare className="w-3.5 h-3.5 text-[#F3E5AB] shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-slate-300 italic">"{scene.narration}"</p>
+                    {/* Guión de Locución */}
+                    <div className="bg-[#0B0D12] p-2.5 rounded-xl border border-slate-800/80 space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#F3E5AB]">
+                        <MessageSquare className="w-3 h-3" />
+                        <span>Locución / Narration (Español):</span>
+                      </div>
+                      {isEditing ? (
+                        <textarea
+                          value={scene.narration}
+                          onChange={(e) => handleUpdateSceneField(idx, "narration", e.target.value)}
+                          rows={2}
+                          className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs italic outline-none border border-slate-700 focus:border-[#D4AF37]"
+                        />
+                      ) : (
+                        <p className="text-[11px] text-slate-300 italic">"{scene.narration}"</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
