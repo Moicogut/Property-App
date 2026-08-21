@@ -1,11 +1,29 @@
+export type PipelineType = 'VENTAS' | 'CAPTACIONES' | 'ALQUILERES';
+
+export type LeadType = 'BUYER' | 'SELLER_OWNER' | 'TENANT';
+
 export type PipelineStage =
+  // Embudo 1: Ventas (Compradores / Inversionistas)
   | 'NUEVO'
   | 'EN_CALIFICACION'
   | 'CALIFICADO_VISITA_PENDIENTE'
   | 'VISITA_AGENDADA'
   | 'VISITA_REALIZADA'
   | 'EN_NEGOCIACION'
-  | 'CERRADO';
+  | 'CERRADO'
+  // Embudo 2: Captación de Inmuebles (Propietarios)
+  | 'PROSPECTO_PROPIETARIO'
+  | 'EVALUACION_INMUEBLE'
+  | 'ACM_ESTUDIO_MERCADO'
+  | 'AUDITORIA_DOCUMENTAL'
+  | 'CONTRATO_CONSIGNACION'
+  | 'INMUEBLE_CAPTADO'
+  // Embudo 3: Alquileres / Rentas
+  | 'SOLICITUD_RENTA'
+  | 'PERFILAMIENTO_INGRESOS'
+  | 'VISITA_RENTA'
+  | 'REVISION_GARANTIAS'
+  | 'CONTRATO_RENTA_FIRMADO';
 
 /** Roles de usuario en el sistema multi-tenant */
 export type UserRole = 'superadmin' | 'agency_admin' | 'agent';
@@ -98,6 +116,8 @@ export interface Lead {
   phoneNumber: string;
   fullName: string;
   pipelineStage: PipelineStage;
+  pipelineType?: PipelineType;
+  leadType?: LeadType;
   sourceChannel?: string;
   budgetMaxUsd: number;
   paymentMethod: PaymentMethod;

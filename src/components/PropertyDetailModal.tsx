@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, MapPin, Bed, Bath, Maximize, Phone, MessageSquare, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { X, MapPin, Bed, Bath, Maximize, Phone, MessageSquare, ChevronLeft, ChevronRight, Sparkles, Calculator } from 'lucide-react';
 import { getSafeImageUrl, getSafeImageArray } from '../utils/imageHelper';
+import { MortgageCalculatorModal } from './modals/MortgageCalculatorModal';
 
 interface Property {
   id: string;
@@ -29,6 +30,8 @@ interface Props {
 
 export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpenSofia }) => {
   if (!property) return null;
+
+  const [showCalculatorModal, setShowCalculatorModal] = useState(false);
 
   // Colección de imágenes (prioriza el arreglo images o image_url)
   const safeCoverUrl = getSafeImageUrl(property);
@@ -169,6 +172,15 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
 
           {/* BOTONES DE ACCIÓN & ASISTENCIA DE SOFÍA */}
           <div className="space-y-3 pt-4 border-t border-slate-800">
+            {/* Botón de Cotización Financiera & Amortización */}
+            <button
+              onClick={() => setShowCalculatorModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 text-teal-300 rounded-xl text-xs font-bold transition shadow-sm"
+            >
+              <Calculator className="w-4 h-4 text-teal-400" />
+              <span>📊 Simular Crédito & Tabla de Amortización</span>
+            </button>
+
             {onOpenSofia && (
               <button
                 onClick={() => {
@@ -194,6 +206,27 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
           </div>
         </div>
       </div>
+
+      {showCalculatorModal && (
+        <MortgageCalculatorModal
+          isOpen={showCalculatorModal}
+          onClose={() => setShowCalculatorModal(false)}
+          property={{
+            id: property.id,
+            organizationId: 'org-1',
+            title: property.title,
+            city: property.city || 'Santa Cruz',
+            zone: property.zone || 'Equipetrol',
+            priceUsd: price,
+            bedrooms: property.bedrooms,
+            bathrooms: property.bathrooms,
+            areaSqm: area,
+            acceptsSocialHousing: true,
+            status: 'AVAILABLE',
+            rawDescription: description,
+          }}
+        />
+      )}
     </div>
   );
 };

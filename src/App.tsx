@@ -44,6 +44,7 @@ import { AppHeader } from "@/src/components/layout/AppHeader";
 import { KanbanBoard } from "@/src/components/kanban/KanbanBoard";
 import { LandingPage } from "@/src/components/LandingPage";
 import { SaveToast } from "@/src/components/SaveToast";
+import { BotSimulatorView } from "@/src/components/simulator/BotSimulatorView";
 
 import { supabase } from "@/src/lib/supabase";
 
@@ -60,6 +61,14 @@ const loadDataFromSupabase = async (
       phoneNumber: l.phone_number,
       fullName: l.full_name,
       pipelineStage: l.pipeline_stage,
+      pipelineType: l.pipeline_type || (
+        l.pipeline_stage?.startsWith('PROSPECTO_') || l.pipeline_stage?.startsWith('EVALUACION_') || l.pipeline_stage?.startsWith('ACM_') || l.pipeline_stage?.startsWith('AUDITORIA_') || l.pipeline_stage?.startsWith('CONTRATO_CONSIGNACION') || l.pipeline_stage?.startsWith('INMUEBLE_CAPTADO') ? 'CAPTACIONES' :
+        l.pipeline_stage?.startsWith('SOLICITUD_') || l.pipeline_stage?.startsWith('PERFILAMIENTO_') || l.pipeline_stage?.startsWith('VISITA_RENTA') || l.pipeline_stage?.startsWith('REVISION_GARANTIAS') || l.pipeline_stage?.startsWith('CONTRATO_RENTA') ? 'ALQUILERES' : 'VENTAS'
+      ),
+      leadType: l.lead_type || (
+        l.pipeline_stage?.startsWith('PROSPECTO_') ? 'SELLER_OWNER' :
+        l.pipeline_stage?.startsWith('SOLICITUD_') ? 'TENANT' : 'BUYER'
+      ),
       budgetMaxUsd: l.bant_score?.budget || Number(l.budget_max_usd) || 0,
       paymentMethod: l.payment_method,
       hasDownPayment: l.has_down_payment ?? false,
@@ -131,7 +140,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState("");
 
   // ── Tabs de navegación ──────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat">("pipeline");
+  const [activeTab, setActiveTab] = useState<"pipeline" | "rag" | "dashboard" | "chat" | "simulator">("pipeline");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -168,6 +177,14 @@ export default function App() {
           phoneNumber: l.phone_number,
           fullName: l.full_name,
           pipelineStage: l.pipeline_stage,
+          pipelineType: l.pipeline_type || (
+            l.pipeline_stage?.startsWith('PROSPECTO_') || l.pipeline_stage?.startsWith('EVALUACION_') || l.pipeline_stage?.startsWith('ACM_') || l.pipeline_stage?.startsWith('AUDITORIA_') || l.pipeline_stage?.startsWith('CONTRATO_CONSIGNACION') || l.pipeline_stage?.startsWith('INMUEBLE_CAPTADO') ? 'CAPTACIONES' :
+            l.pipeline_stage?.startsWith('SOLICITUD_') || l.pipeline_stage?.startsWith('PERFILAMIENTO_') || l.pipeline_stage?.startsWith('VISITA_RENTA') || l.pipeline_stage?.startsWith('REVISION_GARANTIAS') || l.pipeline_stage?.startsWith('CONTRATO_RENTA') ? 'ALQUILERES' : 'VENTAS'
+          ),
+          leadType: l.lead_type || (
+            l.pipeline_stage?.startsWith('PROSPECTO_') ? 'SELLER_OWNER' :
+            l.pipeline_stage?.startsWith('SOLICITUD_') ? 'TENANT' : 'BUYER'
+          ),
           budgetMaxUsd: l.bant_score?.budget || Number(l.budget_max_usd) || 0,
           paymentMethod: l.payment_method,
           hasDownPayment: l.has_down_payment ?? false,
@@ -580,6 +597,18 @@ export default function App() {
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Central Chat</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab("simulator")}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "simulator"
+                ? "bg-emerald-500 text-slate-950 shadow"
+                : "text-slate-400 hover:text-white hover:bg-slate-800"
+            }`}
+          >
+            <Bot className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Simulador IA (Sandbox)</span>
+          </button>
         </div>
 
         {/* Quick VIS Toggle Filter */}
@@ -711,6 +740,11 @@ export default function App() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* VIEW 5: BOT SIMULATOR & PLAYGROUND */}
+        {activeTab === "simulator" && (
+          <BotSimulatorView properties={properties} />
         )}
 
       </main>
