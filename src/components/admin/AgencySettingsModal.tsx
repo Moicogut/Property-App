@@ -69,8 +69,8 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
 
       if (data) {
         setAgencyName(data.name || "Mi Inmobiliaria");
-        setPrimaryCity(data.primary_city || "Santa Cruz");
-        setWhatsappInstance(data.whatsapp_instance_id || "PropertyOS-Main");
+        setPrimaryCity(data.ai_config?.primary_city || data.primary_city || "Santa Cruz");
+        setWhatsappInstance(data.whatsapp_instance_id || "ALFACONTINENTAL-CBA");
         if (data.ai_config) {
           setSofiaTone(data.ai_config.tone || "PROFESSIONAL_WARM");
           setSofiaCustomRules(data.ai_config.systemRules || "");
@@ -176,33 +176,33 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-auto animate-in zoom-in-95">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+      <div className="bg-[#111622] rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-800 space-y-4 my-auto animate-in zoom-in-95 font-sans">
         
         {/* Header */}
-        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 font-bold">
+            <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] font-bold">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Panel de Administración de Inmobiliaria</h3>
-              <p className="text-xs text-slate-500">Gestión de equipo, branding y parámetros de Sofía IA</p>
+              <h3 className="text-base font-black text-white">Panel de Administración de Inmobiliaria</h3>
+              <p className="text-xs text-slate-400 font-medium">Gestión de equipo, branding y parámetros de Sofía IA</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 border-b border-slate-100 pb-2 text-xs font-bold">
+        <div className="flex gap-2 border-b border-slate-800 pb-2 text-xs font-bold">
           <button
             onClick={() => setActiveTab("agency")}
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "agency"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                ? "bg-[#D4AF37] text-slate-950 font-black shadow-md shadow-[#D4AF37]/20"
+                : "bg-[#090D16] text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800"
             }`}
           >
             <Building2 className="w-3.5 h-3.5" />
@@ -210,10 +210,10 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab("team")}
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "team"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                ? "bg-[#D4AF37] text-slate-950 font-black shadow-md shadow-[#D4AF37]/20"
+                : "bg-[#090D16] text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800"
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -221,60 +221,61 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab("sofia")}
-            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === "sofia"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                ? "bg-[#D4AF37] text-slate-950 font-black shadow-md shadow-[#D4AF37]/20"
+                : "bg-[#090D16] text-slate-400 hover:text-white hover:bg-slate-800/80 border border-slate-800"
             }`}
           >
-            <Bot className="w-3.5 h-3.5 text-emerald-500" />
+            <Bot className="w-3.5 h-3.5 text-emerald-400" />
             <span>Personalización Sofía IA</span>
           </button>
         </div>
 
         {message && (
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 text-center">
+          <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-300 text-center">
             {message}
           </div>
         )}
 
         {/* Tab 1: Perfil Agencia */}
         {activeTab === "agency" && (
-          <form onSubmit={handleSaveAgency} className="space-y-3.5 text-xs">
+          <form onSubmit={handleSaveAgency} className="space-y-4 text-xs">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Nombre Comercial de la Inmobiliaria</label>
+              <label className="block font-bold text-slate-300 mb-1">Nombre Comercial de la Inmobiliaria</label>
               <input
                 type="text"
                 required
                 value={agencyName}
                 onChange={(e) => setAgencyName(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 font-bold text-slate-900"
+                className="w-full border border-slate-800 rounded-xl p-3 outline-none focus:border-[#D4AF37] bg-[#090D16] font-bold text-white placeholder:text-slate-600"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Ciudad Principal</label>
+                <label className="block font-bold text-slate-300 mb-1">Ciudad Principal</label>
                 <select
                   value={primaryCity}
                   onChange={(e) => setPrimaryCity(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+                  className="w-full border border-slate-800 rounded-xl p-3 outline-none focus:border-[#D4AF37] bg-[#090D16] text-white font-bold cursor-pointer"
                 >
-                  <option value="Santa Cruz">Santa Cruz de la Sierra</option>
-                  <option value="La Paz">La Paz</option>
-                  <option value="Cochabamba">Cochabamba</option>
-                  <option value="Tarija">Tarija</option>
+                  <option value="Santa Cruz" className="bg-[#111622] text-white py-1">Santa Cruz de la Sierra</option>
+                  <option value="La Paz" className="bg-[#111622] text-white py-1">La Paz</option>
+                  <option value="Cochabamba" className="bg-[#111622] text-white py-1">Cochabamba</option>
+                  <option value="Tarija" className="bg-[#111622] text-white py-1">Tarija</option>
+                  <option value="Sucre" className="bg-[#111622] text-white py-1">Sucre</option>
                 </select>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Instancia WhatsApp (Evolution API)</label>
+                <label className="block font-bold text-slate-300 mb-1">Instancia WhatsApp (Evolution API)</label>
                 <input
                   type="text"
                   value={whatsappInstance}
                   onChange={(e) => setWhatsappInstance(e.target.value)}
-                  placeholder="ej. PropertyOS-Main"
-                  className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+                  placeholder="ej. ALFACONTINENTAL-CBA"
+                  className="w-full border border-slate-800 rounded-xl p-3 outline-none focus:border-[#D4AF37] bg-[#090D16] text-white font-mono placeholder:text-slate-600"
                 />
               </div>
             </div>
@@ -283,9 +284,9 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-md disabled:opacity-50"
+                className="px-6 py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] hover:brightness-110 text-slate-950 font-black rounded-xl flex items-center gap-1.5 shadow-lg shadow-[#D4AF37]/20 disabled:opacity-50 cursor-pointer"
               >
-                <Save className="w-4 h-4 text-emerald-400" />
+                <Save className="w-4 h-4 text-slate-950" />
                 <span>{isSaving ? "Guardando..." : "Guardar Cambios"}</span>
               </button>
             </div>
@@ -296,16 +297,16 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
         {activeTab === "team" && (
           <div className="space-y-4 text-xs">
             {/* Formulario Añadir Asesor */}
-            <form onSubmit={handleAddAgent} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-              <span className="font-bold text-slate-800 block">Invitar Nuevo Asesor al Panel</span>
-              <div className="grid grid-cols-2 gap-2">
+            <form onSubmit={handleAddAgent} className="p-4 bg-[#090D16] rounded-xl border border-slate-800 space-y-3">
+              <span className="font-black text-white block">Invitar Nuevo Asesor al Panel</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
                   type="text"
                   required
                   placeholder="Nombre y Apellido"
                   value={newAgentName}
                   onChange={(e) => setNewAgentName(e.target.value)}
-                  className="border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  className="border border-slate-800 rounded-lg p-2.5 outline-none focus:border-[#D4AF37] bg-[#111622] text-white placeholder:text-slate-500"
                 />
                 <input
                   type="email"
@@ -313,14 +314,14 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
                   placeholder="correo@inmobiliaria.com"
                   value={newAgentEmail}
                   onChange={(e) => setNewAgentEmail(e.target.value)}
-                  className="border border-slate-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                  className="border border-slate-800 rounded-lg p-2.5 outline-none focus:border-[#D4AF37] bg-[#111622] text-white placeholder:text-slate-500"
                 />
               </div>
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
                   disabled={isAddingAgent}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg flex items-center gap-1 shadow-xs disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center gap-1 shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>{isAddingAgent ? "Añadiendo..." : "Añadir Asesor"}</span>
@@ -329,15 +330,15 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
             </form>
 
             {/* Listado de Miembros */}
-            <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+            <div className="divide-y divide-slate-800/80 max-h-56 overflow-y-auto custom-scrollbar">
               {teamMembers.map((member) => (
-                <div key={member.id} className="py-2.5 flex items-center justify-between">
+                <div key={member.id} className="py-3 flex items-center justify-between">
                   <div>
-                    <div className="font-bold text-slate-900">{member.fullName}</div>
+                    <div className="font-bold text-slate-100">{member.fullName}</div>
                     <div className="text-[11px] text-slate-400">{member.email} · Registrado {member.createdAt}</div>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
-                    member.role === 'agency_admin' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'
+                    member.role === 'agency_admin' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                   }`}>
                     {member.role === 'agency_admin' ? 'Director' : 'Asesor Inmobiliario'}
                   </span>
@@ -349,28 +350,28 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
 
         {/* Tab 3: Personalización Sofía IA */}
         {activeTab === "sofia" && (
-          <form onSubmit={handleSaveAgency} className="space-y-3.5 text-xs">
+          <form onSubmit={handleSaveAgency} className="space-y-4 text-xs">
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Tono y Personalidad de Sofía IA</label>
+              <label className="block font-bold text-slate-300 mb-1">Tono y Personalidad de Sofía IA</label>
               <select
                 value={sofiaTone}
                 onChange={(e) => setSofiaTone(e.target.value)}
-                className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 font-bold"
+                className="w-full border border-slate-800 rounded-xl p-3 outline-none focus:border-[#D4AF37] bg-[#090D16] font-bold text-white cursor-pointer"
               >
-                <option value="PROFESSIONAL_WARM">🌟 Profesional, Cálido & Consultivo (Recomendado)</option>
-                <option value="EXECUTIVE_CONCISE">👔 Ejecutivo & Conciso (Alta Gama / Inversionistas)</option>
-                <option value="ENTHUSIASTIC_CLOSER">🔥 Entusiasta, Dinámico y Proactivo al Cierre</option>
+                <option value="PROFESSIONAL_WARM" className="bg-[#111622] text-white">🌟 Profesional, Cálido & Consultivo (Recomendado)</option>
+                <option value="EXECUTIVE_CONCISE" className="bg-[#111622] text-white">👔 Ejecutivo & Conciso (Alta Gama / Inversionistas)</option>
+                <option value="ENTHUSIASTIC_CLOSER" className="bg-[#111622] text-white">🔥 Entusiasta, Dinámico y Proactivo al Cierre</option>
               </select>
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 mb-1">Reglas Especiales de la Agencia para Sofía</label>
+              <label className="block font-bold text-slate-300 mb-1">Reglas Especiales de la Agencia para Sofía</label>
               <textarea
                 rows={4}
                 value={sofiaCustomRules}
                 onChange={(e) => setSofiaCustomRules(e.target.value)}
-                placeholder="ej. Indicar que la oficina central está en Equipetrol Calle 8; recordar a los clientes que los precios son negociables..."
-                className="w-full border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 text-xs"
+                placeholder="ej. Indicar que la oficina central está en Cochabamba Av. América; recordar que los precios en dólares son conversibles a Bs al tipo oficial..."
+                className="w-full border border-slate-800 rounded-xl p-3 outline-none focus:border-[#D4AF37] bg-[#090D16] text-xs text-white placeholder:text-slate-600"
               />
               <p className="text-[10px] text-slate-400 mt-1">Estas instrucciones se inyectan automáticamente en el System Prompt de Sofía para esta agencia.</p>
             </div>
@@ -379,9 +380,9 @@ export const AgencySettingsModal: React.FC<AgencySettingsModalProps> = ({
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-md disabled:opacity-50"
+                className="px-6 py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] hover:brightness-110 text-slate-950 font-black rounded-xl flex items-center gap-1.5 shadow-lg shadow-[#D4AF37]/20 disabled:opacity-50 cursor-pointer"
               >
-                <Save className="w-4 h-4 text-emerald-400" />
+                <Save className="w-4 h-4 text-slate-950" />
                 <span>{isSaving ? "Guardando..." : "Guardar Personalización IA"}</span>
               </button>
             </div>
