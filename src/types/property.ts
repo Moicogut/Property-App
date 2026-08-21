@@ -135,6 +135,7 @@ export interface Lead {
   aiPaused: boolean;
   intentScore: number; // e.g. 95 (Hot Lead)
   bantScore?: BantScore;
+  appointmentDate?: string;
   createdAt: string;
 }
 

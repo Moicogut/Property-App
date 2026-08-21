@@ -76,7 +76,7 @@ export const PropertyDetailModal: React.FC<Props> = ({ property, onClose, onOpen
               src={gallery[currentImgIndex]}
               alt={property.title}
               className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).src = defaultImage; }}
+              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80'; }}
             />
             
             {/* Controles del Carrusel */}

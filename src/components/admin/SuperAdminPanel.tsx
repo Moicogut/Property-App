@@ -22,7 +22,8 @@ import {
   Save,
   Trash2,
   Check,
-  X
+  X,
+  Sparkles
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
 import { signOut, SUPERADMIN_EMAIL } from "@/src/lib/auth";
