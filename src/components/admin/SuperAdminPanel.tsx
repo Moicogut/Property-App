@@ -380,7 +380,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">URL del Webhook (Evolution API → Property OS)</p>
                 <div className="bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 font-mono text-xs text-emerald-400 flex justify-between items-center">
-                  <span>https://property-app-chi.vercel.app/api/whatsapp/webhook</span>
+                  <span>https://property-app-ashen.vercel.app/api/whatsapp/webhook</span>
                   <span className="text-slate-600 text-[10px]">POST</span>
                 </div>
               </div>

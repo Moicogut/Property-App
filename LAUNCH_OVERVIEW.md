@@ -3,7 +3,7 @@
 **Fecha:** 21 de Agosto de 2026  
 **Responsable:** Director de Producto & Arquitectura (.agents)  
 **Estado:** Desplegado a Producción en Vercel (Commit `618da7a`)  
-**URL de Producción:** [https://property-app-chi.vercel.app](https://property-app-chi.vercel.app)
+**URL de Producción:** [https://property-app-ashen.vercel.app](https://property-app-ashen.vercel.app)
 
 ---
 
