@@ -57,38 +57,35 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
   const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [activeOptions, setActiveOptions] = useState<Property[]>([]);
+  const [focusedProperty, setFocusedProperty] = useState<Property | null>(initialProperty || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Inicialización de conversación cuando se abre el modal
+  // Inicialización de conversación cuando se monta el modal
   useEffect(() => {
-    if (isOpen) {
-      const welcomeText = initialProperty
-        ? `¡Hola! Soy Sofía, tu asesora inmobiliaria de Property OS. Veo que te interesa "${initialProperty.title}" en ${initialProperty.zone || initialProperty.city || 'Bolivia'}. ¿Deseas consultar sobre planes de financiamiento, crédito de vivienda social (VIS) o agendar una visita guiada?`
-        : `¡Hola! Soy Sofía, asesora inmobiliaria con IA de Property OS. Te ayudo a encontrar tu casa, departamento o inversión ideal en el Eje Troncal de Bolivia (Santa Cruz, La Paz, Cochabamba). ¿Qué tipo de propiedad o presupuesto tienes en mente?`;
+    setFocusedProperty(initialProperty || null);
+    const welcomeText = initialProperty
+      ? `¡Hola! Soy Sofía, tu asesora inmobiliaria de Property OS. Veo que te interesa "${initialProperty.title}" en ${initialProperty.zone || initialProperty.city || 'Bolivia'}. ¿Deseas consultar sobre planes de financiamiento, crédito de vivienda social (VIS) o agendar una visita guiada?`
+      : `¡Hola! Soy Sofía, asesora inmobiliaria con IA de Property OS. Te ayudo a encontrar tu casa, departamento o inversión ideal en el Eje Troncal de Bolivia (Santa Cruz, La Paz, Cochabamba). ¿Qué tipo de propiedad o presupuesto tienes en mente?`;
 
-      setMessages([
-        {
-          id: 'welcome-1',
-          sender: 'sofia',
-          text: welcomeText,
-          timestamp: new Date(),
-          suggestedProperties: initialProperty ? [initialProperty] : undefined,
-        },
-      ]);
-      setLeadSubmitted(false);
-      setShowLeadForm(false);
-    }
-  }, [isOpen, initialProperty]);
+    setMessages([
+      {
+        id: 'welcome-1',
+        sender: 'sofia',
+        text: welcomeText,
+        timestamp: new Date(),
+        suggestedProperties: initialProperty ? [initialProperty] : undefined,
+      },
+    ]);
+    setLeadSubmitted(false);
+    setShowLeadForm(false);
+  }, [initialProperty]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
 
   if (!isOpen) return null;
-
-  // Lógica de respuesta inteligente y contextual
-  const [activeOptions, setActiveOptions] = useState<Property[]>([]);
-  const [focusedProperty, setFocusedProperty] = useState<Property | null>(initialProperty || null);
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

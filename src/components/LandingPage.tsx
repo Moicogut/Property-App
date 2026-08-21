@@ -217,12 +217,14 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
       />
 
       {/* MODAL DE CHAT CONCIERGE SOFÍA IA */}
-      <SofiaPublicChatModal
-        isOpen={isSofiaModalOpen}
-        onClose={() => setIsSofiaModalOpen(false)}
-        properties={properties}
-        initialProperty={sofiaContextProperty}
-      />
+      {isSofiaModalOpen && (
+        <SofiaPublicChatModal
+          isOpen={isSofiaModalOpen}
+          onClose={() => setIsSofiaModalOpen(false)}
+          properties={properties}
+          initialProperty={sofiaContextProperty}
+        />
+      )}
     </div>
   );
 };
