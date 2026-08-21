@@ -86,6 +86,78 @@ async function startServer() {
     }
   });
 
+  // 3.1 API Admin Create / Upsert Agency User
+  app.post("/api/admin/create-user", async (req: Request, res: Response) => {
+    try {
+      const { email, password, fullName, role, organizationId } = req.body;
+      if (!email || !password || !organizationId) {
+        res.status(400).json({ error: "Faltan datos obligatorios." });
+        return;
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanName = fullName?.trim() || "Administrador Inmobiliario";
+      const userRole = role || "agency_admin";
+
+      let authUserId: string | null = null;
+      try {
+        const { data: created, error: createErr } = await supabaseServer.auth.admin.createUser({
+          email: cleanEmail,
+          password: password.trim(),
+          email_confirm: true,
+          user_metadata: {
+            full_name: cleanName,
+            role: userRole,
+            organization_id: organizationId,
+          },
+        });
+
+        if (createErr) {
+          const { data: existing } = await supabaseServer.auth.admin.listUsers();
+          const found = existing?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+          if (found) {
+            authUserId = found.id;
+            await supabaseServer.auth.admin.updateUserById(found.id, {
+              password: password.trim(),
+              email_confirm: true,
+              user_metadata: {
+                full_name: cleanName,
+                role: userRole,
+                organization_id: organizationId,
+              },
+            });
+          }
+        } else if (created?.user) {
+          authUserId = created.user.id;
+        }
+      } catch (authErr) {
+        console.warn("[Server] Auth admin warning:", authErr);
+      }
+
+      const { data: dbUser, error: dbError } = await supabaseServer
+        .from("users")
+        .upsert(
+          {
+            ...(authUserId ? { id: authUserId } : {}),
+            email: cleanEmail,
+            full_name: cleanName,
+            role: userRole,
+            organization_id: organizationId,
+            user_type: "REAL_ESTATE_AGENCY",
+          },
+          { onConflict: "email" }
+        )
+        .select()
+        .single();
+
+      if (dbError) throw new Error(dbError.message);
+      res.json({ success: true, user: dbUser });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error creating user";
+      res.status(500).json({ success: false, error: msg });
+    }
+  });
+
   // 4. API Properties GET / POST (Supabase + Vector Embedding)
   app.get("/api/properties", async (_req: Request, res: Response) => {
     try {

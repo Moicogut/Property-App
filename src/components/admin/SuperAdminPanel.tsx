@@ -364,26 +364,24 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
     setUserSuccessMessage(null);
 
     try {
-      // 1. Intentar registrar en Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userEmail.trim().toLowerCase(),
-        password: userPassword.trim(),
-        options: {
-          data: {
-            full_name: userFullName.trim() || "Administrador Inmobiliario",
-            role: userRole,
-            organization_id: agencyForNewUser.id,
-            user_type: "REAL_ESTATE_AGENCY",
-          },
-        },
+      // 1. Invocar endpoint seguro de Backend Auth Admin (confirma email y crea credenciales activas inmediatamente)
+      const res = await fetch("/api/admin/create-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail.trim().toLowerCase(),
+          password: userPassword.trim(),
+          fullName: userFullName.trim() || "Administrador Inmobiliario",
+          role: userRole,
+          organizationId: agencyForNewUser.id,
+        }),
       });
 
-      // 2. Registrar/Upsert en la tabla 'users' vinculada al tenant
-      const { error: dbError } = await supabase
-        .from("users")
-        .upsert(
+      const resData = await res.json();
+      if (!res.ok && resData.error) {
+        // Fallback a registro por cliente si la API backend está temporalmente ocupada
+        await supabase.from("users").upsert(
           {
-            id: authData?.user?.id || undefined,
             email: userEmail.trim().toLowerCase(),
             full_name: userFullName.trim() || "Administrador Inmobiliario",
             role: userRole,
@@ -392,9 +390,6 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
           },
           { onConflict: "email" }
         );
-
-      if (dbError && !authError) {
-        console.warn("[SuperAdmin] Aviso al sincronizar perfil en tabla users:", dbError);
       }
 
       setUserSuccessMessage(

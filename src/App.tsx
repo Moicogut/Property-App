@@ -179,18 +179,24 @@ export default function App() {
   // Responsive State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Función de carga dinámica de Leads desde Supabase
-  const loadLeadsFromSupabase = async () => {
+  // Función de carga dinámica de Leads desde Supabase con aislamiento Multi-Tenant
+  const loadLeadsFromSupabase = async (orgId?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("leads")
-        .select("*, matchedProperty:properties(*)")
+        .select("*, matchedProperty:properties(*), appointments(*)")
         .order("created_at", { ascending: false });
 
-      if (!error && data && data.length > 0) {
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await query;
+
+      if (!error && data) {
         const mappedLeads: Lead[] = data.map((l: any) => ({
           id: l.id,
-          organizationId: l.organization_id || "org-1",
+          organizationId: l.organization_id || orgId || "org-1",
           phoneNumber: l.phone_number,
           fullName: l.full_name,
           pipelineStage: l.pipeline_stage,
@@ -237,32 +243,40 @@ export default function App() {
             score: Number(l.bant_score.score || 0)
           } : undefined,
           createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          appointmentDate: l.appointments && l.appointments.length > 0 ? l.appointments[0].appointment_date : undefined,
         }));
         setLeads(mappedLeads);
+      } else {
+        setLeads([]);
       }
     } catch (e) {
       console.warn("[App] Error cargando leads desde Supabase DB:", e);
+      setLeads([]);
     }
   };
 
-  // Función de carga dinámica de Propiedades desde Supabase
-  const loadPropertiesFromSupabase = async () => {
+  // Función de carga dinámica de Propiedades desde Supabase con filtro Multi-Tenant
+  const loadPropertiesFromSupabase = async (orgId?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("properties")
-        .select("*")
+        .select("*, legalAudit:property_legal_audit(*)")
         .order("id", { ascending: false });
 
+      if (orgId) {
+        query = query.eq("organization_id", orgId);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
-        // Exponer el error completo para diagnóstico en Vercel Logs / DevTools
         console.error("[App] Supabase error cargando properties:", JSON.stringify(error));
         return;
       }
 
-      // Actualizar siempre el estado (incluso si data=[] para limpiar el seed inicial)
       const mappedProps: Property[] = (data ?? []).map((p: any) => ({
         id: p.id,
-        organizationId: p.organization_id || "org-1",
+        organizationId: p.organization_id || orgId || "org-1",
         title: p.title,
         city: p.city,
         zone: p.zone,
@@ -277,31 +291,38 @@ export default function App() {
         images: p.images,
         vectorIndexed: true,
         vectorDimensions: 1536,
+        legalAudit: p.legalAudit && p.legalAudit.length > 0 ? {
+          id: p.legalAudit[0].id,
+          propertyId: p.legalAudit[0].property_id,
+          city: p.legalAudit[0].city,
+          folioRealStatus: p.legalAudit[0].folio_real_status || 'PENDIENTE',
+          taxStatus: p.legalAudit[0].tax_status || 'PENDIENTE',
+          cadastralStatus: p.legalAudit[0].cadastral_status || 'PENDIENTE',
+          globalLegalScore: p.legalAudit[0].global_legal_score || 'ROJO',
+          notes: p.legalAudit[0].notes || '',
+          updatedAt: p.legalAudit[0].updated_at,
+        } : undefined,
       }));
-      console.log(`[App] ${mappedProps.length} propiedades cargadas desde Supabase.`);
       setProperties(mappedProps);
     } catch (e) {
       console.error("[App] Excepción cargando propiedades desde Supabase DB:", e);
+      setProperties([]);
     }
   };
 
   // Rehidratar sesión activa y configurar Supabase Realtime Subscription
   useEffect(() => {
-    // Las propiedades son datos públicos — cargar siempre, sin depender de sesión
-    loadPropertiesFromSupabase();
-
     getCurrentUser().then((user) => {
       setCurrentUser(user);
-      // 🔥 Forzar carga en modo test (incluso sin sesión)
-      loadDataFromSupabase(setLeads, setProperties);
+      loadPropertiesFromSupabase(user?.organizationId);
+      loadLeadsFromSupabase(user?.organizationId);
       setAuthLoading(false);
     });
 
     const unsubscribe = onAuthStateChange((user) => {
       setCurrentUser(user);
-      // 🔥 Forzar carga en modo test (incluso sin sesión)
-      loadDataFromSupabase(setLeads, setProperties);
-      loadPropertiesFromSupabase();
+      loadPropertiesFromSupabase(user?.organizationId);
+      loadLeadsFromSupabase(user?.organizationId);
       setAuthLoading(false);
     });
 
@@ -309,8 +330,7 @@ export default function App() {
     const channel = supabase
       .channel("realtime-leads-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, (_payload) => {
-        console.log("⚡ Supabase Realtime update detectado en tabla leads — recargando Kanban en vivo...");
-        loadLeadsFromSupabase();
+        loadLeadsFromSupabase(currentUser?.organizationId);
       })
       .subscribe();
 
@@ -319,6 +339,14 @@ export default function App() {
       supabase.removeChannel(channel);
     };
   }, []);
+
+  // Recargar datos cuando cambia la organización activa (Switch Tenant)
+  useEffect(() => {
+    if (currentUser?.organizationId) {
+      loadLeadsFromSupabase(currentUser.organizationId);
+      loadPropertiesFromSupabase(currentUser.organizationId);
+    }
+  }, [currentUser?.organizationId]);
 
   // Suscripción Realtime & Polling de alta fidelidad
   useEffect(() => {
