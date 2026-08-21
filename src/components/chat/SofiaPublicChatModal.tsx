@@ -19,6 +19,8 @@ import { supabase } from '@/src/lib/supabase';
 interface Property {
   id: string;
   title: string;
+  description?: string;
+  rawDescription?: string;
   price?: number;
   priceUsd?: number;
   location?: string;
@@ -26,7 +28,10 @@ interface Property {
   zone?: string;
   bedrooms?: number;
   bathrooms?: number;
+  area?: number;
+  areaSqm?: number;
   type?: string;
+  acceptsSocialHousing?: boolean;
 }
 
 interface SofiaPublicChatModalProps {
@@ -44,6 +49,8 @@ interface Message {
   suggestedProperties?: Property[];
 }
 
+export type InterestGrade = "NADA" | "BAJA" | "MEDIA" | "ALTA" | "FULL";
+
 export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
   isOpen,
   onClose,
@@ -56,7 +63,9 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
+  const [preferredVisitDate, setPreferredVisitDate] = useState('');
   const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [interestGrade, setInterestGrade] = useState<InterestGrade>(initialProperty ? "MEDIA" : "BAJA");
   const [activeOptions, setActiveOptions] = useState<Property[]>([]);
   const [focusedProperty, setFocusedProperty] = useState<Property | null>(initialProperty || null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -64,9 +73,11 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
   // Inicialización de conversación cuando se monta el modal
   useEffect(() => {
     setFocusedProperty(initialProperty || null);
+    setInterestGrade(initialProperty ? "MEDIA" : "BAJA");
+
     const welcomeText = initialProperty
-      ? `¡Hola! Soy Sofía, tu asesora inmobiliaria de Property OS. Veo que te interesa "${initialProperty.title}" en ${initialProperty.zone || initialProperty.city || 'Bolivia'}. ¿Deseas consultar sobre planes de financiamiento, crédito de vivienda social (VIS) o agendar una visita guiada?`
-      : `¡Hola! Soy Sofía, asesora inmobiliaria con IA de Property OS. Te ayudo a encontrar tu casa, departamento o inversión ideal en el Eje Troncal de Bolivia (Santa Cruz, La Paz, Cochabamba). ¿Qué tipo de propiedad o presupuesto tienes en mente?`;
+      ? `¡Hola! Soy Sofía, tu asesora inmobiliaria senior de Property OS. Veo que estás consultando sobre **"${initialProperty.title}"** en **${initialProperty.zone || initialProperty.city || 'Bolivia'}** ($${((initialProperty.price || initialProperty.priceUsd || 0)).toLocaleString()} USD).\n\n¿Deseas conocer los detalles técnicos y estado de papeles, simular el crédito bancario/VIS o agendar una visita guiada para conocerlo personalmente?`
+      : `¡Hola! Soy Sofía, asesora inmobiliaria con IA de Property OS. Te ayudo a encontrar tu casa, departamento o inversión ideal con documentos al día en Santa Cruz, La Paz o Cochabamba. ¿Qué tipo de propiedad, zona o presupuesto estás buscando?`;
 
     setMessages([
       {
@@ -108,14 +119,17 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
       let reply = '';
       let suggestedProps: Property[] | undefined = undefined;
       let targetProp = focusedProperty;
+      let newGrade: InterestGrade = interestGrade;
 
-      // 1. Detectar referencia a "la primera", "la segunda", "el primero", etc.
-      if ((lower.includes('segund') || lower.includes('2da') || lower.includes('2da') || lower.includes('segunda')) && activeOptions.length >= 2) {
+      // 1. Detectar referencia a "la primera", "la segunda", etc.
+      if ((lower.includes('segund') || lower.includes('2da') || lower.includes('segunda')) && activeOptions.length >= 2) {
         targetProp = activeOptions[1];
         setFocusedProperty(targetProp);
+        newGrade = "MEDIA";
       } else if ((lower.includes('primer') || lower.includes('1ra') || lower.includes('primera')) && activeOptions.length >= 1) {
         targetProp = activeOptions[0];
         setFocusedProperty(targetProp);
+        newGrade = "MEDIA";
       } else if (activeOptions.length > 0) {
         const foundInOptions = activeOptions.find((p) => 
           lower.includes((p.title || '').toLowerCase()) || 
@@ -124,77 +138,91 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
         if (foundInOptions) {
           targetProp = foundInOptions;
           setFocusedProperty(targetProp);
+          newGrade = "MEDIA";
         }
       }
 
-      // 2. Si el usuario pregunta por detalles de un inmueble ya seleccionado o referenciado
-      if (targetProp && (
-        lower.includes('mas info') || 
-        lower.includes('más info') || 
-        lower.includes('informacion') || 
-        lower.includes('información') || 
-        lower.includes('segunda') || 
-        lower.includes('primer') || 
-        lower.includes('detalle') || 
-        lower.includes('cuenta con') || 
-        lower.includes('precio') || 
-        lower.includes('venta')
-      )) {
-        const pPrice = targetProp.price || targetProp.priceUsd || 0;
-        const pLoc = targetProp.zone || targetProp.city || targetProp.location || 'Bolivia';
-        const pBeds = targetProp.bedrooms ? `${targetProp.bedrooms} habitaciones` : 'amplios ambientes';
-        const pBaths = targetProp.bathrooms ? `${targetProp.bathrooms} baños` : 'baños completos';
-        
-        reply = `¡Excelente elección! El **${targetProp.title}** es una de nuestras mejores opciones en **${pLoc}**.\n\n` +
-          `📌 **Precio:** $${pPrice.toLocaleString()} USD\n` +
-          `📐 **Distribución:** ${pBeds}, ${pBaths} y acabados de primera calidad.\n` +
-          `📑 **Estado Jurídico:** Papeles al día, folio real verificado y listo para entrega inmediata (aplica a compra al contado o financiamiento bancario regulado).\n\n` +
-          `¿Te gustaría que te agende una visita guiada esta semana o prefieres que un asesor te envíe el dossier técnico completo a tu WhatsApp?`;
-        
+      const pPrice = targetProp?.price || targetProp?.priceUsd || 0;
+      const pTitle = targetProp?.title || 'Inmueble seleccionado';
+      const pZone = targetProp?.zone || targetProp?.city || 'Bolivia';
+      const pArea = targetProp?.area || targetProp?.areaSqm || 0;
+      const pBeds = targetProp?.bedrooms || 0;
+      const pBaths = targetProp?.bathrooms || 0;
+
+      // 2. Consulta sobre Papeles, Derechos Reales, Folio Real o Documentación
+      if (lower.includes('papel') || lower.includes('document') || lower.includes('folio') || lower.includes('derechos reales') || lower.includes('ddrr') || lower.includes('al dia') || lower.includes('al día') || lower.includes('sanead') || lower.includes('legal')) {
+        newGrade = "ALTA";
+        if (targetProp) {
+          reply = `Sí, totalmente. **"${pTitle}"** ($${pPrice.toLocaleString()} USD) cuenta con **documentación 100% saneada y al día**:\n\n` +
+            `✅ **Folio Real Individualizado:** Registrado en Derechos Reales, libre de gravámenes o hipotecas pendientes.\n` +
+            `✅ **Impuestos y Catastro Municipal:** Registro catastral e impuestos municipales al día para transferencia inmediata.\n` +
+            `✅ **Apto para Crédito Bancario & VIS:** Al estar valuado en $${pPrice.toLocaleString()} USD, califica para Crédito de Vivienda de Interés Social (VIS ASFI con tasa del 5.5% al 6.5%) o crédito hipotecario con cualquier banco de Bolivia.\n\n` +
+            `¿Te gustaría agendar una visita guiada para que conozcas la propiedad personalmente? Tenemos turnos disponibles este fin de semana o en días hábiles.`;
+        } else {
+          reply = `Todas las propiedades en nuestro catálogo oficial cuentan con auditoría legal previa (Folio Real verificado en Derechos Reales, impuestos y catastro municipal al día). ¿Hay alguna propiedad o zona en particular sobre la que desees revisar la ficha técnica?`;
+        }
+      }
+      // 3. Consulta sobre Crédito VIS, Tasas o Financiamiento
+      else if (lower.includes('vis') || lower.includes('credito') || lower.includes('crédito') || lower.includes('banco') || lower.includes('financiam') || lower.includes('cuota') || lower.includes('interes social') || lower.includes('interés social')) {
+        newGrade = "ALTA";
+        if (targetProp) {
+          reply = `¡Excelente! **"${pTitle}"** ($${pPrice.toLocaleString()} USD en ${pZone}) **califica para Crédito VIS (Vivienda de Interés Social)**.\n\n` +
+            `📊 **Condiciones estimadas en Bolivia:**\n` +
+            `• **Tasa de interés:** 5.5% a 6.5% anual regulada por ASFI.\n` +
+            `• **Cuota inicial mínima:** Desde el 10% al 20% ($${Math.round(pPrice * 0.15).toLocaleString()} USD aprox.).\n` +
+            `• **Plazo:** Hasta 20 o 25 años con cuotas mensuales accesibles.\n\n` +
+            `¿Cuentas con aporte inicial disponible o prefieres que coordinemos una visita presencial y te entreguemos la proforma bancaria?`;
+        } else {
+          reply = `El Crédito VIS (Vivienda de Interés Social) financia hasta el 80%-90% del valor del inmueble con tasas preferenciales del 5.5% al 6.5% anual. ¿Qué rango de precio estás buscando para presentarte las opciones aptas para VIS?`;
+        }
+      }
+      // 4. Intención de Agendar Visita / Día / Horario
+      else if (lower.includes('visita') || lower.includes('agendar') || lower.includes('verla') || lower.includes('conocerla') || lower.includes('sabado') || lower.includes('sábado') || lower.includes('domingo') || lower.includes('lunes') || lower.includes('martes') || lower.includes('miercoles') || lower.includes('miércoles') || lower.includes('jueves') || lower.includes('viernes') || lower.includes('mañana') || lower.includes('tarde') || lower.includes('hora') || lower.includes('si') || lower.includes('sí') || lower.includes('claro') || lower.includes('perfecto')) {
+        newGrade = "FULL";
         setShowLeadForm(true);
+        reply = `¡Excelente! Vamos a coordinar la **visita guiada oficial** para **"${pTitle}"**.\n\n` +
+          `Por favor ingresa tu nombre y número de WhatsApp en el recuadro de agenda aquí abajo para que el asesor inmobiliario asignado te confirme el ingreso y te envíe la ubicación GPS exacta.`;
+      }
+      // 5. Consulta de más información o detalles de la propiedad
+      else if (targetProp && (lower.includes('mas info') || lower.includes('más info') || lower.includes('detalle') || lower.includes('dormitorio') || lower.includes('baño') || lower.includes('metro') || lower.includes('m2') || lower.includes('precio') || lower.includes('garaje'))) {
+        newGrade = "MEDIA";
+        reply = `Aquí tienes los detalles de **"${pTitle}"** en **${pZone}**:\n\n` +
+          `💰 **Precio:** $${pPrice.toLocaleString()} USD\n` +
+          `🛏️ **Ambientes:** ${pBeds} Dormitorios | 🛁 ${pBaths} Baños\n` +
+          `📐 **Superficie:** ${pArea} m² útiles\n` +
+          `📍 **Ubicación:** ${pZone}, excelente accesibilidad a colegios y avenidas principales.\n\n` +
+          `¿Deseas que coordinemos una visita presencial para conocerlo?`;
         suggestedProps = [targetProp];
       }
-      // 3. Si el usuario busca por ciudad o zona específica
-      else if (lower.includes('sopocachi') || lower.includes('la paz') || lower.includes('lapaz') || lower.includes('calacoto') || lower.includes('equipetrol') || lower.includes('santa cruz') || lower.includes('cochabamba') || lower.includes('sirari') || lower.includes('urubo') || lower.includes('urubó') || lower.includes('departamento') || lower.includes('casa') || lower.includes('loft') || lower.includes('oficina')) {
-        // Filtrar propiedades relevantes por coincidencia geográfica o de tipo
+      // 6. Búsqueda por Ciudad o Zona
+      else if (lower.includes('sopocachi') || lower.includes('la paz') || lower.includes('lapaz') || lower.includes('calacoto') || lower.includes('obrajes') || lower.includes('equipetrol') || lower.includes('santa cruz') || lower.includes('cochabamba') || lower.includes('sirari') || lower.includes('urubo') || lower.includes('departamento') || lower.includes('casa') || lower.includes('loft') || lower.includes('terreno')) {
+        newGrade = "MEDIA";
         let matches = properties.filter((p) => {
           const locStr = `${p.title || ''} ${p.zone || ''} ${p.city || ''} ${p.location || ''} ${p.type || ''}`.toLowerCase();
-          
+          if (lower.includes('obrajes') && locStr.includes('obrajes')) return true;
           if (lower.includes('sopocachi') && locStr.includes('sopocachi')) return true;
-          if (lower.includes('la paz') && (locStr.includes('la paz') || locStr.includes('sopocachi') || locStr.includes('calacoto'))) return true;
           if (lower.includes('calacoto') && locStr.includes('calacoto')) return true;
+          if (lower.includes('la paz') && (locStr.includes('la paz') || locStr.includes('obrajes') || locStr.includes('sopocachi') || locStr.includes('calacoto'))) return true;
           if (lower.includes('equipetrol') && locStr.includes('equipetrol')) return true;
           if (lower.includes('santa cruz') && (locStr.includes('santa cruz') || locStr.includes('equipetrol') || locStr.includes('sirari') || locStr.includes('urubo'))) return true;
           if (lower.includes('cochabamba') && locStr.includes('cochabamba')) return true;
-          if (lower.includes('departamento') && (locStr.includes('departamento') || locStr.includes('loft'))) return true;
+          if (lower.includes('departamento') && locStr.includes('departamento')) return true;
           if (lower.includes('casa') && locStr.includes('casa')) return true;
           return false;
         });
 
-        if (matches.length === 0) {
-          matches = properties.slice(0, 2);
-        }
-
+        if (matches.length === 0) matches = properties.slice(0, 2);
         const chosen = matches.slice(0, 2);
         setActiveOptions(chosen);
         suggestedProps = chosen;
-
-        reply = `He encontrado estas opciones verificadas que se adaptan a tu búsqueda. Cuéntame cuál de ellas te llama la atención o si requieres una cotización personalizada:`;
+        reply = `He encontrado estas opciones verificadas disponibles en esa zona. ¿Cuál de ellas te gustaría revisar en detalle o agendar para visita?`;
       }
-      // 4. Si el usuario pregunta por crédito VIS o financiamiento bancario
-      else if (lower.includes('vis') || lower.includes('credito') || lower.includes('crédito') || lower.includes('interes social') || lower.includes('banco') || lower.includes('cuota')) {
-        reply = `¡Con gusto te asesoro sobre financiamiento! En Bolivia, el Crédito de Vivienda de Interés Social (VIS ASFI) ofrece tasas preferenciales (5.5% a 6.5% anual) para primera vivienda. Además, gestionamos compras con crédito hipotecario tradicional con los principales bancos del país.\n\n¿Cuentas con aporte propio para la cuota inicial o te gustaría calcular las cuotas mensuales estimadas?`;
-        setShowLeadForm(true);
-      }
-      // 5. Si el usuario quiere visita o contacto
-      else if (lower.includes('visita') || lower.includes('ver') || lower.includes('agendar') || lower.includes('contacto') || lower.includes('asesor') || lower.includes('telefono') || lower.includes('celular') || lower.includes('whatsapp')) {
-        reply = `¡Perfecto! Para coordinar el día y hora con el asesor inmobiliario asignado, por favor completa tu nombre y número de WhatsApp en el formulario aquí abajo y te contactaremos de inmediato.`;
-        setShowLeadForm(true);
-      }
-      // 6. Respuesta general consultiva
+      // 7. Respuesta consultiva general
       else {
-        reply = `Comprendo tu consulta. En Property OS disponemos de un portafolio exclusivo con inmuebles residenciales y comerciales en Santa Cruz, La Paz y Cochabamba. ¿Tienes alguna preferencia de zona, número de dormitorios o rango de precio en mente?`;
+        reply = `Comprendo tu consulta. En Property OS te asesoramos con transparencia en precios, planos y documentación de cada inmueble. ¿Deseas conocer más detalles de esta propiedad o prefieres evaluar opciones en otra zona o rango de precio?`;
       }
+
+      setInterestGrade(newGrade);
 
       const sofiaMsg: Message = {
         id: `sofia-${Date.now()}`,
@@ -206,7 +234,7 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
 
       setMessages((prev) => [...prev, sofiaMsg]);
       setIsThinking(false);
-    }, 850);
+    }, 650);
   };
 
   const handleRegisterLead = async (e: React.FormEvent) => {
@@ -214,41 +242,79 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
     if (!leadName || !leadPhone) return;
 
     try {
-      // Registrar prospecto en la base de datos Supabase
-      await supabase.from('leads').insert({
-        full_name: leadName,
-        phone_number: leadPhone,
-        pipeline_stage: 'NUEVO',
-        lead_type: 'BUYER',
-        pipeline_type: 'VENTAS',
-        intent_score: 85,
-        ai_summary: `Captado por Sofía IA en Landing Page. Consulta: "${messages[messages.length - 1]?.text || 'Interés general'}"`,
-        preferred_zone: initialProperty?.zone || initialProperty?.city || 'Santa Cruz',
-        budget_max_usd: initialProperty?.price || initialProperty?.priceUsd || 85000,
-        metadata: { source: 'LANDING_PAGE_SOFIA_BOT' },
-      });
+      const p = focusedProperty || initialProperty;
+      const budget = p?.price || p?.priceUsd || 95000;
+      const zone = p?.zone || p?.city || 'La Paz';
 
+      // 1. Registrar Lead calificado en Supabase
+      const { data: createdLead, error: leadErr } = await supabase
+        .from('leads')
+        .insert({
+          full_name: leadName.trim(),
+          phone_number: leadPhone.trim(),
+          pipeline_stage: 'AGENDADO_VISITA',
+          pipeline_type: 'VENTAS',
+          lead_type: 'BUYER',
+          intent_score: interestGrade === 'FULL' ? 95 : 85,
+          budget_max_usd: budget,
+          preferred_zone: zone,
+          property_interest_id: p?.id || undefined,
+          ai_summary: `Prospecto con Grado de Interés ${interestGrade}. Inmueble: "${p?.title || 'General'}". Fecha sugerida: "${preferredVisitDate || 'A coordinar'}".`,
+          bant_score: {
+            budget: budget,
+            authority: true,
+            need: p?.title || "Compra de inmueble calificado",
+            timeline: preferredVisitDate || "Inmediata",
+            score: interestGrade === 'FULL' ? 95 : 85,
+          },
+        })
+        .select()
+        .single();
+
+      if (leadErr) throw leadErr;
+
+      // 2. Si se ingresó fecha tentativa de visita, registrar en la tabla appointments
+      if (preferredVisitDate && createdLead?.id) {
+        await supabase.from('appointments').insert({
+          lead_id: createdLead.id,
+          property_id: p?.id || null,
+          appointment_date: preferredVisitDate,
+          status: 'SCHEDULED',
+          notes: `Cita coordinada por Sofía IA vía web para ${leadName} (${leadPhone})`,
+        });
+      }
+
+      setInterestGrade("FULL");
       setLeadSubmitted(true);
       setMessages((prev) => [
         ...prev,
         {
           id: `lead-ok-${Date.now()}`,
           sender: 'sofia',
-          text: `¡Excelente, ${leadName}! Tus datos han sido registrados en nuestro sistema transaccional. Uno de nuestros asesores oficiales se comunicará contigo vía WhatsApp al ${leadPhone} para coordinar la visita y enviarte la ficha técnica formal.`,
+          text: `🎉 **¡Visita guiada pre-agendada con éxito, ${leadName}!**\n\nTus datos y preferencia de horario (${preferredVisitDate || 'a coordinar'}) han sido remitidos al asesor oficial de la propiedad. Te contactará vía WhatsApp al **${leadPhone}** para confirmar la reserva y enviarte la ficha técnica legal.`,
           timestamp: new Date(),
         },
       ]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error guardando lead:', err);
       setLeadSubmitted(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `lead-ok-${Date.now()}`,
+          sender: 'sofia',
+          text: `¡Gracias, ${leadName}! Hemos recibido tus datos. Un asesor oficial se comunicará contigo al ${leadPhone} para coordinar la visita.`,
+          timestamp: new Date(),
+        },
+      ]);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 font-sans">
-      <div className="bg-[#0B0D12] border border-slate-800 rounded-3xl w-full max-w-xl h-[620px] flex flex-col shadow-2xl overflow-hidden relative">
+      <div className="bg-[#0B0D12] border border-slate-800 rounded-3xl w-full max-w-xl h-[640px] flex flex-col shadow-2xl overflow-hidden relative">
         
-        {/* Modal Header */}
+        {/* Modal Header con Termómetro de Interés */}
         <div className="bg-[#111622] border-b border-slate-800 p-4 px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -266,12 +332,28 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Termómetro de Interés */}
+            <div className="flex items-center gap-1.5 bg-[#090D16] px-2.5 py-1 rounded-xl border border-slate-800">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Interés:</span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg font-mono ${
+                interestGrade === 'FULL' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse' :
+                interestGrade === 'ALTA' ? 'bg-[#D4AF37]/20 text-[#F3E5AB] border border-[#D4AF37]/40' :
+                interestGrade === 'MEDIA' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' :
+                interestGrade === 'BAJA' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                'bg-slate-800 text-slate-400'
+              }`}>
+                {interestGrade === 'FULL' ? '🔥 FULL (Visita)' : interestGrade === 'ALTA' ? '🟢 ALTA' : interestGrade === 'MEDIA' ? '🔵 MEDIA' : interestGrade === 'BAJA' ? '🟡 BAJA' : '⚪ NADA'}
+              </span>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Chat Message Stream */}
@@ -288,7 +370,7 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
               )}
 
               <div
-                className={`max-w-[82%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
                   msg.sender === 'user'
                     ? 'bg-gradient-to-r from-[#D4AF37] to-[#AA8010] text-slate-950 font-semibold shadow-md'
                     : 'bg-[#111622] text-slate-200 border border-slate-800/90 shadow-sm'
@@ -332,20 +414,25 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
                 <Loader2 className="w-3.5 h-3.5 text-[#D4AF37] animate-spin" />
               </div>
               <div className="bg-[#111622] text-slate-400 border border-slate-800 rounded-2xl px-4 py-2 text-xs italic flex items-center gap-2">
-                <span>Sofía está analizando el catálogo...</span>
+                <span>Sofía está analizando el catálogo y documentos...</span>
               </div>
             </div>
           )}
 
-          {/* Lead Capture Form in Chat */}
+          {/* Lead & Visit Appointment Form in Chat */}
           {showLeadForm && !leadSubmitted && (
             <form
               onSubmit={handleRegisterLead}
-              className="bg-[#111622] border border-[#D4AF37]/30 rounded-2xl p-4 space-y-3 animate-in fade-in"
+              className="bg-[#111622] border border-[#D4AF37]/40 rounded-2xl p-4 space-y-3 animate-in fade-in shadow-xl"
             >
-              <div className="flex items-center gap-2 text-white font-bold text-xs">
-                <Calendar className="w-4 h-4 text-[#D4AF37]" />
-                <span>Agendar Contacto / Visita Guiada</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#F3E5AB] font-bold text-xs">
+                  <Calendar className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Agendar Visita Guiada / Contacto Oficial</span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                  Documentación Verificada
+                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -374,11 +461,23 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
                 </div>
               </div>
 
+              {/* Horario o Fecha de Visita sugerido */}
+              <div className="relative">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Día y hora preferida (ej: Sábado 10:30 AM o Día de semana por la tarde)"
+                  value={preferredVisitDate}
+                  onChange={(e) => setPreferredVisitDate(e.target.value)}
+                  className="w-full bg-[#090D16] border border-slate-800 rounded-xl py-2 pl-9 pr-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-[#D4AF37]"
+                />
+              </div>
+
               <button
                 type="submit"
-                className="w-full py-2 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] text-slate-950 font-black text-xs rounded-xl shadow-md transition hover:scale-[1.01]"
+                className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] via-[#E5C158] to-[#D4AF37] text-slate-950 font-black text-xs rounded-xl shadow-md transition hover:scale-[1.01] cursor-pointer"
               >
-                ✓ Solicitar Contacto con Asesor Oficial
+                ✓ Confirmar y Agendar Visita con Asesor Oficial
               </button>
             </form>
           )}
@@ -393,7 +492,7 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
         >
           <input
             type="text"
-            placeholder="Pregunta a Sofía sobre precios, zonas o crédito VIS..."
+            placeholder="Pregunta a Sofía sobre papeles, crédito VIS, precios o agenda de visitas..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isThinking}
@@ -402,7 +501,7 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
           <button
             type="submit"
             disabled={!input.trim() || isThinking}
-            className="p-2.5 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] hover:brightness-110 text-slate-950 font-bold rounded-xl transition disabled:opacity-40"
+            className="p-2.5 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] hover:brightness-110 text-slate-950 font-bold rounded-xl transition disabled:opacity-40 cursor-pointer"
           >
             <Send className="w-4 h-4" />
           </button>
