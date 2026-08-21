@@ -49,104 +49,6 @@ import { AgencySettingsModal } from "@/src/components/admin/AgencySettingsModal"
 
 import { supabase } from "@/src/lib/supabase";
 
-const loadDataFromSupabase = async (
-  setLeads: React.Dispatch<React.SetStateAction<Lead[]>>,
-  setProperties: React.Dispatch<React.SetStateAction<Property[]>>
-) => {
-  const { data: leadsData, error: leadsErr } = await supabase.from('leads').select('*, matchedProperty:properties(*), appointments(*)').order('created_at', { ascending: false });
-  console.log("[App] leadsData:", leadsData, "error:", leadsErr);
-  if (leadsData) {
-    const mappedLeads: Lead[] = leadsData.map((l: any) => ({
-      id: l.id,
-      organizationId: l.organization_id || "org-1",
-      phoneNumber: l.phone_number,
-      fullName: l.full_name,
-      pipelineStage: l.pipeline_stage,
-      pipelineType: l.pipeline_type || (
-        l.pipeline_stage?.startsWith('PROSPECTO_') || l.pipeline_stage?.startsWith('EVALUACION_') || l.pipeline_stage?.startsWith('ACM_') || l.pipeline_stage?.startsWith('AUDITORIA_') || l.pipeline_stage?.startsWith('CONTRATO_CONSIGNACION') || l.pipeline_stage?.startsWith('INMUEBLE_CAPTADO') ? 'CAPTACIONES' :
-        l.pipeline_stage?.startsWith('SOLICITUD_') || l.pipeline_stage?.startsWith('PERFILAMIENTO_') || l.pipeline_stage?.startsWith('VISITA_RENTA') || l.pipeline_stage?.startsWith('REVISION_GARANTIAS') || l.pipeline_stage?.startsWith('CONTRATO_RENTA') ? 'ALQUILERES' : 'VENTAS'
-      ),
-      leadType: l.lead_type || (
-        l.pipeline_stage?.startsWith('PROSPECTO_') ? 'SELLER_OWNER' :
-        l.pipeline_stage?.startsWith('SOLICITUD_') ? 'TENANT' : 'BUYER'
-      ),
-      budgetMaxUsd: l.bant_score?.budget || Number(l.budget_max_usd) || 0,
-      paymentMethod: l.payment_method,
-      hasDownPayment: l.has_down_payment ?? false,
-      downPaymentPercent: l.down_payment_percent || 20,
-      downPaymentBank: l.down_payment_bank || "Banco BCP",
-      preferredZone: l.preferred_zone || l.bant_score?.preferred_zone || "Por definir",
-      matchedProperty: l.matchedProperty ? {
-        id: l.matchedProperty.id,
-        organizationId: l.matchedProperty.organization_id,
-        title: l.matchedProperty.title,
-        city: l.matchedProperty.city,
-        zone: l.matchedProperty.zone,
-        priceUsd: Number(l.matchedProperty.price_usd),
-        bedrooms: l.matchedProperty.bedrooms,
-        bathrooms: l.matchedProperty.bathrooms,
-        areaSqm: Number(l.matchedProperty.area_sqm),
-        acceptsSocialHousing: l.matchedProperty.accepts_social_housing,
-        status: l.matchedProperty.status,
-        rawDescription: l.matchedProperty.raw_description,
-        imageUrl: l.matchedProperty.image_url,
-        vectorIndexed: true,
-        vectorDimensions: 1536,
-      } : undefined,
-      aiSummary: l.ai_summary || "Lead calificado por Sofía IA",
-      aiPaused: l.ai_paused ?? false,
-      intentScore: l.intent_score || 85,
-      bantScore: l.bant_score ? {
-        budget: Number(l.bant_score.budget || 0),
-        authority: Boolean(l.bant_score.authority),
-        need: String(l.bant_score.need || ""),
-        timeline: String(l.bant_score.timeline || ""),
-        score: Number(l.bant_score.score || 0)
-      } : undefined,
-      createdAt: new Date(l.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      appointmentDate: l.appointments && l.appointments.length > 0 ? l.appointments[0].appointment_date : undefined,
-    }));
-    setLeads(mappedLeads);
-  }
-
-  const { data: propsData } = await supabase
-    .from('properties')
-    .select('*, legalAudit:property_legal_audit(*)')
-    .order('id', { ascending: false });
-
-  if (propsData) {
-    const mappedProps: Property[] = propsData.map((p: any) => ({
-      id: p.id,
-      organizationId: p.organization_id || "org-1",
-      title: p.title,
-      city: p.city,
-      zone: p.zone,
-      priceUsd: Number(p.price_usd),
-      bedrooms: p.bedrooms,
-      bathrooms: p.bathrooms,
-      areaSqm: Number(p.area_sqm),
-      acceptsSocialHousing: p.accepts_social_housing,
-      status: p.status,
-      rawDescription: p.raw_description,
-      imageUrl: p.image_url,
-      vectorIndexed: true,
-      vectorDimensions: 1536,
-      legalAudit: p.legalAudit && p.legalAudit.length > 0 ? {
-        id: p.legalAudit[0].id,
-        propertyId: p.legalAudit[0].property_id,
-        city: p.legalAudit[0].city,
-        folioRealStatus: p.legalAudit[0].folio_real_status || 'PENDIENTE',
-        taxStatus: p.legalAudit[0].tax_status || 'PENDIENTE',
-        cadastralStatus: p.legalAudit[0].cadastral_status || 'PENDIENTE',
-        globalLegalScore: p.legalAudit[0].global_legal_score || 'ROJO',
-        notes: p.legalAudit[0].notes || '',
-        updatedAt: p.legalAudit[0].updated_at,
-      } : undefined,
-    }));
-    setProperties(mappedProps);
-  }
-};
-
 export default function App() {
   // ── Auth State ─────────────────────────────────────────────────────────────
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
@@ -348,23 +250,23 @@ export default function App() {
     }
   }, [currentUser?.organizationId]);
 
-  // Suscripción Realtime & Polling de alta fidelidad
+  // Suscripción Realtime & Polling con filtro estricto por organización
   useEffect(() => {
     const channel = supabase.channel('realtime-leads')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        loadDataFromSupabase(setLeads, setProperties);
+        loadLeadsFromSupabase(currentUser?.organizationId);
       })
       .subscribe();
 
     const interval = setInterval(() => {
-      loadDataFromSupabase(setLeads, setProperties);
-    }, 4000);
+      loadLeadsFromSupabase(currentUser?.organizationId);
+    }, 6000);
     
     return () => { 
       supabase.removeChannel(channel); 
       clearInterval(interval);
     };
-  }, [currentUser]);
+  }, [currentUser?.organizationId]);
 
   const handleLogout = async () => {
     await signOut();
