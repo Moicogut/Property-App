@@ -397,7 +397,18 @@ export default function App() {
 
   // ── Admin Guard: mostrar SuperAdmin Panel ───────────────────────────────────
   if (currentView === "admin") {
-    return <SuperAdminPanel currentUser={currentUser} onLogout={handleLogout} />;
+    return (
+      <SuperAdminPanel
+        currentUser={currentUser}
+        onLogout={handleLogout}
+        onSwitchTenant={(orgId, orgName) => {
+          setCurrentUser((prev) =>
+            prev ? { ...prev, organizationId: orgId, organizationName: orgName } : null
+          );
+          setCurrentView("pipeline");
+        }}
+      />
+    );
   }
 
   // Handlers

@@ -23,7 +23,17 @@ import {
   Trash2,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  Eye,
+  UserPlus,
+  Edit3,
+  Phone,
+  Shield,
+  QrCode,
+  AlertTriangle,
+  Key,
+  ExternalLink,
+  Lock
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
 import { signOut, SUPERADMIN_EMAIL } from "@/src/lib/auth";
@@ -33,6 +43,7 @@ import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
 interface SuperAdminPanelProps {
   currentUser: AppUser;
   onLogout: () => void;
+  onSwitchTenant?: (orgId: string, orgName: string) => void;
 }
 
 interface DbAgency {
@@ -54,11 +65,12 @@ interface DbAgency {
     systemRules?: string;
     tone?: string;
     keywords?: string;
+    defaultAgentPhone?: string;
   };
   gemini_api_key?: string;
 }
 
-export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout }) => {
+export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout, onSwitchTenant }) => {
   const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts">("agencies");
   
   // Real State from Supabase
@@ -79,6 +91,25 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
   const [newAgencyCity, setNewAgencyCity] = useState("Santa Cruz");
   const [newAgencyInstance, setNewAgencyInstance] = useState("");
   const [isCreatingAgency, setIsCreatingAgency] = useState(false);
+
+  // Modal Crear Usuario / Admin para Agencia
+  const [agencyForNewUser, setAgencyForNewUser] = useState<DbAgency | null>(null);
+  const [userFullName, setUserFullName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userRole, setUserRole] = useState<"agency_admin" | "agent">("agency_admin");
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [userSuccessMessage, setUserSuccessMessage] = useState<string | null>(null);
+
+  // Modal Configuración de Agencia
+  const [agencyForEdit, setAgencyForEdit] = useState<DbAgency | null>(null);
+  const [editAgencyName, setEditAgencyName] = useState("");
+  const [editAgencyCity, setEditAgencyCity] = useState("");
+  const [editWhatsappInstance, setEditWhatsappInstance] = useState("");
+  const [editAgentPhone, setEditAgentPhone] = useState("");
+  const [editSofiaRules, setEditSofiaRules] = useState("");
+  const [editSofiaTone, setEditSofiaTone] = useState("PROFESSIONAL_WARM");
+  const [isSavingAgencyEdit, setIsSavingAgencyEdit] = useState(false);
 
   // System Prompts State
   const [copyGeneratorPrompt, setCopyGeneratorPrompt] = useState("");
@@ -262,6 +293,142 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
     } catch (e) {
       console.error("[SuperAdmin] Error guardando config:", e);
       alert("Error guardando configuración IA.");
+    }
+  };
+
+  const handleOpenEditAgency = (agency: DbAgency) => {
+    setAgencyForEdit(agency);
+    setEditAgencyName(agency.name || "");
+    setEditAgencyCity(agency.primary_city || "Santa Cruz");
+    setEditWhatsappInstance(agency.whatsapp_instance_id || "");
+    setEditAgentPhone(agency.ai_config?.defaultAgentPhone || "");
+    setEditSofiaRules(agency.ai_config?.systemRules || "");
+    setEditSofiaTone(agency.ai_config?.tone || "PROFESSIONAL_WARM");
+  };
+
+  const handleSaveAgencyEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!agencyForEdit) return;
+    setIsSavingAgencyEdit(true);
+
+    try {
+      const updatedAiConfig = {
+        ...(agencyForEdit.ai_config || {}),
+        primary_city: editAgencyCity,
+        defaultAgentPhone: editAgentPhone,
+        systemRules: editSofiaRules,
+        tone: editSofiaTone,
+      };
+
+      const { error } = await supabase
+        .from("organizations")
+        .update({
+          name: editAgencyName.trim(),
+          primary_city: editAgencyCity,
+          whatsapp_instance_id: editWhatsappInstance.trim(),
+          ai_config: updatedAiConfig,
+        })
+        .eq("id", agencyForEdit.id);
+
+      if (error) throw error;
+
+      setSaveToast(`Configuración de "${editAgencyName}" actualizada.`);
+      setTimeout(() => setSaveToast(null), 3500);
+      setAgencyForEdit(null);
+      await loadRealAgenciesAndMetrics();
+    } catch (err: any) {
+      console.error("[SuperAdmin] Error editando agencia:", err);
+      alert(`Error al guardar: ${err.message || "Error desconocido"}`);
+    } finally {
+      setIsSavingAgencyEdit(false);
+    }
+  };
+
+  const handleOpenCreateUser = (agency: DbAgency) => {
+    setAgencyForNewUser(agency);
+    setUserFullName("");
+    setUserEmail("");
+    setUserPassword("");
+    setUserRole("agency_admin");
+    setUserSuccessMessage(null);
+  };
+
+  const handleSaveNewUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!agencyForNewUser) return;
+    if (!userEmail || !userPassword) {
+      alert("Por favor ingresa un correo y contraseña válida.");
+      return;
+    }
+
+    setIsCreatingUser(true);
+    setUserSuccessMessage(null);
+
+    try {
+      // 1. Intentar registrar en Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userEmail.trim().toLowerCase(),
+        password: userPassword.trim(),
+        options: {
+          data: {
+            full_name: userFullName.trim() || "Administrador Inmobiliario",
+            role: userRole,
+            organization_id: agencyForNewUser.id,
+            user_type: "REAL_ESTATE_AGENCY",
+          },
+        },
+      });
+
+      // 2. Registrar/Upsert en la tabla 'users' vinculada al tenant
+      const { error: dbError } = await supabase
+        .from("users")
+        .upsert(
+          {
+            id: authData?.user?.id || undefined,
+            email: userEmail.trim().toLowerCase(),
+            full_name: userFullName.trim() || "Administrador Inmobiliario",
+            role: userRole,
+            organization_id: agencyForNewUser.id,
+            user_type: "REAL_ESTATE_AGENCY",
+          },
+          { onConflict: "email" }
+        );
+
+      if (dbError && !authError) {
+        console.warn("[SuperAdmin] Aviso al sincronizar perfil en tabla users:", dbError);
+      }
+
+      setUserSuccessMessage(
+        `¡Usuario administrador activado! Credenciales para ${agencyForNewUser.name}:\n` +
+        `📧 Email: ${userEmail.trim().toLowerCase()}\n` +
+        `🔑 Contraseña: ${userPassword.trim()}`
+      );
+      setSaveToast(`Usuario ${userEmail} asignado a ${agencyForNewUser.name}`);
+      setTimeout(() => setSaveToast(null), 4000);
+    } catch (err: any) {
+      console.error("[SuperAdmin] Error creando usuario:", err);
+      alert(`Error al crear usuario: ${err.message || "Error desconocido"}`);
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const handleDeleteAgency = async (agencyId: string, agencyName: string) => {
+    const confirmDelete = window.confirm(
+      `⚠️ ¿Estás seguro de que deseas eliminar la inmobiliaria "${agencyName}"?\n\nEsta acción borrará la organización del catálogo multi-tenancy.`
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const { error } = await supabase.from("organizations").delete().eq("id", agencyId);
+      if (error) throw error;
+
+      setSaveToast(`Organización "${agencyName}" eliminada.`);
+      setTimeout(() => setSaveToast(null), 3000);
+      await loadRealAgenciesAndMetrics();
+    } catch (err: any) {
+      console.error("[SuperAdmin] Error eliminando agencia:", err);
+      alert(`No se pudo eliminar: ${err.message}`);
     }
   };
 
@@ -458,6 +625,52 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                           );
                         })}
                       </div>
+
+                      {/* BARRA DE ACCIONES DE GESTIÓN INTEGRAL */}
+                      <div className="pt-3 border-t border-slate-800/60 flex flex-wrap gap-2 items-center justify-between">
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {/* 1. Botón Cambiar / Entrar al CRM de esta Agencia */}
+                          {onSwitchTenant && (
+                            <button
+                              onClick={() => onSwitchTenant(agency.id, agency.name)}
+                              className="px-3 py-1.5 bg-gradient-to-r from-[#D4AF37] to-[#B89628] text-slate-950 hover:brightness-110 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition"
+                              title="Ingresar a la vista de CRM, Leads y Catálogo de esta inmobiliaria"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Entrar a este CRM</span>
+                            </button>
+                          )}
+
+                          {/* 2. Botón Crear / Invitar Usuario Administrador */}
+                          <button
+                            onClick={() => handleOpenCreateUser(agency)}
+                            className="px-3 py-1.5 bg-[#090D16] border border-[#D4AF37]/40 hover:border-[#D4AF37] text-[#F3E5AB] hover:text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                            title="Dar de alta al cliente administrador o agentes para esta agencia"
+                          >
+                            <UserPlus className="w-3.5 h-3.5 text-[#D4AF37]" />
+                            <span>+ Alta de Admin / Usuario</span>
+                          </button>
+
+                          {/* 3. Botón Configuración de Agencia & WhatsApp */}
+                          <button
+                            onClick={() => handleOpenEditAgency(agency)}
+                            className="px-3 py-1.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition"
+                            title="Editar parámetros, WhatsApp QR, tono de Sofía y alertas"
+                          >
+                            <Settings className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Configurar Agencia</span>
+                          </button>
+                        </div>
+
+                        {/* 4. Botón Eliminar Agencia */}
+                        <button
+                          onClick={() => handleDeleteAgency(agency.id, agency.name)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition"
+                          title="Eliminar esta organización"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -604,7 +817,6 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                   onChange={(e) => {
                     const val = e.target.value;
                     setNewAgencyName(val);
-                    // Auto-slugify instance
                     const cityCode = newAgencyCity === "Santa Cruz" ? "SCZ" : newAgencyCity === "La Paz" ? "LPZ" : newAgencyCity === "Cochabamba" ? "CBBA" : "TJA";
                     const cleanSlug = val.replace(/[^a-zA-Z0-9]/g, "");
                     if (cleanSlug) {
@@ -687,6 +899,229 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                 >
                   <Plus className="w-4 h-4" />
                   <span>{isCreatingAgency ? "Creando..." : "+ Crear Organización"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Alta de Usuario / Admin para Inmobiliaria */}
+      {agencyForNewUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-[#D4AF37]" />
+                  Alta de Usuario Administrador
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Inmobiliaria: <strong className="text-emerald-400">{agencyForNewUser.name}</strong>
+                </p>
+              </div>
+              <button onClick={() => setAgencyForNewUser(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {userSuccessMessage ? (
+              <div className="space-y-4">
+                <div className="bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-4 text-emerald-300 space-y-2 font-mono text-xs whitespace-pre-wrap">
+                  {userSuccessMessage}
+                </div>
+                <div className="bg-[#090D16] border border-slate-800 rounded-xl p-3 text-[11px] text-slate-400 space-y-1">
+                  <p className="font-bold text-white">¿Cómo ingresa el cliente?</p>
+                  <p>1. Ingresa a <strong>property-app-ashen.vercel.app</strong> (o su URL oficial).</p>
+                  <p>2. Abre el formulario de <strong>Iniciar Sesión</strong> e introduce este correo y contraseña.</p>
+                  <p>3. El sistema lo autentica automáticamente con el rol <strong>Admin de {agencyForNewUser.name}</strong> y acceso aislado a su inventario y BANT Kanban.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAgencyForNewUser(null)}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition"
+                >
+                  Entendido y Cerrar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveNewUser} className="space-y-3.5">
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Nombre Completo del Administrador / Agente</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej. Lic. Roberto Gómez"
+                    value={userFullName}
+                    onChange={(e) => setUserFullName(e.target.value)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Correo Electrónico (Login)</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="ej. admin@alfacontinental.com"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Contraseña Inicial</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej. Alfa2026!Pass"
+                    value={userPassword}
+                    onChange={(e) => setUserPassword(e.target.value)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Nivel de Acceso / Rol</label>
+                  <select
+                    value={userRole}
+                    onChange={(e) => setUserRole(e.target.value as any)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none"
+                  >
+                    <option value="agency_admin">👑 Administrador de Inmobiliaria (Control Total de Agencia)</option>
+                    <option value="agent">👤 Agente Inmobiliario (Ventas y Leads Asignados)</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setAgencyForNewUser(null)}
+                    className="px-4 py-2 border border-slate-700 text-slate-300 rounded-xl font-bold hover:bg-slate-800 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingUser}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow flex items-center gap-1.5 disabled:opacity-50 transition"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>{isCreatingUser ? "Registrando..." : "Crear Credenciales"}</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Configuración Integral de Agencia */}
+      {agencyForEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-[#D4AF37]" />
+                  Configuración de Inmobiliaria
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">ID: <span className="font-mono text-slate-500">{agencyForEdit.id}</span></p>
+              </div>
+              <button onClick={() => setAgencyForEdit(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAgencyEdit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Nombre Comercial</label>
+                  <input
+                    type="text"
+                    required
+                    value={editAgencyName}
+                    onChange={(e) => setEditAgencyName(e.target.value)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-200 text-xs mb-1">Ciudad Principal</label>
+                  <select
+                    value={editAgencyCity}
+                    onChange={(e) => setEditAgencyCity(e.target.value)}
+                    className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-semibold"
+                  >
+                    <option value="Santa Cruz">Santa Cruz de la Sierra</option>
+                    <option value="La Paz">La Paz</option>
+                    <option value="Cochabamba">Cochabamba</option>
+                    <option value="Tarija">Tarija</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-200 text-xs mb-1">ID Instancia WhatsApp (Evolution API)</label>
+                <input
+                  type="text"
+                  value={editWhatsappInstance}
+                  onChange={(e) => setEditWhatsappInstance(e.target.value)}
+                  placeholder="ej. AlfaContinental-CBBA"
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-200 text-xs mb-1">Teléfono para Alertas Push / Escalamiento de Leads</label>
+                <input
+                  type="text"
+                  value={editAgentPhone}
+                  onChange={(e) => setEditAgentPhone(e.target.value)}
+                  placeholder="ej. +591 71234567"
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-200 text-xs mb-1">Tono Conversacional de Sofía IA</label>
+                <select
+                  value={editSofiaTone}
+                  onChange={(e) => setEditSofiaTone(e.target.value)}
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-white outline-none"
+                >
+                  <option value="PROFESSIONAL_WARM">Ejecutivo & Cálido (Recomendado Bolivia)</option>
+                  <option value="LUXURY_EXCLUSIVE">Alta Gama & Inversión (Enfoque Luxury)</option>
+                  <option value="FAST_CLOSER">Directo al Grano & Cierre Ágil</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-200 text-xs mb-1">Reglas Personalizadas para Sofía IA en esta Inmobiliaria</label>
+                <textarea
+                  rows={4}
+                  value={editSofiaRules}
+                  onChange={(e) => setEditSofiaRules(e.target.value)}
+                  placeholder="Instrucciones específicas (ej: recalcar financiamiento VIS, horario de atención 8:00 a 19:00, etc.)..."
+                  className="w-full bg-[#090D16] border border-slate-700 focus:border-[#D4AF37] rounded-xl p-2.5 text-emerald-300 font-mono outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setAgencyForEdit(null)}
+                  className="px-4 py-2 border border-slate-700 text-slate-300 rounded-xl font-bold hover:bg-slate-800 transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingAgencyEdit}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow flex items-center gap-1.5 disabled:opacity-50 transition"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingAgencyEdit ? "Guardando..." : "Guardar Cambios"}</span>
                 </button>
               </div>
             </form>
