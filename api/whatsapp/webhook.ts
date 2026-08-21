@@ -1,4 +1,3 @@
-import "dotenv/config";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
