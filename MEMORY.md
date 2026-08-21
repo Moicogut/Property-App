@@ -1,86 +1,81 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 07 de Agosto de 2026 (Fase 0 de Estabilización y Refactoring Modular Completada)
-**Estado General:** La Fase 0 ha sido un éxito. Se ha eliminado la deuda técnica del monolito. El frontend y backend operan bajo una arquitectura modular limpia, escalable y preparada para inyectar los Add-Ons SaaS (Social Marketing, Legal Audit). Listos para implementar Fase 1.
+**Última actualización:** 21 de Agosto de 2026 (Sprint de Estabilización WhatsApp & Suite Competitiva v2.5)  
+**Estado General:** La plataforma se encuentra **100% desplegada y operativa en producción**. WhatsApp Evolution API y Sofía IA están comunicándose bidireccionalmente con Property OS, con persistencia y visualización en tiempo real en el Kanban y Central Chat.
 
 ---
 
-## 🏗️ 1. HISTORIAL DE INFRAESTRUCTURA Y SERVICIOS
+## 🌐 Entorno de Producción Oficial
+* **URL de Producción (Vercel):** [https://property-app-ashen.vercel.app](https://property-app-ashen.vercel.app)
+* **Evolution API Gateway (Railway):** `https://evolution-api-production-a3a5.up.railway.app`
+* **Instancia Activa:** `PropertyOS-Main`
+* **Supabase Project:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`)
 
-### 🟢 Base de Datos & Auth (Supabase)
-* **Proyecto:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`).
-* **SaaS Multi-Tenant Preparado:** Añadidas columnas `modules` (jsonb) para activar/desactivar add-ons por cliente, `primary_city` en `organizations` y `source_channel` en `leads` para tracking de marketing.
-* **BANT Nativo:** Migración aplicada para integrar el `bant_score` directamente en la tabla `leads` y mapear presupuestos y zonas duras desde la IA a la BD.
-* **Seguridad Front-end:** Implementado Bypass de Row Level Security (RLS) usando el JWT del `SERVICE_ROLE_KEY` en el dashboard.
+---
 
-### 🟢 Arquitectura de IA & Mensajería (Evolution API + OpenAI)
-* **Refactoring Modular del Webhook:** El monolito de 600 líneas `webhook.ts` se ha convertido en un orquestador que consume servicios especializados en `/api/services/`:
-  - `shared.ts`: Clientes DB y tipos.
-  - `evolution-api.ts`: Envío robusto a WhatsApp.
-  - `rag-search.ts`: Búsqueda vectorial pgvector aislada.
-  - `sofia-prompt.ts`: Inyección de reglas de sistema (System Rules personalizables desde panel) y `<rag_enforcement>` estricto.
-  - `bant-extractor.ts`: Scoring BANT estructurado forzando respuestas JSON del LLM.
-  - `lead-manager.ts`: Orquestación de creación, guardado de mensajes y agendamiento.
-* **Fixes IA P0 Integrados:** Año dinámico para agendamiento, `<rag_enforcement>` para obligar a Sofía a citar inventario real, y prevención de bucles de mensajes duplicados (deduplicación en 60s).
+## 🏗️ 1. HISTORIAL DE INNOVACIONES Y MÓDULOS COMPLETADOS
 
-### 🟢 Frontend & UI (Vercel + Vite + React)
-* **Refactoring de `App.tsx`:** Descompuesto el monolito gigante en componentes independientes de layout y features.
-* **Fixes Críticos de Renderizado e Imágenes (Sprint Actual):**
-  - Se implementó un parser robusto mediante **Expresiones Regulares (Regex)** en `imageHelper.ts` (`extractUrl`, `getSafeImageArray`) capaz de extraer URLs válidas desde strings corruptos, arrays de JSON, literales de Postgres (`"{http...}"`) y separaciones por comas.
-  - Se solucionó una incompatibilidad de mapeo (`camelCase` vs `snake_case`) entre la base de datos (`image_url`) y `App.tsx` (`imageUrl`) que rompía las portadas en la Landing Page pública.
-  - Se corrigió un bug potencial de caída (crash) eliminando variables indefinidas en los eventos `onError` de las imágenes.
-  - Sincronización exitosa del bucket `'images'` para carga de inventario en `RagInventoryView.tsx`.
-* **Despliegue a Producción:** Aplicación Vercel estabilizada tras resolver conflictos de caché local de Vercel y errores estrictos de TypeScript (tipado en webhook).
-
-### 🟢 Módulo de Cotización Financiera & Tabla de Amortización (Sprint Ventaja Competitiva)
-* **Utilidad Central (`src/utils/mortgageCalculator.ts`):** 
-  - Soporte de Sistema Francés (cuota fija), Vivienda Social (VIS/ASFI ~5.5%), Crédito Hipotecario Bancario (~7.5%) y Financiamiento Directo Desarrollador (0% interés, cuotas fijas).
-  - Cálculo de DTI (ingreso familiar requerido al 30%), desglose de capital, intereses, seguros y saldo insoluto período a período (hasta 360 meses) y resumen anual.
-  - Generador de copy formateado para envío por WhatsApp en 1 clic.
+### 🟢 Módulo de Cotización Financiera & Tabla de Amortización
+* **Motor Matemático (`src/utils/mortgageCalculator.ts`):** 
+  - Cálculo de cuotas fijas bajo **Sistema Francés**, Vivienda Social VIS/ASFI (~5.5%), Hipotecario Bancario (~7.5%) y Financiamiento Directo 0%.
+  - Tabla de amortización período a período (hasta 360 meses) con desglose de capital, intereses, seguros y saldo insoluto.
+  - Cálculo de DTI (ingreso familiar requerido al 30%) y generador de copys WhatsApp.
 * **Componente UI (`src/components/modals/MortgageCalculatorModal.tsx`):**
-  - Modal interactivo con 3 pestañas: Simulador interactivo con sliders de precio/enganche/tasa/plazo, Tabla de amortización paginable (mensual/anual) y Análisis de Calificación BANT.
-  - Modo impresión formal optimizado (`@media print`) para generar y descargar cotizaciones bancarias en PDF sin coste de APIs externas.
-* **Integración en la Experiencia:**
-  - Botón "📊 Cotizar & Amortización" en cada tarjeta de lead en `LeadCard.tsx` (Kanban).
-  - Botón "📊 Simular Crédito & Tabla de Amortización" en la ficha de cada propiedad en `PropertyDetailModal.tsx`.
+  - Modal interactivo con sliders dinámicos, tabla paginable y exportación PDF vía `@media print`.
+  - Integrado en `LeadCard.tsx` (Kanban) y `PropertyDetailModal.tsx`.
 
-### 🟢 Módulo de Multi-Pipeline Inmobiliario (Sprint Ventaja Competitiva)
-* **Arquitectura de Embudos (`src/types/property.ts` & `src/components/kanban/KanbanBoard.tsx`):**
+### 🟢 Módulo de Arquitectura Multi-Pipeline (3 Embudos Especializados)
+* **Tipología y Columnas Dinámicas (`src/types/property.ts` & `src/components/kanban/KanbanBoard.tsx`):**
   - **1. Embudo de Ventas (Compradores):** `NUEVO` ➔ `EN_CALIFICACION` ➔ `CALIFICADO_VISITA_PENDIENTE` ➔ `VISITA_AGENDADA` ➔ `VISITA_REALIZADA` ➔ `EN_NEGOCIACION` ➔ `CERRADO`.
-  - **2. Embudo de Captación (Propietarios):** `PROSPECTO_PROPIETARIO` ➔ `EVALUACION_INMUEBLE` ➔ `ACM_ESTUDIO_MERCADO` ➔ `AUDITORIA_DOCUMENTAL` ➔ `CONTRATO_CONSIGNACION` ➔ `INMUEBLE_CAPTADO` (Publicado en RAG).
+  - **2. Embudo de Captación (Propietarios):** `PROSPECTO_PROPIETARIO` ➔ `EVALUACION_INMUEBLE` ➔ `ACM_ESTUDIO_MERCADO` ➔ `AUDITORIA_DOCUMENTAL` ➔ `CONTRATO_CONSIGNACION` ➔ `INMUEBLE_CAPTADO`.
   - **3. Embudo de Alquileres (Rentas):** `SOLICITUD_RENTA` ➔ `PERFILAMIENTO_INGRESOS` ➔ `VISITA_RENTA` ➔ `REVISION_GARANTIAS` ➔ `CONTRATO_RENTA_FIRMADO`.
 * **Experiencia de Usuario:**
-  - Selector de pestañas dinámico en el encabezado del Kanban con conteos en vivo por embudo y cálculo de métricas financieras (volumen en cartera y cierres).
-  - Selector de etapas inteligente en `LeadCard.tsx` que adapta sus opciones según la tipología de operación del prospecto.
-  - Registro contextual en `NewLeadModal.tsx` con formularios adaptativos para Compradores, Propietarios e Inquilinos.
+  - Selector de pestañas dinámico en Kanban con contadores y volumen en cartera en vivo.
+  - Selector contextual de etapas en `LeadCard.tsx` y creación adaptativa en `NewLeadModal.tsx`.
 
-### 🟢 Módulo de Sincronización de Agenda & Google Calendar (Sprint Ventaja Competitiva)
-* **Utilidad Universal de Calendario (`src/utils/calendarHelper.ts`):**
-  - Generador de enlaces `TEMPLATE` a **Google Calendar** con formateo UTC ISO y parámetros estructurados (cliente, teléfono, presupuesto, notas y geoubicación).
-  - Soporte de enlaces de **Outlook / Office 365 Web**.
-  - Generador y descargador instantáneo de archivos estándar **`.ics` (iCalendar)** para Apple Calendar y Outlook Desktop.
-  - Generador de mensajes con confirmación formal de visita + enlace directo de Google Calendar para enviar al WhatsApp del cliente en 1 clic.
+### 🟢 Módulo de Sincronización Universal de Calendarios
+* **Utilidad (`src/utils/calendarHelper.ts`):**
+  - Generador de enlaces `TEMPLATE` a **Google Calendar** con formateo UTC ISO, parámetros BANT y geolocalización.
+  - Generador y descargador instantáneo de archivos estándar **`.ics` (iCalendar)** para Apple Calendar y Outlook.
+  - Redacción automática de mensaje de confirmación para WhatsApp con enlace a Google Calendar y GPS.
 * **Componentes UI Enriquecidos:**
-  - `AppointmentModal.tsx`: Suite interactiva con selector de duración, ubicación, checkbox de sync automático a Google Calendar, botón de descarga .ICS y envío directo a WhatsApp.
-  - `LeadCard.tsx`: Badge de cita interactivo en cada tarjeta con botón "Ver en Google Calendar" directo.
+  - `AppointmentModal.tsx`: Selector de duración, sync automático a Google Calendar, descarga `.ics` y envío WhatsApp.
+  - `LeadCard.tsx`: Badge interactivo con botón directo "Ver en Google Calendar".
 
-### 🟢 Módulo de Simulador Visual de Bot & Playground IA (Sprint Ventaja Competitiva)
+### 🟢 Módulo de Simulador Visual de Bot & Playground IA
 * **Componente UI (`src/components/simulator/BotSimulatorView.tsx`):**
-  - **Editor de Reglas & Prompt Studio:** Configuración en tiempo real del nombre del bot, avatar, especialización inmobiliaria (Ventas, Captación, Rentas), tono y personalidad, `<system_rules>`, `<fallbacks>`, y regla de blindaje RAG estricto anti-alucinación.
-  - **Playground Interactivo (WhatsApp Sandbox):** Interfaz fidedigna de mensajería WhatsApp con burbujas de chat, indicador de escritura, double checks y pruebas con 1 solo clic (One-Click Prompts para Compradores VIS, Dueños para Captación, Citas y Rentas).
-  - **Telemetría & Diagnóstico BANT en Vivo:** Desglose visual instantáneo de los parámetros extraídos (Budget, Authority, Need, Timeline, Score 0-100) e inmueble seleccionado por el motor RAG vectorial.
-  - **Persistencia en Producción:** Guarda directamente en la columna `ai_config` de `organizations` en Supabase para actualización inmediata del webhook de WhatsApp.
+  - **Editor de Reglas & Prompt Studio:** Configuración en tiempo real del nombre del bot, especialización, tono, `<system_rules>`, `<fallbacks>` y regla RAG estricta anti-alucinación.
+  - **Playground Interactivo (WhatsApp Sandbox):** Interfaz fidedigna de WhatsApp con pruebas One-Click (Compradores VIS, Dueños para Captación, Citas y Rentas).
+  - **Telemetría BANT en Vivo:** Desglose visual en tiempo real de Budget, Authority, Need, Timeline y RAG Match.
+  - **Persistencia en DB:** Guardado directo en la columna `ai_config` de Supabase para adopción inmediata del webhook.
+
+### 🟢 Estabilización de Webhook Serverless & Sincronización Realtime
+* **Webhook Serverless Autónomo (`api/whatsapp/webhook.ts`):**
+  - Eliminadas dependencias problemáticas de cold start (`waitUntil`), implementando un handler asíncrono robusto con Proxy Lazy de Supabase.
+  - Guardado exacto de mensajes en la tabla `messages` con roles `'lead'` y `'ai_sofia'` y columna `text`.
+  - Actualización automática de `budget_max_usd`, `preferred_zone`, `pipeline_stage`, `ai_summary` y `bant_score` en la tabla `leads`.
+* **Sincronización Continua Frontend (`src/App.tsx` & `src/components/chat/ChatDrawer.tsx`):**
+  - Polling de alta fidelidad cada 4 segundos + suscripción Postgres Realtime para refresco automático del Kanban y ChatDrawer sin necesidad de recargar la página.
 
 ---
 
-## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (PRÓXIMAS SESIONES)
+## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA (PRÓXIMA SESIÓN)
 
-### 🟡 Fase 5: Consolidación y Certificación de Lanzamiento
-* **Certificación de Lanzamiento:** Generación del artefacto `LAUNCH_OVERVIEW.md` con la suite completa de ventajas competitivas frente al mercado Latam y competidores legacy como SigaBroker.
+### 🟡 1. Calibración Fina de Sofía IA (Forma y Fondo)
+* **Filtrado Geográfico Estricto en RAG:** Si el usuario pide una zona específica (ej. *Calacoto en La Paz*), el motor RAG debe filtrar prioritariamente por `city` y `zone` antes de buscar por similitud semántica para evitar recomendar inmuebles de otras zonas (ej. *Sopocachi*) sin advertir la diferencia.
+* **Manejo de Respuestas Mixtas:** Pulir la redacción cuando el usuario solicita alquiler y venta en la misma frase para dar 1 opción de cada categoría de forma limpia.
+* **Calibración de Tono Comercial:** Refinar las instrucciones de persuasión para que Sofía ofrezca proactivamente agendar visitas presenciales cuando el cliente muestre alta intención.
+
+### 🟡 2. Ficha Lateral de Calificación IA en ChatDrawer
+* **Sincronización de Widgets BANT:** Conectar los indicadores de la barra lateral derecha de `ChatDrawer.tsx` (*Presupuesto, Tipo de Pago, Aporte Propio, Zona Preferida y Score*) para que se actualicen en vivo según el último `bant_score` registrado.
+
+### 🟡 3. Legal & Cierres Formales
+* **Checklist Legal de Lead:** Hitos de validación documental (Derechos Reales, Impuestos al día, Folio Real).
+* **Generador de Contratos Digitales:** Exportación de PDF formal de reserva y consignación con datos del comprador y vendedor.
 
 ---
 
-## 🔒 3. VARIABLES DE ENTORNO REQUERIDAS (`.env.local` / Vercel)
+## 🔒 3. VARIABLES DE ENTORNO EN PRODUCCIÓN
 
 ```env
 # Supabase
@@ -89,14 +84,11 @@ VITE_SUPABASE_ANON_KEY="..."
 SUPABASE_SERVICE_ROLE_KEY="..."
 
 # Embeddings y LLM
-GEMINI_API_KEY="..."
 OPENAI_API_KEY="..."
+GEMINI_API_KEY="..."
 
-# Evolution API
-EVOLUTION_API_URL="https://evolution-api-production-286c8.up.railway.app"
-EVOLUTION_API_KEY="..."
+# Evolution API (Railway)
+EVOLUTION_API_URL="https://evolution-api-production-a3a5.up.railway.app"
+EVOLUTION_API_KEY="a2bf8aaaec21a9806766c4a536c75e716d1480feff6f9705697bf626e8fab135"
 EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
-
-# Configuración de Agentes (Fase 1)
-AGENT_PHONE_NUMBER="..."
 ```
