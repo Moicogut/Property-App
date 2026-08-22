@@ -322,7 +322,12 @@ export default function App() {
 
   // ── Auth Guard: mostrar Login si no hay sesión activa ───────────────────────
   if (!currentUser || currentView === "login") {
-    return <LoginPage onAuthSuccess={(user) => { setCurrentUser(user); setCurrentView("pipeline"); }} />;
+    return (
+      <LoginPage 
+        onAuthSuccess={(user) => { setCurrentUser(user); setCurrentView("pipeline"); }} 
+        onBackToLanding={() => setCurrentView("landing")}
+      />
+    );
   }
 
   // ── Admin Guard: mostrar SuperAdmin Panel ───────────────────────────────────
@@ -331,6 +336,7 @@ export default function App() {
       <SuperAdminPanel
         currentUser={currentUser}
         onLogout={handleLogout}
+        onNavigateToLanding={() => setCurrentView("landing")}
         onSwitchTenant={(orgId, orgName) => {
           setCurrentUser((prev) =>
             prev ? { ...prev, organizationId: orgId, organizationName: orgName } : null

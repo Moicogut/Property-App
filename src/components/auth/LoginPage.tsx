@@ -6,9 +6,10 @@ import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
 
 interface LoginPageProps {
   onAuthSuccess: (user: AppUser) => void;
+  onBackToLanding?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess, onBackToLanding }) => {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -64,8 +65,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
 
       <div className="w-full max-w-md relative z-10">
         
-        {/* Brand Header */}
-        <div className="text-center mb-8">
+        {/* Brand Header & Landing Shortcut */}
+        <div className="text-center mb-6">
+          {onBackToLanding && (
+            <button
+              onClick={onBackToLanding}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 mb-5 rounded-full bg-[#111622] border border-slate-800 text-xs font-bold text-slate-400 hover:text-[#F3E5AB] hover:border-[#D4AF37]/40 transition-all cursor-pointer"
+            >
+              <span>← Volver al Portal Inmobiliario</span>
+            </button>
+          )}
           <PropertyLogo variant="vertical" size="xl" showTagline className="mx-auto" />
         </div>
 
@@ -78,7 +87,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onAuthSuccess }) => {
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(null); setSuccessMsg(null); }}
-                className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all ${
+                className={`flex-1 py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   mode === m
                     ? "bg-gradient-to-r from-[#D4AF37] to-[#E5C158] text-slate-950 shadow-md shadow-[#D4AF37]/20 font-black"
                     : "text-slate-400 hover:text-white"

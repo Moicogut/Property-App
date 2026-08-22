@@ -44,6 +44,7 @@ interface SuperAdminPanelProps {
   currentUser: AppUser;
   onLogout: () => void;
   onSwitchTenant?: (orgId: string, orgName: string) => void;
+  onNavigateToLanding?: () => void;
 }
 
 interface DbAgency {
@@ -70,7 +71,7 @@ interface DbAgency {
   gemini_api_key?: string;
 }
 
-export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout, onSwitchTenant }) => {
+export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout, onSwitchTenant, onNavigateToLanding }) => {
   const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts">("agencies");
   
   // Real State from Supabase
@@ -465,7 +466,14 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
       {/* ── SuperAdmin Header ── */}
       <header className="h-16 bg-[#0B0D12] border-b border-slate-800 flex items-center justify-between px-6 shrink-0 font-sans">
         <div className="flex items-center gap-3">
-          <PropertyLogo variant="horizontal" size="sm" />
+          {/* Clickable Logo to Landing */}
+          <div 
+            onClick={() => onNavigateToLanding && onNavigateToLanding()}
+            className="cursor-pointer hover:opacity-85 transition-opacity"
+            title="Ir al Portal Inmobiliario Público"
+          >
+            <PropertyLogo variant="horizontal" size="sm" />
+          </div>
 
           <div className="ml-4 px-3 py-1 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded-full flex items-center gap-2">
             <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -474,6 +482,18 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Direct Portal Web / Landing Shortcut */}
+          {onNavigateToLanding && (
+            <button
+              onClick={onNavigateToLanding}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#111622] hover:bg-[#1A2234] border border-slate-800 hover:border-[#D4AF37]/50 text-slate-200 hover:text-[#F3E5AB] rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="Ver Portal Inmobiliario Público / Catálogo"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span className="hidden sm:inline">Portal Web</span>
+            </button>
+          )}
+
           <div className="text-right hidden sm:block">
             <p className="text-xs font-bold text-white">{currentUser.fullName}</p>
             <p className="text-[10px] text-slate-400">{currentUser.email}</p>
@@ -483,7 +503,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
               await signOut();
               onLogout();
             }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-rose-900/30 border border-slate-700 hover:border-rose-800/50 text-slate-300 hover:text-rose-400 rounded-xl text-xs font-bold transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-rose-900/30 border border-slate-700 hover:border-rose-800/50 text-slate-300 hover:text-rose-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             Salir

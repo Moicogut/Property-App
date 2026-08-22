@@ -9,6 +9,7 @@ import {
   LogOut,
   ChevronDown,
   Building2,
+  Globe,
 } from "lucide-react";
 import { AppUser } from "@/src/types/property";
 import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
@@ -26,7 +27,7 @@ interface AppHeaderProps {
   setActiveTab: (tab: "pipeline" | "rag" | "dashboard" | "chat" | "simulator") => void;
   showNotifications: boolean;
   setShowNotifications: (show: boolean) => void;
-  setCurrentView: (view: "pipeline" | "admin") => void;
+  setCurrentView: (view: "landing" | "pipeline" | "admin") => void;
   onOpenAgencySettings?: () => void;
 }
 
@@ -59,7 +60,14 @@ export function AppHeader({
             {isMobileMenuOpen ? <XCircle className="w-6 h-6" /> : <MoreHorizontal className="w-6 h-6" />}
           </button>
 
-          <PropertyLogo variant="horizontal" size="sm" className="hidden sm:flex" />
+          {/* Clickable Logo to Landing */}
+          <div 
+            onClick={() => setCurrentView("landing")} 
+            className="cursor-pointer hover:opacity-85 transition-opacity"
+            title="Ir al Portal Inmobiliario Público"
+          >
+            <PropertyLogo variant="horizontal" size="sm" className="hidden sm:flex" />
+          </div>
 
           <div className="ml-0 md:ml-2 px-2.5 md:px-3 py-1 bg-[#D4AF37]/10 border border-[#D4AF37]/25 rounded-full flex items-center gap-1.5 md:gap-2">
             <div className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse shadow-[0_0_8px_#D4AF37]" />
@@ -71,6 +79,16 @@ export function AppHeader({
 
         {/* Global Controls: Search, City Filter & Actions */}
         <div className="flex items-center gap-2 md:gap-3">
+          {/* Direct Portal Web / Landing Shortcut */}
+          <button
+            onClick={() => setCurrentView("landing")}
+            className="flex items-center gap-1.5 bg-[#111622] hover:bg-[#1A2234] text-slate-200 hover:text-[#F3E5AB] border border-slate-800 hover:border-[#D4AF37]/50 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+            title="Ver Portal Inmobiliario / Catálogo Público"
+          >
+            <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
+            <span className="hidden md:inline">Portal Web</span>
+          </button>
+
           {/* City Dropdown Filter (Hidden on Mobile) */}
           <div className="relative hidden lg:block">
             <select
@@ -101,7 +119,7 @@ export function AppHeader({
           {/* New Lead Action Button */}
           <button
             onClick={() => setIsNewLeadModalOpen(true)}
-            className="flex items-center gap-1.5 bg-[#111622] hover:bg-[#1A2234] text-slate-200 border border-slate-800 hover:border-[#D4AF37]/40 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs"
+            className="flex items-center gap-1.5 bg-[#111622] hover:bg-[#1A2234] text-slate-200 border border-slate-800 hover:border-[#D4AF37]/40 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4 text-[#D4AF37]" />
             <span className="hidden md:inline">+ Lead</span>
@@ -110,7 +128,7 @@ export function AppHeader({
           {/* Ingesta RAG Primary Action Button (Hidden on Mobile) */}
           <button
             onClick={() => setActiveTab("rag")}
-            className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] hover:brightness-110 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-lg shadow-[#D4AF37]/20 tracking-wide"
+            className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-[#D4AF37] to-[#AA8010] hover:brightness-110 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-lg shadow-[#D4AF37]/20 tracking-wide cursor-pointer"
           >
             <Plus className="w-4 h-4 text-slate-950" />
             <span>+ Ingesta RAG</span>
@@ -120,7 +138,7 @@ export function AppHeader({
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
-              className="p-2 text-slate-400 hover:text-[#D4AF37] rounded-xl hover:bg-[#111622] transition-colors relative"
+              className="p-2 text-slate-400 hover:text-[#D4AF37] rounded-xl hover:bg-[#111622] transition-colors relative cursor-pointer"
             >
               <Bell className="w-4 h-4" />
               <span className="w-2 h-2 rounded-full bg-[#D4AF37] absolute top-1.5 right-1.5" />
@@ -152,7 +170,7 @@ export function AppHeader({
           {(currentUser.role === "agency_admin" || currentUser.role === "superadmin") && (
             <button
               onClick={() => onOpenAgencySettings && onOpenAgencySettings()}
-              className="flex items-center gap-1.5 bg-[#111622] hover:bg-[#1A2234] text-[#F3E5AB] border border-[#D4AF37]/30 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs"
+              className="flex items-center gap-1.5 bg-[#111622] hover:bg-[#1A2234] text-[#F3E5AB] border border-[#D4AF37]/30 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
               title="Administrar Mi Inmobiliaria"
             >
               <Building2 className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -164,7 +182,7 @@ export function AppHeader({
           {currentUser.role === "superadmin" && (
             <button
               onClick={() => setCurrentView("admin")}
-              className="flex items-center gap-1.5 bg-purple-950/60 hover:bg-purple-900/50 text-purple-300 border border-purple-700/40 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs"
+              className="flex items-center gap-1.5 bg-purple-950/60 hover:bg-purple-900/50 text-purple-300 border border-purple-700/40 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
               title="Panel SuperAdmin"
             >
               <Shield className="w-3.5 h-3.5 text-purple-400" />
@@ -183,7 +201,7 @@ export function AppHeader({
             <button
               onClick={onLogout}
               title="Cerrar Sesión"
-              className="p-1.5 md:p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-rose-950/20 transition-colors"
+              className="p-1.5 md:p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-rose-950/20 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -194,6 +212,17 @@ export function AppHeader({
       {/* MOBILE MENU DRAWER */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-slate-900 border-b border-slate-800 p-4 flex flex-col gap-4 animate-in slide-in-from-top z-20 shadow-xl">
+          <button
+            onClick={() => {
+              setCurrentView("landing");
+              setIsMobileMenuOpen(false);
+            }}
+            className="flex items-center justify-center gap-2 bg-[#111622] text-[#F3E5AB] border border-[#D4AF37]/30 py-2.5 rounded-xl text-xs font-bold"
+          >
+            <Globe className="w-4 h-4 text-[#D4AF37]" />
+            <span>🌐 Ver Portal Inmobiliario Público</span>
+          </button>
+
           <div className="relative">
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
             <input
