@@ -33,12 +33,14 @@ import {
   AlertTriangle,
   Key,
   ExternalLink,
-  Lock
+  Lock,
+  Target
 } from "lucide-react";
 import type { AppUser } from "@/src/types/property";
 import { signOut, SUPERADMIN_EMAIL } from "@/src/lib/auth";
 import { supabase } from "@/src/lib/supabase";
 import { PropertyLogo } from "@/src/components/brand/PropertyLogo";
+import { B2bProspectingView } from "@/src/components/admin/B2bProspectingView";
 
 interface SuperAdminPanelProps {
   currentUser: AppUser;
@@ -72,7 +74,7 @@ interface DbAgency {
 }
 
 export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, onLogout, onSwitchTenant, onNavigateToLanding }) => {
-  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts">("agencies");
+  const [activeSection, setActiveSection] = useState<"agencies" | "metrics" | "webhook" | "ai_config" | "system_prompts" | "b2b_prospecting">("agencies");
   
   // Real State from Supabase
   const [agencies, setAgencies] = useState<DbAgency[]>([]);
@@ -454,6 +456,7 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
 
   const navItems = [
     { id: "agencies" as const, icon: Building2, label: "Gestor de Agencias" },
+    { id: "b2b_prospecting" as const, icon: Target, label: "🏢 Prospección B2B" },
     { id: "ai_config" as const, icon: Bot, label: "Configuración IA Sofía" },
     { id: "system_prompts" as const, icon: Settings, label: "Prompts del Sistema" },
     { id: "metrics" as const, icon: Activity, label: "Métricas Consolidadas" },
@@ -690,6 +693,13 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── SECTION: B2B Prospecting ── */}
+          {activeSection === "b2b_prospecting" && (
+            <div className="max-w-6xl">
+              <B2bProspectingView />
             </div>
           )}
 

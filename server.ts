@@ -5,6 +5,9 @@ import { processWebhookMessage } from "./api/whatsapp/webhook";
 import { supabaseServer } from "./src/lib/supabase-server";
 import { EmbeddingFactory } from "./src/lib/embeddings";
 import compilePromptHandler from "./api/ai/compile-prompt";
+import prospectsSearchHandler from "./api/admin/prospects-search";
+import sendInvitationHandler from "./api/admin/send-invitation";
+import convertProspectHandler from "./api/admin/convert-prospect";
 
 const PORT = process.env.PORT || 3000;
 
@@ -25,6 +28,21 @@ async function startServer() {
   // 1.1 AI Compile Flow Prompt
   app.post("/api/ai/compile-prompt", async (req: Request, res: Response) => {
     await compilePromptHandler(req as any, res as any);
+  });
+
+  // 1.2 B2B Prospecting: Search Agencies by City
+  app.post("/api/admin/prospects-search", async (req: Request, res: Response) => {
+    await prospectsSearchHandler(req as any, res as any);
+  });
+
+  // 1.3 B2B Prospecting: Generate Cold Email Invitation for Demo
+  app.post("/api/admin/send-invitation", async (req: Request, res: Response) => {
+    await sendInvitationHandler(req as any, res as any);
+  });
+
+  // 1.4 B2B Prospecting: 1-Click Convert Prospect to Tenant Organization
+  app.post("/api/admin/convert-prospect", async (req: Request, res: Response) => {
+    await convertProspectHandler(req as any, res as any);
   });
 
   // 2. WhatsApp Evolution API Webhook Endpoint
