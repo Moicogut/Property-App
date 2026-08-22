@@ -5,12 +5,10 @@ import {
   Download,
   Copy,
   Check,
-  Play,
   Film,
   Smartphone,
   Monitor,
   Share2,
-  ShieldCheck,
   TrendingUp,
   FileCode,
   ExternalLink,
@@ -24,10 +22,9 @@ import {
   User,
   Image as ImageIcon,
   Building,
-  Edit3,
   Layers,
-  Languages,
-  Eye
+  Loader2,
+  Wand2
 } from "lucide-react";
 import type { AppUser, Lead } from "@/src/types/property";
 
@@ -48,8 +45,8 @@ export interface FlowAssetTokens {
 
 export interface SceneItem {
   scene_number: number;
-  day_label?: string;
-  theme_key?: string;
+  title: string;
+  user_idea: string;
   spanish_description: string;
   narration: string;
   image_prompt: string;
@@ -62,10 +59,8 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
   // ── Controles de Configuración General ──
   const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9">("9:16");
   const [targetCity, setTargetCity] = useState<string>("Santa Cruz");
-  const [selectedDayFilter, setSelectedDayFilter] = useState<string>("TODOS");
   const [forceSpanishAudio, setForceSpanishAudio] = useState<boolean>(true);
   const [isAssetDrawerOpen, setIsAssetDrawerOpen] = useState<boolean>(false);
-  const [showGoldenSample, setShowGoldenSample] = useState<boolean>(false);
 
   // ── 5 Slots de Referencia Multimodal (@ Tokens para Google Labs Flow) ──
   const [assetTokens, setAssetTokens] = useState<FlowAssetTokens>({
@@ -82,233 +77,140 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
   const [advisorName, setAdvisorName] = useState<string>(currentUser.fullName || "Asesor Property OS");
   const [advisorPhone, setAdvisorPhone] = useState<string>("59170000000");
 
-  // ── Feedback UI ──
+  // ── Feedback UI & Estado de IA ──
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [editingSceneIdx, setEditingSceneIdx] = useState<number | null>(null);
-  const [activeMode, setActiveMode] = useState<"individual" | "batch">("individual");
-  const [selectedSceneNumber, setSelectedSceneNumber] = useState<number>(1);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
-  // ── Generador de Prompts Cinematográficos con Tokens @ ──
-  const buildPromptsForScene = (
-    sceneNum: number,
-    theme: string,
-    spanishDesc: string,
-    narrationText: string,
-    tokens: FlowAssetTokens,
-    ratio: "9:16" | "16:9",
-    city: string,
-    spanishAudio: boolean
-  ) => {
-    const isVertical = ratio === "9:16";
-    const resText = isVertical ? "full 1080x1920 resolution" : "full 1920x1080 resolution";
-    const model2Part = tokens.enableModel2 ? ` interacting with a buyer client @${tokens.model2}` : "";
-    const audioDirective = spanishAudio
-      ? `Audio: Native clear neutral Latin American Spanish voiceover speaking strictly in Spanish: '${narrationText.replace(/'/g, "")}', `
-      : "";
-
-    let imagePrompt = "";
-    let videoPrompt = "";
-
-    switch (sceneNum) {
-      case 1:
-        imagePrompt = `Cinematic vertical ${ratio} portrait (${resText}) of a 30-year-old Latina real estate professional @${tokens.model1}${model2Part}; she is holding a glass tablet displaying the 5.5% VIS social mortgage calculator @${tokens.producto}; set in a modern luxury executive penthouse in ${city} @${tokens.escena} with branded seal @${tokens.logo}; diffused 5600K key lighting with subtle 3200K champagne-gold rim lighting; hyper-realistic 8K, ${ratio} aspect ratio --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Camera performs a slow cinematic push-in in ${ratio} towards the advisor @${tokens.model1} as she smiles confidently and taps the glass tablet screen showing the mortgage calculation @${tokens.producto}, inside @${tokens.escena}, smooth 24fps movement, 5600K lighting, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 2:
-        imagePrompt = `Cinematic vertical ${ratio} portrait (${resText}) of a 30-year-old Latina real estate professional @${tokens.model1}; she is holding a modern smartphone displaying "Sofía IA" (an automated WhatsApp assistant) actively qualifying real estate buyer leads using the BANT methodology @${tokens.logo}; set in a modern luxury executive penthouse in ${city} @${tokens.escena}; diffused 5600K key lighting with subtle 3200K champagne-gold rim lighting; hyper-realistic 8K, ${ratio} aspect ratio --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Slow cinematic camera pan in ${ratio} focusing on the advisor @${tokens.model1} presenting the glowing smartphone with "Sofía IA" and the golden brand logo @${tokens.logo} as buyer appointments are booked automatically, inside @${tokens.escena}, 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 3:
-        imagePrompt = `Cinematic vertical ${ratio} shot (${resText}) of the real estate professional @${tokens.model1} presenting a digital holographic shield for Property Legal Audit with green verification marks for Folio Real and Cadastre @${tokens.producto}; branded with @${tokens.logo}; set in executive lounge @${tokens.escena}; 5600K diffused lighting, 8k, aspect ratio ${ratio} --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Camera zooms slightly in ${ratio} into the digital legal audit interface @${tokens.producto} as verification marks glow green while the advisor @${tokens.model1} explains with authority, inside @${tokens.escena}, 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 4:
-        imagePrompt = `Cinematic vertical ${ratio} medium shot (${resText}) of the real estate advisor @${tokens.model1} reviewing an analytical property valuation heatmap @${tokens.producto} alongside property brochure @${tokens.afiche}; set in penthouse in ${city} @${tokens.escena}; 5600K lighting, 8k, aspect ratio ${ratio} --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Gentle camera orbit in ${ratio} around the advisor @${tokens.model1} as she points out price-per-square-meter market analysis on the tablet @${tokens.producto}, inside @${tokens.escena}, smooth 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 5:
-        imagePrompt = `Cinematic vertical ${ratio} comparison portrait (${resText}) of the modern tech-enabled advisor @${tokens.model1} operating Property OS CRM on a sleek ultrabook @${tokens.producto} with official logo @${tokens.logo}; set in modern boardroom in ${city} @${tokens.escena}; 8k, aspect ratio ${ratio} --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Dynamic cinematic transition in ${ratio} showing the advisor @${tokens.model1} generating a digital PDF reservation contract in one click on Property OS @${tokens.producto}, 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 6:
-        imagePrompt = `Cinematic vertical ${ratio} wide shot (${resText}) of a bright luxury apartment living room in ${city} @${tokens.escena} with promotional banner @${tokens.afiche}; real estate professional @${tokens.model1} gesturing welcomingly towards the panoramic balcony; 8k, aspect ratio ${ratio} --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Smooth forward tracking shot in ${ratio} entering the luxury apartment @${tokens.escena} as the advisor @${tokens.model1} guides the viewer toward the balcony view, 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
-      case 7:
-      default:
-        imagePrompt = `Cinematic vertical ${ratio} conversational portrait (${resText}) of the real estate professional @${tokens.model1} seated comfortably in executive chair holding coffee cup with logo @${tokens.logo}; engaging directly with camera; set in luxury penthouse @${tokens.escena}; warm 3200K rim lighting, 8k, aspect ratio ${ratio} --ar ${ratio}, Spanish-language audio.`;
-        videoPrompt = `Close-up conversational camera angle in ${ratio} as advisor @${tokens.model1} addresses the camera with natural micro-expressions and gestures, inside @${tokens.escena}, 24fps, ${audioDirective}aspect ratio ${ratio} --ar ${ratio}`;
-        break;
+  // ── Lista de Escenas Libres y Dinámicas ──
+  const [scenes, setScenes] = useState<SceneItem[]>([
+    {
+      scene_number: 1,
+      title: "Crédito VIS & Cuotas ($285/mes)",
+      user_idea: "Explicar que con crédito de vivienda social VIS al 5.5% compran departamento de $48,000 pagando $285/mes de cuota bancaria en vez de alquiler.",
+      spanish_description: "Asesora en penthouse mostrando tablet con cotizador interactivo de crédito VIS al 5.5%.",
+      narration: "Si sigues creyendo que necesitas cincuenta mil dólares para comprar tu primer departamento en Santa Cruz, estás perdiendo dinero. Con el Crédito VIS la tasa es del 5.5% fijada por ley. Por un departamento de 48,000 dólares pagas 285 dólares al mes, exactamente lo de un alquiler. Comenta CALCULAR y te paso el simulador oficial a tu WhatsApp.",
+      image_prompt: "Cinematic vertical 9:16 portrait (full 1080x1920 resolution) of a 30-year-old Latina real estate professional @HRP Modelo WARA 02.jpeg; she is holding a glass tablet displaying the 5.5% VIS social mortgage calculator @UI_Cotizador_VIS.png; set in a modern luxury executive penthouse in Santa Cruz @ático SCZ 01.jpg with branded seal @logo.a.png; diffused 5600K key lighting with subtle 3200K champagne-gold rim lighting; hyper-realistic 8K, 9:16 aspect ratio --ar 9:16, Spanish-language audio.",
+      video_prompt: "Camera performs a slow cinematic push-in in 9:16 towards the advisor @HRP Modelo WARA 02.jpeg as she smiles confidently and taps the glass tablet screen showing the mortgage calculation @UI_Cotizador_VIS.png, inside @ático SCZ 01.jpg, smooth 24fps movement, 5600K lighting, Audio: Native clear neutral Latin American Spanish voiceover speaking strictly in Spanish: 'Si sigues creyendo que necesitas cincuenta mil dólares para comprar tu primer departamento en Santa Cruz, estás perdiendo dinero. Con el Crédito VIS la tasa es del 5.5% fijada por ley. Por un departamento de 48,000 dólares pagas 285 dólares al mes, exactamente lo de un alquiler. Comenta CALCULAR y te paso el simulador oficial a tu WhatsApp.', aspect ratio 9:16 --ar 9:16"
+    },
+    {
+      scene_number: 2,
+      title: "Sofía IA Calificando a las 2:30 AM",
+      user_idea: "Mostrar cómo Sofía IA atiende y califica compradores en WhatsApp mientras el asesor duerme.",
+      spanish_description: "Asesora sosteniendo smartphone que muestra a Sofía IA calificando prospectos con BANT.",
+      narration: "Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar. Mientras descansas, nuestra asistente Sofía IA atiende a tus clientes en WhatsApp, califica su presupuesto con BANT y agenda la visita en Google Calendar. Comenta BOT para probar el simulador gratis.",
+      image_prompt: "Cinematic vertical 9:16 portrait (full 1080x1920 resolution) of a 30-year-old Latina real estate professional @HRP Modelo WARA 02.jpeg; holding a modern smartphone displaying \"Sofía IA\" (automated WhatsApp assistant) with @logo.a.png; set in penthouse @ático SCZ 01.jpg; 5600K diffused lighting, 8k, aspect ratio 9:16 --ar 9:16, Spanish-language audio.",
+      video_prompt: "Slow cinematic pan in 9:16 focusing on the advisor @HRP Modelo WARA 02.jpeg presenting the smartphone with \"Sofía IA\" @logo.a.png as buyer appointments are qualified in WhatsApp, inside @ático SCZ 01.jpg, 24fps, Audio: Native clear neutral Latin American Spanish voiceover speaking strictly in Spanish: 'Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar. Mientras descansas, nuestra asistente Sofía IA atiende a tus clientes en WhatsApp, califica su presupuesto con BANT y agenda la visita en Google Calendar. Comenta BOT para probar el simulador gratis.', aspect ratio 9:16 --ar 9:16"
     }
+  ]);
 
-    return { imagePrompt, videoPrompt };
-  };
+  const [selectedSceneIndex, setSelectedSceneIndex] = useState<number>(0);
+  const currentScene = scenes[selectedSceneIndex] || scenes[0];
 
-  // ── Generación Inicial de Escenas ──
-  const generateInitialScenes = (tokens: FlowAssetTokens, ratio: "9:16" | "16:9", city: string, spanishAudio: boolean): SceneItem[] => {
-    const rawData = [
-      {
-        num: 1,
-        day: "Lunes",
-        theme: "Crédito VIS & Cuotas ($285/mes)",
-        desc: "Asesora mostrando tablet con cotización de crédito de vivienda social VIS al 5.5% regulado.",
-        narration: `Si sigues creyendo que necesitas cincuenta mil dólares para comprar tu primer departamento en ${city}, estás perdiendo dinero. Con el Crédito de Vivienda Social VIS, la tasa está fijada al 5.5% por ley. Por un departamento de 48,000 dólares, tu cuota mensual queda en 285 dólares, exactamente lo que pagas de alquiler. Comenta CALCULAR y te envío el simulador a tu WhatsApp.`
-      },
-      {
-        num: 2,
-        day: "Martes",
-        theme: "Sofía IA Calificando a las 2:30 AM",
-        desc: "Asesora sosteniendo smartphone con WhatsApp abierto mostrando a Sofía IA calificando leads con BANT.",
-        narration: `Son las dos y media de la madrugada y acabo de calificar a un comprador listo para firmar minuta. Mientras descansas, nuestra asistente Sofía IA atiende a tus clientes en WhatsApp, califica su presupuesto con telemetría BANT y te agenda la visita en Google Calendar. Comenta BOT para probar el simulador gratis.`
-      },
-      {
-        num: 3,
-        day: "Miércoles",
-        theme: "Semáforo Legal & Folio Real",
-        desc: "Asesora explicando el semáforo legal de 3 pilares: Folio Real, Impuestos RUAT y Catastro Municipal.",
-        narration: `Nunca des un centavo de reserva por un inmueble sin antes revisar este semáforo legal. En Bolivia, 4 de cada 10 inmuebles tienen problemas en Derechos Reales: hipotecas no canceladas, deudas en el RUAT o planos no visados. En Property OS auditamos los 3 pilares legales antes de emitir cualquier contrato. Comenta AUDITORIA para evaluar tu caso.`
-      },
-      {
-        num: 4,
-        day: "Jueves",
-        theme: "Estudio ACM & Valuación de Inmuebles",
-        desc: "Asesora analizando mapa de calor de precios por m2 para fijar el valor de venta real sin quemar el inmueble.",
-        narration: `¿Tu casa lleva 6 meses en venta y nadie llama? Este es el motivo exacto: el precio por metro cuadrado está desalineado del mercado real. Con nuestro estudio comparativo ACM analizamos la zona exacta para que vendas al mejor valor sin quemar tu propiedad. Comenta PRECIO y valuamos tu inmueble.`
-      },
-      {
-        num: 5,
-        day: "Viernes",
-        theme: "Asesor Tradicional vs. Asesor con Property OS",
-        desc: "Comparativa entre gestión manual en papel vs. generación de contratos digitales y CRM automatizado.",
-        narration: `El 90% de los agentes inmobiliarios perderá clientes este año por seguir usando hojas de cálculo y notas en papel. Property OS es el sistema operativo completo con contratos en PDF, cotizador bancario y pipeline automatizado. Si quieres usar esta tecnología o unirte a nuestro equipo de embajadores, comenta SISTEMA.`
-      },
-      {
-        num: 6,
-        day: "Sábado",
-        theme: "Tour Departamento $65,000 en Zona Residencial",
-        desc: "Recorrido por departamento de 2 dormitorios con balcón panorámico apto para crédito VIS.",
-        narration: `Te muestro este departamento de 65,000 dólares en la mejor zona residencial de ${city}. Dos dormitorios, cocina equipada y balcón panorámico, apto para crédito VIS con cuota bancaria súper accesible. Comenta TOUR y te paso la ficha técnica completa con ubicación exacta.`
-      },
-      {
-        num: 7,
-        day: "Domingo",
-        theme: "DMO Social Selling & Objeciones",
-        desc: "Asesora en charla cercana respondiendo dudas sobre aporte inicial y estructuración de financiamiento.",
-        narration: `Muchas personas me preguntan cuál es el mayor freno para comprar casa este 2026: ¿el aporte inicial o el miedo a las tasas? La clave no es esperar el momento perfecto, sino estructurar tu financiamiento con datos reales. Escríbeme un mensaje directo con tu caso y te asesoramos paso a paso.`
+  // ── Invocación de IA para Traducir y Generar Prompts Cinematográficos ──
+  const handleGenerateAiPrompt = async (idxToProcess: number) => {
+    const targetScene = scenes[idxToProcess];
+    if (!targetScene) return;
+
+    setIsGeneratingAi(true);
+    setAiError(null);
+
+    try {
+      const response = await fetch("/api/ai/compile-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: targetScene.user_idea || targetScene.title,
+          spanishDescription: targetScene.spanish_description,
+          narration: targetScene.narration,
+          city: targetCity,
+          aspectRatio: aspectRatio,
+          tokens: assetTokens,
+          forceSpanishAudio: forceSpanishAudio,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error en el servidor de IA (${response.status})`);
       }
-    ];
 
-    return rawData.map((item) => {
-      const prompts = buildPromptsForScene(
-        item.num,
-        item.theme,
-        item.desc,
-        item.narration,
-        tokens,
-        ratio,
-        city,
-        spanishAudio
-      );
-      return {
-        scene_number: item.num,
-        day_label: item.day,
-        theme_key: item.theme,
-        spanish_description: item.desc,
-        narration: item.narration,
-        image_prompt: prompts.imagePrompt,
-        video_prompt: prompts.videoPrompt
+      const data = await response.json();
+
+      const updated = [...scenes];
+      updated[idxToProcess] = {
+        ...targetScene,
+        spanish_description: data.spanish_description || targetScene.spanish_description,
+        narration: data.narration || targetScene.narration,
+        video_prompt: data.video_prompt || targetScene.video_prompt,
+        image_prompt: data.image_prompt || targetScene.image_prompt,
       };
-    });
+
+      setScenes(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al conectar con el motor de IA";
+      setAiError(msg);
+      console.error("[MarketingStudioView] Error generando con IA:", err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
   };
 
-  const [scenes, setScenes] = useState<SceneItem[]>(() =>
-    generateInitialScenes(assetTokens, aspectRatio, targetCity, forceSpanishAudio)
-  );
-
-  // Recalcular lote completo
-  const handleRegenerateBatch = () => {
-    const updated = generateInitialScenes(assetTokens, aspectRatio, targetCity, forceSpanishAudio);
-    setScenes(updated);
-    setEditingSceneIdx(null);
-  };
-
-  // Re-compilar prompts de una escena individual tras editar en español
-  const handleCompileSingleScene = (idx: number) => {
-    const scene = scenes[idx];
-    const prompts = buildPromptsForScene(
-      scene.scene_number,
-      scene.theme_key || `Escena ${scene.scene_number}`,
-      scene.spanish_description,
-      scene.narration,
-      assetTokens,
-      aspectRatio,
-      targetCity,
-      forceSpanishAudio
-    );
-    const updated = [...scenes];
-    updated[idx] = {
-      ...scene,
-      image_prompt: prompts.imagePrompt,
-      video_prompt: prompts.videoPrompt
-    };
-    setScenes(updated);
-  };
-
-  // Añadir nueva escena manual
-  const handleAddScene = () => {
+  // ── Añadir Nueva Escena Libre ──
+  const handleAddNewScene = () => {
     const nextNum = scenes.length + 1;
-    const desc = `Escena personalizada número ${nextNum} en ${targetCity}.`;
-    const narration = `Texto de locución personalizado para la escena ${nextNum}.`;
-    const prompts = buildPromptsForScene(
-      nextNum,
-      `Escena ${nextNum}`,
-      desc,
-      narration,
-      assetTokens,
-      aspectRatio,
-      targetCity,
-      forceSpanishAudio
-    );
     const newScene: SceneItem = {
       scene_number: nextNum,
-      day_label: `Día ${nextNum}`,
-      theme_key: "Nueva Escena",
-      spanish_description: desc,
-      narration: narration,
-      image_prompt: prompts.imagePrompt,
-      video_prompt: prompts.videoPrompt
+      title: `Escena ${nextNum}`,
+      user_idea: "",
+      spanish_description: "",
+      narration: "",
+      image_prompt: "",
+      video_prompt: "",
     };
-    setScenes([...scenes, newScene]);
-    setSelectedSceneNumber(nextNum);
+    const updated = [...scenes, newScene];
+    setScenes(updated);
+    setSelectedSceneIndex(updated.length - 1);
   };
 
-  // Eliminar escena
+  // ── Eliminar Escena ──
   const handleDeleteScene = (idxToDelete: number) => {
-    const filtered = scenes.filter((_, idx) => idx !== idxToDelete).map((s, idx) => ({
-      ...s,
-      scene_number: idx + 1
-    }));
+    if (scenes.length <= 1) return;
+    const filtered = scenes
+      .filter((_, idx) => idx !== idxToDelete)
+      .map((s, idx) => ({ ...s, scene_number: idx + 1 }));
     setScenes(filtered);
-    if (editingSceneIdx === idxToDelete) setEditingSceneIdx(null);
+    setSelectedSceneIndex(Math.max(0, idxToDelete - 1));
   };
 
-  // Actualizar campo de escena
-  const handleUpdateSceneField = (idx: number, field: keyof SceneItem, value: string | number) => {
+  // ── Actualizar Campo de Escena ──
+  const handleUpdateField = (field: keyof SceneItem, value: string) => {
     const updated = [...scenes];
-    updated[idx] = { ...updated[idx], [field]: value };
+    updated[selectedSceneIndex] = {
+      ...updated[selectedSceneIndex],
+      [field]: value,
+    };
     setScenes(updated);
   };
 
-  // Descargar script.json limpio para Flow / Extension
+  // ── Copiar al Portapapeles ──
+  const handleCopyPrompt = (text: string, id: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(id);
+    setTimeout(() => setCopiedIndex(null), 2500);
+  };
+
+  // ── Descargar script.json Completo ──
   const handleDownloadScriptJson = () => {
     const exportData = {
       scenes: scenes.map((s) => ({
         scene_number: s.scene_number,
+        title: s.title,
         image_prompt: s.image_prompt,
         video_prompt: s.video_prompt,
-        narration: s.narration
-      }))
+        narration: s.narration,
+      })),
     };
     const jsonStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonStr], { type: "application/json" });
@@ -325,21 +227,6 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
     setTimeout(() => setDownloadSuccess(false), 3500);
   };
 
-  // Copiar prompt individual
-  const handleCopyPrompt = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(id);
-    setTimeout(() => setCopiedIndex(null), 2500);
-  };
-
-  // Filtrado de escenas por día
-  const filteredScenes = selectedDayFilter === "TODOS"
-    ? scenes
-    : scenes.filter((s) => s.day_label === selectedDayFilter);
-
-  const currentIndividualScene = scenes.find((s) => s.scene_number === selectedSceneNumber) || scenes[0];
-  const currentIndividualIdx = scenes.findIndex((s) => s.scene_number === currentIndividualScene.scene_number);
-
   // Conteo de leads por palabra clave
   const keywordStats = {
     CALCULAR: leads.filter((l) => l.aiSummary?.toLowerCase().includes("vis") || l.paymentMethod === "CREDITO_VIS").length,
@@ -351,7 +238,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
-      {/* ── Header Principal ── */}
+      {/* ── HEADER PRINCIPAL ── */}
       <div className="bg-[#0B0D12] border border-slate-800/80 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
         <div className="absolute -right-16 -top-16 w-64 h-64 bg-[#D4AF37]/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -367,29 +254,17 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                   Marketing Studio & Video Engine
                   <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#F3E5AB]">
-                    Flow Multimodal v2.5
+                    Flow Multimodal IA
                   </span>
                 </h1>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Generación de spots con tokens <code className="text-[#D4AF37]">@</code> para Google Labs Flow / Veo 2, edición bilingüe y exportación en lote.
+                  Generación de spots con IA y tokens <code className="text-[#D4AF37]">@</code> para Google Labs Flow / Veo 2.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setShowGoldenSample(!showGoldenSample)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                showGoldenSample
-                  ? "bg-purple-950/70 text-purple-300 border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.3)]"
-                  : "bg-[#111622] hover:bg-[#1A2234] text-slate-300 border-slate-700"
-              }`}
-            >
-              <Play className="w-3.5 h-3.5 text-purple-400" />
-              <span>{showGoldenSample ? "Ocultar Muestra" : "Ver Video Muestra (VLC)"}</span>
-            </button>
-
             <button
               onClick={() => setIsAssetDrawerOpen(!isAssetDrawerOpen)}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
@@ -399,7 +274,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Tokens @ Flow (5 Slots)</span>
+              <span>Tokens @ Flow ({Object.keys(assetTokens).length - 1} Slots)</span>
             </button>
 
             <a
@@ -417,7 +292,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               className="px-4 py-2 bg-gradient-to-r from-[#D4AF37] to-[#B89628] hover:brightness-110 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.4)] transition-all cursor-pointer"
             >
               {downloadSuccess ? <Check className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-              <span>{downloadSuccess ? "¡script.json Listo!" : "Descargar script.json"}</span>
+              <span>{downloadSuccess ? "¡script.json Listo!" : `Exportar script.json (${scenes.length})`}</span>
             </button>
           </div>
         </div>
@@ -425,7 +300,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
         {/* ── Subtabs de Navegación ── */}
         <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-slate-800/80">
           {[
-            { id: "generator", label: "🎬 Consola de Prompts (@ Flow)", icon: Sparkles },
+            { id: "generator", label: "🎬 Creador de Prompts con IA", icon: Sparkles },
             { id: "extension", label: "🧩 Extensión Chrome", icon: FileCode },
             { id: "dmo", label: "📱 Biblioteca DMO & Red", icon: Share2 },
             { id: "telemetry", label: "📊 Telemetría de Campañas", icon: TrendingUp },
@@ -450,65 +325,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
         </div>
       </div>
 
-      {/* ── MODAL / BANNER DE VIDEO MUESTRA OFICIAL (Golden Sample) ── */}
-      {showGoldenSample && (
-        <div className="bg-[#0B0D12] border-2 border-purple-500/40 rounded-2xl p-5 shadow-2xl animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
-            <div className="flex items-center gap-2">
-              <Film className="w-5 h-5 text-purple-400" />
-              <div>
-                <h3 className="text-sm font-black text-white">Video de Referencia Oficial (Golden Sample)</h3>
-                <p className="text-[11px] text-slate-400">
-                  Generado con <code>HRP Modelo WARA 02.jpeg</code> + <code>logo.a.png</code> + <code>ático SCZ 01.jpg</code> en Google Labs Flow.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowGoldenSample(false)}
-              className="text-xs text-slate-400 hover:text-white px-2 py-1 bg-slate-900 rounded-lg cursor-pointer"
-            >
-              Cerrar
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            <div className="md:col-span-1 flex justify-center bg-slate-950 p-2 rounded-2xl border border-slate-800">
-              <video
-                src="/video_prueba.1.mp4"
-                controls
-                autoPlay
-                className="rounded-xl max-h-96 w-auto shadow-2xl"
-              />
-            </div>
-
-            <div className="md:col-span-2 space-y-3 text-xs text-slate-300">
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                <span className="text-[10px] font-bold text-[#D4AF37] uppercase">Tokens Utilizados en esta Generación:</span>
-                <div className="flex flex-wrap gap-2 text-[11px] font-mono">
-                  <span className="bg-slate-950 px-2 py-1 rounded text-purple-300 border border-purple-500/30">
-                    @HRP Modelo WARA 02.jpeg
-                  </span>
-                  <span className="bg-slate-950 px-2 py-1 rounded text-amber-300 border border-amber-500/30">
-                    @logo.a.png
-                  </span>
-                  <span className="bg-slate-950 px-2 py-1 rounded text-emerald-300 border border-emerald-500/30">
-                    @ático SCZ 01.jpg
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-1">
-                <span className="text-[10px] font-bold text-emerald-400 uppercase">Transcripción & Locución (00:10):</span>
-                <p className="italic text-slate-200">
-                  "Hola. Te presento a Sofía IA. Ella califica tus leads. Usa la metodología BANT. Así optimizas tu tiempo real. Agenda una demostración hoy."
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── DRAWER DE CONFIGURACIÓN DE 5 TOKENS DE ASSETS (@) ── */}
+      {/* ── DRAWER DE ASSETS @ FLOW (CONFIGURACIÓN DE TOKENS) ── */}
       {isAssetDrawerOpen && (
         <div className="bg-[#111622] border-2 border-[#D4AF37]/60 rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in slide-in-from-top-3">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -516,19 +333,18 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               <Layers className="w-5 h-5 text-[#D4AF37]" />
               <div>
                 <h3 className="text-sm font-black text-white uppercase tracking-wider">
-                  Configuración de Assets Multimodales en Google Labs Flow
+                  Configuración de Assets en Google Labs Flow
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  Nombres exactos de los archivos subidos a Flow. Se inyectarán automáticamente como <code className="text-[#D4AF37]">@nombre_archivo</code>.
+                  Nombres exactos de los archivos subidos al canvas de Flow. La IA los inyectará como <code className="text-[#D4AF37]">@nombre_archivo</code>.
                 </p>
               </div>
             </div>
             <button
-              onClick={handleRegenerateBatch}
-              className="px-3 py-1.5 bg-[#D4AF37] hover:bg-[#C29D2D] text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+              onClick={() => setIsAssetDrawerOpen(false)}
+              className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Aplicar a Todos los Prompts</span>
+              Guardar y Cerrar
             </button>
           </div>
 
@@ -546,7 +362,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-mono outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 placeholder="ej. HRP Modelo WARA 02.jpeg"
               />
-              <p className="text-[10px] text-slate-500">Hoja de referencia facial y vestimenta del asesor/a.</p>
+              <p className="text-[10px] text-slate-500">Hoja de referencia del rostro/vestimenta.</p>
             </div>
 
             {/* Slot 2: Personaje Secundario (Opcional) */}
@@ -573,7 +389,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 }`}
                 placeholder="ej. HRP Cliente COMPRADOR.jpeg"
               />
-              <p className="text-[10px] text-slate-500">Activa si la escena incluye interacción entre 2 personas.</p>
+              <p className="text-[10px] text-slate-500">Activa si interactúan 2 personas en cámara.</p>
             </div>
 
             {/* Slot 3: Logo / Branding */}
@@ -589,7 +405,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-mono outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 placeholder="ej. logo.a.png"
               />
-              <p className="text-[10px] text-slate-500">Isotipo 3D o logotipo de la inmobiliaria/Property OS.</p>
+              <p className="text-[10px] text-slate-500">Isotipo 3D o logotipo en pantalla.</p>
             </div>
 
             {/* Slot 4: Escenario */}
@@ -605,7 +421,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-mono outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 placeholder="ej. ático SCZ 01.jpg"
               />
-              <p className="text-[10px] text-slate-500">Foto o render del set, balcón, living o sala de reuniones.</p>
+              <p className="text-[10px] text-slate-500">Foto del set, balcón, living o sala.</p>
             </div>
 
             {/* Slot 5: Producto / UI */}
@@ -621,7 +437,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-mono outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 placeholder="ej. UI_Cotizador_VIS.png"
               />
-              <p className="text-[10px] text-slate-500">Captura de pantalla de la app, cotizador o semáforo legal.</p>
+              <p className="text-[10px] text-slate-500">Pantalla de la app, cotizador o semáforo legal.</p>
             </div>
 
             {/* Slot 6: Afiche Publicitario */}
@@ -637,354 +453,274 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-200 font-mono outline-none focus:ring-1 focus:ring-[#D4AF37]"
                 placeholder="ej. Afiche_48000_USD.png"
               />
-              <p className="text-[10px] text-slate-500">Banner o infografía con precio y condiciones comerciales.</p>
+              <p className="text-[10px] text-slate-500">Banner comercial con precio o condiciones.</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── SUBTAB 1: CONSOLA DE PROMPTS (@ FLOW) ── */}
+      {/* ── SUBTAB 1: CREADOR DE PROMPTS CON IA (ESPACIO AMPLIO Y MANEJABLE) ── */}
       {activeSubTab === "generator" && (
         <div className="space-y-4">
-          {/* Barra de Control de Modalidad: Individual vs Lote */}
-          <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-400">Modo de Trabajo:</span>
-              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+          {/* Barra de Ajustes Globales */}
+          <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-300">Formato:</span>
+              <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
                 <button
-                  onClick={() => setActiveMode("individual")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    activeMode === "individual"
-                      ? "bg-[#D4AF37] text-slate-950 shadow-sm"
-                      : "text-slate-400 hover:text-white"
+                  onClick={() => setAspectRatio("9:16")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                    aspectRatio === "9:16" ? "bg-[#D4AF37]/20 text-[#F3E5AB] border border-[#D4AF37]/40" : "text-slate-400"
                   }`}
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Modo Individual (1 a 1)</span>
+                  <Smartphone className="w-3.5 h-3.5 inline mr-1" />
+                  9:16 Vertical (TikTok/Reels)
                 </button>
                 <button
-                  onClick={() => setActiveMode("batch")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                    activeMode === "batch"
-                      ? "bg-[#D4AF37] text-slate-950 shadow-sm"
-                      : "text-slate-400 hover:text-white"
+                  onClick={() => setAspectRatio("16:9")}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${
+                    aspectRatio === "16:9" ? "bg-[#D4AF37]/20 text-[#F3E5AB] border border-[#D4AF37]/40" : "text-slate-400"
                   }`}
                 >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>Modo Lote (7 Días)</span>
+                  <Monitor className="w-3.5 h-3.5 inline mr-1" />
+                  16:9 Horizontal (YouTube/Web)
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Selector de Ratio */}
-              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-                <button
-                  onClick={() => {
-                    setAspectRatio("9:16");
-                    setScenes((prev) =>
-                      prev.map((s) => ({
-                        ...s,
-                        image_prompt: s.image_prompt.replace(/16:9/g, "9:16"),
-                        video_prompt: s.video_prompt.replace(/16:9/g, "9:16"),
-                      }))
-                    );
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition ${
-                    aspectRatio === "9:16" ? "bg-[#D4AF37]/20 text-[#F3E5AB] border border-[#D4AF37]/40" : "text-slate-400"
-                  }`}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400">Ciudad:</span>
+                <select
+                  value={targetCity}
+                  onChange={(e) => setTargetCity(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 font-bold outline-none"
                 >
-                  9:16 Vertical
-                </button>
-                <button
-                  onClick={() => {
-                    setAspectRatio("16:9");
-                    setScenes((prev) =>
-                      prev.map((s) => ({
-                        ...s,
-                        image_prompt: s.image_prompt.replace(/9:16/g, "16:9"),
-                        video_prompt: s.video_prompt.replace(/9:16/g, "16:9"),
-                      }))
-                    );
-                  }}
-                  className={`px-2.5 py-1 rounded-lg font-bold transition ${
-                    aspectRatio === "16:9" ? "bg-[#D4AF37]/20 text-[#F3E5AB] border border-[#D4AF37]/40" : "text-slate-400"
-                  }`}
-                >
-                  16:9 Web
-                </button>
+                  <option value="Santa Cruz">📍 Santa Cruz</option>
+                  <option value="La Paz">📍 La Paz</option>
+                  <option value="Cochabamba">📍 Cochabamba</option>
+                  <option value="Bolivia">📍 Bolivia (Nacional)</option>
+                </select>
               </div>
 
-              {/* Selector de Ciudad */}
-              <select
-                value={targetCity}
-                onChange={(e) => setTargetCity(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 font-bold outline-none"
-              >
-                <option value="Santa Cruz">📍 Santa Cruz</option>
-                <option value="La Paz">📍 La Paz</option>
-                <option value="Cochabamba">📍 Cochabamba</option>
-                <option value="Bolivia">📍 Bolivia (Nacional)</option>
-              </select>
-
-              {/* Forzar Audio en Español */}
               <button
                 onClick={() => setForceSpanishAudio(!forceSpanishAudio)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
                   forceSpanishAudio
                     ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
                     : "bg-slate-950 border-slate-800 text-slate-400"
                 }`}
-                title="Inyectar directivas de locución en español"
               >
                 <Volume2 className="w-3.5 h-3.5" />
-                <span>{forceSpanishAudio ? "Audio ES: ON" : "Audio ES: OFF"}</span>
+                <span>{forceSpanishAudio ? "Locución en Español: ON" : "Locución en Español: OFF"}</span>
               </button>
             </div>
           </div>
 
-          {/* VISTA 1: MODO INDIVIDUAL (Enfoque Escena a Escena con Traducción Bilingüe) */}
-          {activeMode === "individual" && (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Barra Lateral de Selección de Escena */}
-              <div className="lg:col-span-1 space-y-3">
-                <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 space-y-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <span className="text-xs font-bold text-white uppercase">Escenas del Lote</span>
-                    <button
-                      onClick={handleAddScene}
-                      className="text-[11px] font-bold text-[#D4AF37] hover:underline flex items-center gap-0.5 cursor-pointer"
-                    >
-                      <Plus className="w-3 h-3" /> Añadir
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    {scenes.map((s) => (
-                      <button
-                        key={s.scene_number}
-                        onClick={() => setSelectedSceneNumber(s.scene_number)}
-                        className={`w-full text-left p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer border ${
-                          selectedSceneNumber === s.scene_number
-                            ? "bg-[#D4AF37]/15 border-[#D4AF37]/40 text-[#F3E5AB]"
-                            : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-900"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="w-5 h-5 rounded-md bg-slate-950 text-[#D4AF37] flex items-center justify-center text-[10px]">
-                            {s.scene_number}
-                          </span>
-                          <span className="truncate">{s.day_label || `Escena ${s.scene_number}`}: {s.theme_key}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+          {/* Consola Principal: Selector de Escenas + Editor Amplio */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Columna Izquierda (3 cols): Lista Dinámica de Escenas */}
+            <div className="lg:col-span-3 space-y-2">
+              <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span className="text-xs font-black text-white uppercase tracking-wider">
+                    Escenas del Lote ({scenes.length})
+                  </span>
+                  <button
+                    onClick={handleAddNewScene}
+                    className="text-xs font-bold text-[#D4AF37] hover:text-[#F3E5AB] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> + Añadir
+                  </button>
                 </div>
-              </div>
 
-              {/* Editor Bilingüe y Consola de la Escena Seleccionada */}
-              <div className="lg:col-span-3 space-y-4">
-                <div className="bg-[#111622] border border-slate-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
-                    <div className="flex items-center gap-2">
-                      <span className="w-7 h-7 rounded-xl bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#F3E5AB] font-black text-sm flex items-center justify-center">
-                        {currentIndividualScene.scene_number}
-                      </span>
-                      <div>
-                        <h3 className="text-sm font-black text-white">
-                          {currentIndividualScene.day_label} — {currentIndividualScene.theme_key}
-                        </h3>
-                        <p className="text-[11px] text-slate-400">Edición en español y compilación con tokens de Flow.</p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleCompileSingleScene(currentIndividualIdx)}
-                      className="px-3.5 py-1.5 bg-gradient-to-r from-[#D4AF37] to-[#B89628] hover:brightness-110 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                    >
-                      <Languages className="w-3.5 h-3.5" />
-                      <span>Traducir y Compilar Prompt Flow</span>
-                    </button>
-                  </div>
-
-                  {/* Panel Izquierdo/Derecho: Español vs Inglés Flow */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* Bloque 1: Edición en Español */}
-                    <div className="space-y-3 bg-slate-950/80 p-4 rounded-xl border border-slate-800/80">
-                      <span className="text-[10px] font-bold text-[#F3E5AB] uppercase flex items-center gap-1">
-                        <MessageSquare className="w-3.5 h-3.5 text-[#D4AF37]" />
-                        1. Redacción en Español (Acción & Locución)
-                      </span>
-
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">Descripción de la Escena:</label>
-                        <textarea
-                          value={currentIndividualScene.spanish_description}
-                          onChange={(e) => handleUpdateSceneField(currentIndividualIdx, "spanish_description", e.target.value)}
-                          rows={2}
-                          className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs outline-none border border-slate-700 focus:border-[#D4AF37]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-bold text-slate-400 block mb-1">Guión de Locución / Narration (Español):</label>
-                        <textarea
-                          value={currentIndividualScene.narration}
-                          onChange={(e) => handleUpdateSceneField(currentIndividualIdx, "narration", e.target.value)}
-                          rows={4}
-                          className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs italic outline-none border border-slate-700 focus:border-[#D4AF37]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Bloque 2: Prompt Cinematográfico Compilado para Flow (@) */}
-                    <div className="space-y-3 bg-slate-950/80 p-4 rounded-xl border border-slate-800/80">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-emerald-400 uppercase flex items-center gap-1">
-                          <Film className="w-3.5 h-3.5" />
-                          2. Prompt de Video para Google Labs Flow
-                        </span>
-                        <button
-                          onClick={() => handleCopyPrompt(currentIndividualScene.video_prompt, `ind_vid_${currentIndividualScene.scene_number}`)}
-                          className="px-2.5 py-1 bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 text-[#F3E5AB] rounded-lg text-[11px] font-bold border border-[#D4AF37]/40 flex items-center gap-1 cursor-pointer transition"
-                        >
-                          {copiedIndex === `ind_vid_${currentIndividualScene.scene_number}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                          <span>{copiedIndex === `ind_vid_${currentIndividualScene.scene_number}` ? "¡Copiado!" : "Copiar para Flow"}</span>
-                        </button>
-                      </div>
-
-                      <div className="p-3 bg-[#0B0D12] rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300 max-h-40 overflow-y-auto leading-relaxed">
-                        {currentIndividualScene.video_prompt}
-                      </div>
-
-                      {/* Prompt de Imagen / Start Frame */}
-                      <div className="pt-2 border-t border-slate-900">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-bold text-[#D4AF37] uppercase">Start Frame / Imagen Fija:</span>
-                          <button
-                            onClick={() => handleCopyPrompt(currentIndividualScene.image_prompt, `ind_img_${currentIndividualScene.scene_number}`)}
-                            className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                          >
-                            {copiedIndex === `ind_img_${currentIndividualScene.scene_number}` ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-                            <span>Copiar Imagen</span>
-                          </button>
-                        </div>
-                        <div className="p-2 bg-[#0B0D12] rounded-lg border border-slate-800 text-[10px] font-mono text-slate-400 line-clamp-2">
-                          {currentIndividualScene.image_prompt}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* VISTA 2: MODO LOTE (BATCH MASTER 7 DÍAS) */}
-          {activeMode === "batch" && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <Film className="w-4 h-4 text-[#D4AF37]" />
-                  Lote Completo de Producción ({filteredScenes.length} Escenas en {aspectRatio})
-                </h3>
-
-                <button
-                  onClick={handleDownloadScriptJson}
-                  className="px-4 py-2 bg-[#D4AF37] hover:bg-[#C29D2D] text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Exportar script.json Completo</span>
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {filteredScenes.map((scene, idx) => {
-                  const isEditing = editingSceneIdx === idx;
-                  return (
+                <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+                  {scenes.map((s, idx) => (
                     <div
-                      key={scene.scene_number}
-                      className={`bg-[#111622] border rounded-2xl p-4 transition-all space-y-3 ${
-                        isEditing ? "border-[#D4AF37] shadow-lg shadow-[#D4AF37]/10" : "border-slate-800 hover:border-slate-700"
+                      key={s.scene_number}
+                      onClick={() => setSelectedSceneIndex(idx)}
+                      className={`p-3 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer border ${
+                        selectedSceneIndex === idx
+                          ? "bg-[#D4AF37]/15 border-[#D4AF37]/50 text-[#F3E5AB] shadow-sm"
+                          : "bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900"
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#F3E5AB] font-black text-xs flex items-center justify-center">
-                            {scene.scene_number}
-                          </span>
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-900 text-[#D4AF37] border border-slate-800">
-                            {scene.day_label || `Escena ${scene.scene_number}`}
-                          </span>
-                          <h4 className="text-xs font-bold text-white">{scene.theme_key}</h4>
-                        </div>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => setEditingSceneIdx(isEditing ? null : idx)}
-                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1 transition cursor-pointer"
-                          >
-                            <Edit3 className="w-3 h-3 text-[#D4AF37]" />
-                            <span>{isEditing ? "Listo" : "Editar"}</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleCopyPrompt(scene.video_prompt, `batch_vid_${idx}`)}
-                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 flex items-center gap-1 transition cursor-pointer"
-                            title="Copiar Video Prompt para Flow"
-                          >
-                            {copiedIndex === `batch_vid_${idx}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                            <span>{copiedIndex === `batch_vid_${idx}` ? "¡Copiado!" : "Copiar"}</span>
-                          </button>
-
-                          {scenes.length > 1 && (
-                            <button
-                              onClick={() => handleDeleteScene(idx)}
-                              className="p-1.5 bg-slate-900 hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 rounded-lg text-[11px] border border-slate-800 transition cursor-pointer"
-                              title="Eliminar escena"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2.5 truncate">
+                        <span className="w-6 h-6 rounded-lg bg-slate-950 text-[#D4AF37] flex items-center justify-center text-xs font-black shrink-0">
+                          {s.scene_number}
+                        </span>
+                        <span className="truncate">{s.title || `Escena ${s.scene_number}`}</span>
                       </div>
 
-                      {/* Prompts y Locución */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-                        <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
-                          <span className="text-[10px] font-bold text-emerald-400 uppercase block mb-1">Prompt de Video (Tokens @ Flow):</span>
-                          {isEditing ? (
-                            <textarea
-                              value={scene.video_prompt}
-                              onChange={(e) => handleUpdateSceneField(idx, "video_prompt", e.target.value)}
-                              rows={3}
-                              className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs font-mono outline-none border border-slate-700 focus:border-[#D4AF37]"
-                            />
-                          ) : (
-                            <p className="text-slate-300 line-clamp-3 font-mono">{scene.video_prompt}</p>
-                          )}
-                        </div>
-
-                        <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-900">
-                          <span className="text-[10px] font-bold text-[#F3E5AB] uppercase block mb-1">Locución en Español:</span>
-                          {isEditing ? (
-                            <textarea
-                              value={scene.narration}
-                              onChange={(e) => handleUpdateSceneField(idx, "narration", e.target.value)}
-                              rows={3}
-                              className="w-full bg-slate-900 text-slate-200 p-2 rounded-lg text-xs italic outline-none border border-slate-700 focus:border-[#D4AF37]"
-                            />
-                          ) : (
-                            <p className="text-slate-300 line-clamp-3 italic">"{scene.narration}"</p>
-                          )}
-                        </div>
-                      </div>
+                      {scenes.length > 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteScene(idx);
+                          }}
+                          className="p-1 text-slate-500 hover:text-rose-400 rounded transition"
+                          title="Eliminar escena"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Columna Derecha (9 cols): Editor Amplio y Generación IA */}
+            <div className="lg:col-span-9 space-y-4">
+              {aiError && (
+                <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-300 text-xs">
+                  ⚠️ {aiError}
+                </div>
+              )}
+
+              {/* Bloque 1: Idea / Datos de Entrada del Usuario */}
+              <div className="bg-[#111622] border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-xl bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#F3E5AB] font-black text-sm flex items-center justify-center">
+                      {currentScene.scene_number}
+                    </span>
+                    <input
+                      type="text"
+                      value={currentScene.title}
+                      onChange={(e) => handleUpdateField("title", e.target.value)}
+                      placeholder="Título de la Escena (ej. Crédito VIS $285/mes)"
+                      className="bg-transparent text-white font-black text-sm outline-none border-b border-transparent focus:border-[#D4AF37] w-64"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => handleGenerateAiPrompt(selectedSceneIndex)}
+                    disabled={isGeneratingAi}
+                    className="px-4 py-2 bg-gradient-to-r from-[#D4AF37] to-[#B89628] hover:brightness-110 disabled:opacity-50 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-md"
+                  >
+                    {isGeneratingAi ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Generando y Traduciendo con IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="w-4 h-4" />
+                        <span>✨ Generar & Traducir con IA para Flow</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-[#F3E5AB] block mb-1">
+                    💡 Idea, Propósito o Datos Clave de esta Escena (Escribe libremente en Español):
+                  </label>
+                  <textarea
+                    value={currentScene.user_idea}
+                    onChange={(e) => handleUpdateField("user_idea", e.target.value)}
+                    rows={2}
+                    placeholder="Ejemplo: Quiero un spot donde la asesora muestre en su tablet cómo con $285 al mes compras un departamento de $48,000 en Santa Cruz con Crédito VIS, dejando de pagar alquiler..."
+                    className="w-full bg-slate-950 text-slate-100 p-3 rounded-xl text-xs outline-none border border-slate-800 focus:border-[#D4AF37] leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* Bloque 2: Ventanas Amplias de Resultados (Español vs Flow English) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Ventana A: Locución y Guión en Español */}
+                <div className="bg-[#111622] border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-[#F3E5AB] uppercase flex items-center gap-1.5">
+                        <MessageSquare className="w-4 h-4 text-[#D4AF37]" />
+                        Guión de Locución / Narration (Español)
+                      </span>
+                      <button
+                        onClick={() => handleCopyPrompt(currentScene.narration, "copy_narration")}
+                        className="text-xs text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedIndex === "copy_narration" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedIndex === "copy_narration" ? "¡Copiado!" : "Copiar"}</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Texto exacto que dirá la locutora en el video (10 a 20 segundos).
+                    </p>
+                    <textarea
+                      value={currentScene.narration}
+                      onChange={(e) => handleUpdateField("narration", e.target.value)}
+                      rows={6}
+                      placeholder="El guión en español generado por IA aparecerá aquí..."
+                      className="w-full bg-slate-950 text-slate-200 p-3 rounded-xl text-xs italic outline-none border border-slate-800 focus:border-[#D4AF37] leading-relaxed min-h-[160px]"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">Descripción Visual (Español):</label>
+                    <input
+                      type="text"
+                      value={currentScene.spanish_description}
+                      onChange={(e) => handleUpdateField("spanish_description", e.target.value)}
+                      placeholder="Descripción de la acción visual..."
+                      className="w-full bg-slate-950 text-slate-300 p-2 rounded-lg text-xs outline-none border border-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Ventana B: Prompt de Video para Google Labs Flow (Inglés + Tokens @) */}
+                <div className="bg-[#111622] border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-emerald-400 uppercase flex items-center gap-1.5">
+                        <Film className="w-4 h-4 text-emerald-400" />
+                        Prompt de Video para Google Labs Flow (@)
+                      </span>
+                      <button
+                        onClick={() => handleCopyPrompt(currentScene.video_prompt, "copy_video_prompt")}
+                        className="px-3 py-1 bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 text-[#F3E5AB] font-black rounded-lg text-xs border border-[#D4AF37]/40 flex items-center gap-1.5 cursor-pointer transition"
+                      >
+                        {copiedIndex === "copy_video_prompt" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedIndex === "copy_video_prompt" ? "¡Copiado para Flow!" : "Copiar para Flow"}</span>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Prompt optimizado en inglés con inyección de tokens <code className="text-[#D4AF37]">@</code> y audio en español.
+                    </p>
+                    <textarea
+                      value={currentScene.video_prompt}
+                      onChange={(e) => handleUpdateField("video_prompt", e.target.value)}
+                      rows={6}
+                      placeholder="El prompt en inglés con tokens @ para Flow aparecerá aquí al presionar Generar..."
+                      className="w-full bg-[#0B0D12] text-slate-200 p-3 rounded-xl text-xs font-mono outline-none border border-slate-800 focus:border-[#D4AF37] leading-relaxed min-h-[160px]"
+                    />
+                  </div>
+
+                  {/* Start Frame / Imagen Fija */}
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold text-[#D4AF37] uppercase">Start Frame / Imagen Fija (@):</span>
+                      <button
+                        onClick={() => handleCopyPrompt(currentScene.image_prompt, "copy_image_prompt")}
+                        className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedIndex === "copy_image_prompt" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        <span>Copiar Imagen</span>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={currentScene.image_prompt}
+                      onChange={(e) => handleUpdateField("image_prompt", e.target.value)}
+                      placeholder="Prompt de imagen fija 8k..."
+                      className="w-full bg-[#0B0D12] text-slate-400 p-2 rounded-lg text-[11px] font-mono outline-none border border-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -998,7 +734,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 Suite de Extensión Chrome: Property AI Content Generator
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Automatización de generación por lotes en Google Labs Flow y Vibes AI sin intervención manual.
+                Automatización de generación por lotes en Google Labs Flow sin intervención manual.
               </p>
             </div>
 
@@ -1013,7 +749,6 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
             </a>
           </div>
 
-          {/* Guía en 3 Pasos */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-2">
               <div className="w-8 h-8 rounded-xl bg-[#D4AF37]/15 text-[#F3E5AB] font-black text-sm flex items-center justify-center">
@@ -1021,7 +756,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               </div>
               <h4 className="text-xs font-bold text-white">Descarga script.json</h4>
               <p className="text-[11px] text-slate-400">
-                Usa el botón superior para descargar el archivo <code className="text-[#D4AF37]">script.json</code> con tus tokens <code className="text-slate-300">@</code> configurados.
+                Usa el botón superior para descargar el archivo <code className="text-[#D4AF37]">script.json</code> con tus escenas y tokens <code className="text-slate-300">@</code> compilados.
               </p>
             </div>
 
@@ -1031,7 +766,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               </div>
               <h4 className="text-xs font-bold text-white">Selecciona Carpeta en Flow</h4>
               <p className="text-[11px] text-slate-400">
-                Abre Google Labs Flow, presiona el icono de la extensión y selecciona la carpeta donde descargaste tu <code className="text-emerald-400">script.json</code>.
+                Abre Google Labs Flow, presiona el icono de la extensión y selecciona la carpeta con tu <code className="text-emerald-400">script.json</code>.
               </p>
             </div>
 
@@ -1045,34 +780,23 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
               </p>
             </div>
           </div>
-
-          <div className="bg-[#0B0D12] p-4 rounded-2xl border border-slate-800 flex items-start gap-3 text-xs text-slate-400">
-            <ShieldCheck className="w-5 h-5 text-[#D4AF37] shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-slate-200">Compatibilidad con Google Labs Flow & Veo 2</p>
-              <p className="mt-0.5">
-                Los prompts generados utilizan el sistema de anclaje de assets @ multimodales, garantizando cero morphing y retención de identidad facial en todo el lote semanal.
-              </p>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* ── SUBTAB 3: BIBLIOTECA DMO & RED DE AFILIADOS ── */}
+      {/* ── SUBTAB 3: BIBLIOTECA DMO & RED ── */}
       {activeSubTab === "dmo" && (
         <div className="bg-[#111622] border border-slate-800 rounded-2xl p-6 space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
             <div>
               <h3 className="text-base font-black text-white flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-[#D4AF37]" />
-                Biblioteca de Acción Diaria (DMO) & Social Selling
+                Biblioteca DMO (Acción Diaria) & Social Selling
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Packs de copys listos para que los asesores de tu red publiquen en Historias, Reels y TikTok con su enlace directo.
+                Packs de copys listos para publicar en Historias, Reels y TikTok con tu enlace de WhatsApp.
               </p>
             </div>
 
-            {/* Inyector de Datos del Asesor */}
             <div className="flex items-center gap-2 bg-slate-900 p-1.5 rounded-xl border border-slate-800 text-xs">
               <input
                 type="text"
@@ -1100,7 +824,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 "¿Sabías que por ley puedes financiar tu departamento al 5.5% fijo y pagar menos de cuota que lo que pagas hoy de alquiler? 🏠 Comenta <b>CALCULAR</b> o escríbeme y te paso el simulador bancario en 5 segundos 👇"
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px] text-slate-400">
-                <span>Enlace inyectado: <code>wa.me/{advisorPhone}?text=CALCULAR</code></span>
+                <span>Enlace: <code>wa.me/{advisorPhone}?text=CALCULAR</code></span>
                 <button
                   onClick={() => handleCopyPrompt(`¿Sabías que por ley puedes financiar tu departamento al 5.5% fijo y pagar menos de cuota que lo que pagas hoy de alquiler? 🏠 Comenta CALCULAR o escríbeme a https://wa.me/${advisorPhone}?text=CALCULAR y te paso el simulador bancario en 5 segundos 👇`, "dmo_vis")}
                   className="px-2.5 py-1 bg-[#D4AF37]/15 text-[#F3E5AB] font-bold rounded-lg text-xs hover:bg-[#D4AF37]/30 transition cursor-pointer"
@@ -1118,7 +842,7 @@ export const MarketingStudioView: React.FC<MarketingStudioViewProps> = ({ curren
                 "Antes de dar un centavo de reserva por una propiedad, exige el Semáforo Legal de Folio Real y Catastro. 🛡️ Nosotros auditamos la documentación antes de firmar cualquier minuta. Escríbeme <b>AUDITORIA</b> para evaluar tu caso."
               </p>
               <div className="pt-2 border-t border-slate-800/80 flex justify-between items-center text-[11px] text-slate-400">
-                <span>Enlace inyectado: <code>wa.me/{advisorPhone}?text=AUDITORIA</code></span>
+                <span>Enlace: <code>wa.me/{advisorPhone}?text=AUDITORIA</code></span>
                 <button
                   onClick={() => handleCopyPrompt(`Antes de dar un centavo de reserva por una propiedad, exige el Semáforo Legal de Folio Real y Catastro. 🛡️ Nosotros auditamos la documentación antes de firmar cualquier minuta. Escríbeme AUDITORIA a https://wa.me/${advisorPhone}?text=AUDITORIA para evaluar tu caso.`, "dmo_auditoria")}
                   className="px-2.5 py-1 bg-[#D4AF37]/15 text-[#F3E5AB] font-bold rounded-lg text-xs hover:bg-[#D4AF37]/30 transition cursor-pointer"

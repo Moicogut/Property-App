@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { processWebhookMessage } from "./api/whatsapp/webhook";
 import { supabaseServer } from "./src/lib/supabase-server";
 import { EmbeddingFactory } from "./src/lib/embeddings";
+import compilePromptHandler from "./api/ai/compile-prompt";
 
 const PORT = process.env.PORT || 3000;
 
@@ -19,6 +20,11 @@ async function startServer() {
       evolutionApiStatus: "CONNECTED",
       pgvectorEngine: "READY (768d)",
     });
+  });
+
+  // 1.1 AI Compile Flow Prompt
+  app.post("/api/ai/compile-prompt", async (req: Request, res: Response) => {
+    await compilePromptHandler(req as any, res as any);
   });
 
   // 2. WhatsApp Evolution API Webhook Endpoint
