@@ -113,14 +113,21 @@
   - Gestión de equipo: Invitar y administrar asesores por email.
   - Configuración de personalidad y tono de Sofía IA con inyección de reglas locales.
 
-### 🟢 Módulo Nativo de Marketing Studio & Video Engine (v2.5 Multimodal Flow)
+### 🟢 Módulo Nativo de Marketing Studio & Generador Flow (Estructura de 2 Bloques)
 * **Componente UI Principal (`src/components/marketing/MarketingStudioView.tsx`):**
-  - **1. Matriz de 5 Slots de Referencia (@ Tokens para Google Labs Flow):** Configuración directa de `@image_modelo` (`HRP Modelo WARA 02.jpeg`), `@image_modelo_2` (segundo actor opcional), `@image_logo` (`logo.a.png`), `@image_escena` (`ático SCZ 01.jpg`), `@image_producto` (`UI_Cotizador_VIS.png`) y `@image_afiche` (`Afiche_48000_USD.png`).
-  - **2. Consola Bilingüe & Compilador Automático:** Redacción y edición en español (descripción y guion de locución) con botón instantáneo para compilar el prompt cinematográfico en inglés inyectando los tokens `@` de Flow y forzando la locución en español neutro (`Audio: Native clear neutral Latin American Spanish voiceover...`).
-  - **3. Doble Modalidad de Trabajo:** *Modo Individual (1 a 1)* para generación interactiva escena por escena con copiado One-Click, y *Modo Lote (Batch Master)* para descarga de `script.json` completo.
-  - **4. Reproductor Embebido Golden Sample:** Visor interactivo del video oficial de prueba (`/video_prueba.1.mp4`) en resolución 9:16 con lip-sync en español y retención de identidad validada.
-  - **5. Limpieza Arquitectónica:** Eliminación de código muerto y componentes superfluos; interfaz pulida, responsiva y estrictamente tipada (0 errores de TypeScript).
-* **Compilación y Verificación:** `npm run lint` (0 errores) y `npx vite build` completado exitosamente (1,744 módulos transformados).
+  - **1. Primer Bloque (Concepto y Configuración de Escena):**
+    * Textarea amplio para descripción libre de la idea en español.
+    * Selector desplegable de temas predefinidos con opción de incluir nuevo tema personalizado.
+    * Selector dinámico de 1 a 4 personajes (`@personaje_1` a `@personaje_4`) con especificación de rol/nombre.
+    * Casilla de selección rápida de elementos y espacios (`@logo`, `@afiche`, `@sala`, `@cocina`, `@baño`, `@atico`, `@terraza`, `@dormitorio`, `@smartphone`, `@tablet`, `@laptop`, `@holograma`) con campo para añadir elementos personalizados.
+    * Botón de acción principal: *"✨ Generar Guión y Prompts con IA"*.
+  - **2. Segundo Bloque (Guiones Bilingües, Diálogos y JSON):**
+    * Casilla de Guión / Prompt en Inglés Completo (Cinematic Video Prompt con tokens `@` e inyección de audio) lado a lado con Casilla de Guión en Español Completo.
+    * Barra de acciones: Botones *"Editar Textos"*, *"Rehacer con IA"* y *"Generar JSON"*.
+    * Casilla de texto de audio / conversación desglosada por cada personaje en español.
+    * Casilla de código generado `.json` con botones *"Copiar JSON"* y *"Descargar .json"*.
+* **Backend de Inferencia (`api/ai/compile-prompt.ts`):** Endpoint serverless optimizado con OpenAI/Gemini para parsing estructurado multi-personaje y asignación de tokens cinematográficos.
+* **Compilación y Verificación:** `npm run lint` (0 errores) y `npx vite build` completado exitosamente.
 
 ---
 
