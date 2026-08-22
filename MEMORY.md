@@ -113,18 +113,14 @@
   - Gestión de equipo: Invitar y administrar asesores por email.
   - Configuración de personalidad y tono de Sofía IA con inyección de reglas locales.
 
-### 🟢 Módulo Nativo de Marketing Studio & Suite de Extensión Chrome (v2.2)
+### 🟢 Módulo Nativo de Marketing Studio & Video Engine (v2.5 Multimodal Flow)
 * **Componente UI Principal (`src/components/marketing/MarketingStudioView.tsx`):**
-  - **1. AI Script & Prompt Generator Interactivo:** Generación y descarga instantánea de `script.json` para 9:16 (TikTok/Reels) y 16:9 (Web/YouTube).
-  - **2. Hojas de Referencia (HR Model Sheets) Personalizables:** Selector dinámico de género de asesor (`Hombre 33a` / `Mujer 30a`), set/escenario (`Penthouse 5600K`, `Depto Modelo`, `Oficina Minimalista`) y producto UI (`Tablet VIS`, `Smartphone Sofía`, `Semáforo Legal`).
-  - **3. Forzado de Audio en Español Neutro:** Interruptor de directiva de locución estricta (`Audio: Native clear neutral Latin American Spanish voiceover...`) en cada prompt de video.
-  - **4. Edición de Escenas en Tiempo Real:** Filtro por día de campaña (Lunes a Domingo), edición en línea de prompts y narración, adición y eliminación de escenas.
-  - **5. Suite de Extensión Chrome Adaptada (`extension/property-content-generator`):** Integración del motor de automatización por lotes para Google Labs Flow y Vibes AI con selector 9:16/16:9 y atribución comunitaria original a `hans1801/AI-Content-Automation-Engine`.
-  - **6. Biblioteca DMO & Social Selling:** Packs de 30 días con inyección automática de datos del asesor (`{{sponsor_link}}`, `{{whatsapp_link}}`).
-  - **7. Telemetría de Campañas:** Contadores en tiempo real de leads capturados por palabra clave (`CALCULAR`, `BOT`, `AUDITORIA`, `PRECIO`, `TOUR`).
-* **Gobernanza Multi-Tenant en SuperAdmin (`SuperAdminPanel.tsx`):**
-  - Conmutador `module_marketing_studio` añadido para control de activación/desactivación por agencia inmobiliaria.
-* **Compilación y Type-Safety:** Verificado con build exitoso (0 errores en 1,744 módulos).
+  - **1. Matriz de 5 Slots de Referencia (@ Tokens para Google Labs Flow):** Configuración directa de `@image_modelo` (`HRP Modelo WARA 02.jpeg`), `@image_modelo_2` (segundo actor opcional), `@image_logo` (`logo.a.png`), `@image_escena` (`ático SCZ 01.jpg`), `@image_producto` (`UI_Cotizador_VIS.png`) y `@image_afiche` (`Afiche_48000_USD.png`).
+  - **2. Consola Bilingüe & Compilador Automático:** Redacción y edición en español (descripción y guion de locución) con botón instantáneo para compilar el prompt cinematográfico en inglés inyectando los tokens `@` de Flow y forzando la locución en español neutro (`Audio: Native clear neutral Latin American Spanish voiceover...`).
+  - **3. Doble Modalidad de Trabajo:** *Modo Individual (1 a 1)* para generación interactiva escena por escena con copiado One-Click, y *Modo Lote (Batch Master)* para descarga de `script.json` completo.
+  - **4. Reproductor Embebido Golden Sample:** Visor interactivo del video oficial de prueba (`/video_prueba.1.mp4`) en resolución 9:16 con lip-sync en español y retención de identidad validada.
+  - **5. Limpieza Arquitectónica:** Eliminación de código muerto y componentes superfluos; interfaz pulida, responsiva y estrictamente tipada (0 errores de TypeScript).
+* **Compilación y Verificación:** `npm run lint` (0 errores) y `npx vite build` completado exitosamente (1,744 módulos transformados).
 
 ---
 

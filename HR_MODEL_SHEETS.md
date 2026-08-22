@@ -1,84 +1,38 @@
-# 🎨 Hojas de Referencia de Producción Audiovisual (HR Model Sheets) — Property OS
+# 🎨 Hojas de Referencia Multimodal (@ Flow) — Property OS
 
-**Versión:** 1.0 — Oficial  
+**Versión:** 2.5 — Oficial Multimodal Flow  
 **Subagentes Responsables:** `flow-director` & `creative-scriptwriter`  
-**Compatibilidad:** Google Labs Flow, Google Veo 2, Midjourney v6, Vibes AI, Runway Gen-3  
-**Estatus:** ✅ Anclaje Inmutable Aprobado  
+**Compatibilidad:** Google Labs Flow, Google Veo 2, Vibes AI, Runway Gen-3  
+**Estatus:** ✅ Sistema de 5 Slots de Referencia con Tokens `@` Activo  
 
 ---
 
-## 🏛️ 1. Hoja de Referencia: Personaje Ancla (`HR-Personaje`)
+## 🏛️ 1. Matriz de 5 Slots de Referencia Multimodal en Flow
 
-Para garantizar **100% de continuidad facial y vestimenta** en todos los clips generados por IA:
-
-```
-┌───────────────────────────┬────────────────────────────────────────────────────────────────────────┐
-│ PARÁMETRO                 │ ESPECIFICACIÓN INMUTABLE                                               │
-├───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
-│ **Identidad / Rol**       │ Asesor Inmobiliario Senior & Partner Tecnológico Property OS           │
-│ **Rango de Edad & Rasgos**│ 32-35 años, cabello castaño oscuro corto y peinado pulcro, mirada      │
-│                           │ empática y segura, complexión atlética profesional.                    │
-│ **Vestimenta Exacta**     │ Traje sastre entallado en color **Obsidian Black (`#0B0D12`)**,        │
-│                           │ camisa blanca marfil sin corbata, sutil pin metálico dorado en la      │
-│                           │ solapa izquierda (**Champagne Gold `#D4AF37`**).                       │
-│ **Accesorios Fijos**      │ Tablet de cristal con bisel ultrafino y reloj minimalista metálico.    │
-└───────────────────────────┴────────────────────────────────────────────────────────────────────────┘
-```
-
-* **Token de Continuidad en Prompts:**
-  `"Same 33-year-old professional latino male real estate advisor, short neat dark hair, wearing an impeccably tailored obsidian black suit with an open-collar ivory shirt and a subtle gold lapel pin, confident expression."`
+| Slot | Token en Prompt | Archivo Oficial Subido | Propósito en Flow |
+| :--- | :--- | :--- | :--- |
+| **Slot 1 (Modelo Principal)** | `@HRP Modelo WARA 02.jpeg` | `HRP Modelo WARA 02.jpeg` | Continuidad facial 100%, cabello con reflejos rojizos, blazer negro entallado. |
+| **Slot 2 (Modelo Secundario)** | `@HRP Cliente COMPRADOR.jpeg` | *(Opcional)* | Segundo actor para escenas de apretón de manos o cierre de trato. |
+| **Slot 3 (Branding / Logo)** | `@logo.a.png` | `logo.a.png` | Isotipo 3D dorado de Property OS para sellos y pantallas. |
+| **Slot 4 (Escenario / Set)** | `@ático SCZ 01.jpg` | `ático SCZ 01.jpg` | Balcón y penthouse ejecutivo en Santa Cruz con bokeh de rascacielos. |
+| **Slot 5 (Producto / UI)** | `@UI_Cotizador_VIS.png` | `UI_Cotizador_VIS.png` | Pantalla de la tablet/smartphone con interfaz de Property OS / Sofía IA. |
+| **Slot 6 (Afiche Promocional)** | `@Afiche_48000_USD.png` | `Afiche_48000_USD.png` | Banner publicitario con precios y cuotas VIS. |
 
 ---
 
-## 🏙️ 2. Hoja de Referencia: Escenario e Iluminación (`HR-Escenario`)
+## 🎥 2. Muestra de Referencia Oficial (Golden Sample)
 
-```
-┌───────────────────────────┬────────────────────────────────────────────────────────────────────────┐
-│ PARÁMETRO                 │ ESPECIFICACIÓN INMUTABLE                                               │
-├───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
-│ **Ubicación Principal**   │ Sala de reuniones de penthouse ejecutivo contemporáneo con ventanal de │
-│                           │ piso a techo y vista urbana desenfocada (bokeh cinematográfico).       │
-│ **Paleta de Color del Set**│ Fondo en tonalidades oscuras grafito y madera nogal (**`#111622`**),    │
-│                           │ con detalles cálidos tenues.                                           │
-│ **Esquema de Iluminación**│ **Key Light:** Luz principal 5600K balanceada y difusa a 45°.          │
-│                           │ **Rim Light:** Luz de contorno dorado cálido (**`#D4AF37`**) a 3200K.  │
-│ **Cámara & Óptica**       │ Lente 50mm / 85mm con apertura $f/1.8$, profundidad de campo reducida. │
-└───────────────────────────┴────────────────────────────────────────────────────────────────────────┘
-```
-
-* **Token de Iluminación en Prompts:**
-  `"Modern luxury penthouse office background with soft cinematic city bokeh, key light 5600K diffused, subtle 3200K champagne gold rim lighting on shoulders, shot on 50mm lens f/1.8, 8k resolution."`
+* **Archivo Local:** [`/public/video_prueba.1.mp4`](file:///c:/Files%20ECOTRAFFIC%20A8/PROYECTOS%202026/PROPERTY/Property%20app/public/video_prueba.1.mp4)
+* **Duración:** 10 segundos continuos (9:16 vertical, 1080x1920).
+* **Audio:** Español neutro con sincronización labial (Lip-sync).
+* **Guión Oficial:**
+  > *"Hola. Te presento a Sofía IA. Ella califica tus leads. Usa la metodología BANT. Así optimizas tu tiempo real. Agenda una demostración hoy."*
 
 ---
 
-## 💻 3. Hoja de Referencia: UI & Producto (`HR-Producto`)
+## 🎬 3. Modo de Operación con Google Labs Flow
 
-```
-┌───────────────────────────┬────────────────────────────────────────────────────────────────────────┐
-│ ELEMENTO VISUAL           │ ESPECIFICACIÓN TÉCNICA                                                 │
-├───────────────────────────┼────────────────────────────────────────────────────────────────────────┤
-│ **Dispositivo**           │ Tablet de cristal futurista / Laptop ultrafina de aluminio espacial.   │
-│ **Pantalla de la App**    │ Interfaz oscura (Dark Mode) de Property OS: logotipo con "y" dorada,   │
-│                           │ gráfica interactiva de cuotas VIS, semáforo verde de Folio Real y      │
-│                           │ badges de telemetría BANT en esmeralda (`#10B981`) y oro (`#D4AF37`).   │
-└───────────────────────────┴────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚫 4. Prompt Negativo Maestro (Estandarizado)
-
-Utilizar siempre en el motor de renderizado:
-
-```text
-morphing, sudden outfit change, distorted face, jitter, flicker, low resolution, cartoon, 3d render, extra hands, missing fingers, deformed eyes, washed out colors, overexposed, low quality, glitch, watermark, blurry background artifacts.
-```
-
----
-
-## 🎬 5. Modo de Operación con Extensión de Chrome
-
-1. Abrir **Google Labs Flow** o **Vibes AI**.
-2. Abrir la extensión **AI Content Generator**.
-3. Cargar el archivo [`script.json`](file:///c:/Files%20ECOTRAFFIC%20A8/PROYECTOS%202026/PROPERTY/Property%20app/script.json).
-4. Activar renderizado por lotes (Batch Mode).
+1. Abrir **Google Labs Flow** (`https://labs.google/flow`).
+2. Subir los archivos de referencia a la biblioteca de assets del proyecto (`HRP Modelo WARA 02.jpeg`, `logo.a.png`, `ático SCZ 01.jpg`).
+3. En la consola de **Marketing Studio**, seleccionar la escena y copiar el prompt compilado o descargar [`script.json`](file:///c:/Files%20ECOTRAFFIC%20A8/PROYECTOS%202026/PROPERTY/Property%20app/script.json).
+4. Iniciar la generación individual o por lotes con la extensión de Chrome.
