@@ -1,22 +1,58 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 21 de Agosto de 2026 (Sprint de Estabilización WhatsApp & Suite Competitiva v2.5)  
-**Estado General:** La plataforma se encuentra **100% desplegada y operativa en producción**. WhatsApp Evolution API y Sofía IA están comunicándose bidireccionalmente con Property OS, con persistencia y visualización en tiempo real en el Kanban y Central Chat.
+**Última actualización:** 22 de Agosto de 2026 (Sprint B2B Growth Module — Sesión Estratégica)
+**Estado General:** Plataforma **operativa en producción**. Se completó el cambio de timón estratégico del módulo de Marketing/Flow hacia el módulo de **Prospección B2B de Agencias Inmobiliarias**, incluyendo escaneo por ciudad, generación de cold email con IA y conversión 1-clic de prospecto a tenant SaaS.
 
 ---
 
 ## 🌐 Entorno de Producción Oficial
 * **URL de Producción (Vercel):** [https://property-app-ashen.vercel.app](https://property-app-ashen.vercel.app)
+* **Commit activo:** `2634a02` — fix(vercel): merge B2B endpoints into single /api/admin/b2b handler
 * **Evolution API Gateway (Railway):** `https://evolution-api-production-a3a5.up.railway.app`
 * **Instancia Activa:** `PropertyOS-Main`
 * **Supabase Project:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`)
 
 ---
 
+## 📊 STATUS DE LA PLATAFORMA (22-Ago-2026)
+
+| Módulo | Estado | Notas |
+|---|---|---|
+| Sofía IA RAG WhatsApp | ✅ OPERATIVO | Webhook bidireccional activo en Evolution API |
+| Kanban Multi-Pipeline | ✅ OPERATIVO | 3 embudos: Ventas, Captación, Alquileres |
+| Cotizador Financiero | ✅ OPERATIVO | Sistema Francés, VIS/ASFI, Hipotecario |
+| Contratos Digitales PDF | ✅ OPERATIVO | Reserva, Promesa, Consignación |
+| Auditoría Legal | ✅ OPERATIVO | Semáforo de riesgo verde/amarillo/rojo |
+| SuperAdmin SaaS | ✅ OPERATIVO | Multi-tenant, módulos por agencia |
+| **B2B Prospección Agencias** | ✅ NUEVO — OPERATIVO | Handler unificado `/api/admin/b2b` |
+| Marketing Studio / Flow JSON | ⏸️ EN PAUSA | Módulo funcional pero requiere profundizar en el lenguaje Flow/Vibes AI |
+| Autenticación Supabase | ⚠️ REVISAR | Credenciales de prod diferentes a las esperadas en local — resolver reset de password |
+
+---
+
 ## 🏗️ 1. HISTORIAL DE INNOVACIONES Y MÓDULOS COMPLETADOS
 
+### 🟢 Módulo B2B Agency Prospecting (NUEVO — 22-Ago-2026)
+* **Propósito:** Canal de prospección y captación de agencias inmobiliarias bolivianas como clientes SaaS de Property OS.
+* **Handler Unificado (`api/admin/b2b.ts`):**
+  - `action: "search"` — Escanea agencias inmobiliarias en cualquier ciudad de Bolivia con IA (OpenAI GPT-4o-mini). Sin clave API usa fallback de 5 agencias de muestra reales.
+  - `action: "invite"` — Genera correo ejecutivo de cold email personalizado con HTML profesional + texto plano listos para Gmail/SendGrid.
+  - `action: "convert"` — Convierte el prospecto en una `organization` activa en Supabase con módulos SaaS preconfigurados (1-clic).
+  - **Nota arquitectónica:** Los 3 sub-endpoints fueron consolidados en 1 solo archivo para respetar el límite de **12 Serverless Functions del plan Hobby de Vercel**.
+* **Base de Datos (`supabase/migrations/20260822_b2b_agency_prospects.sql`):**
+  - Tabla `b2b_agency_prospects` con pipeline de estados: `NUEVO → EMAIL_ENVIADO → DEMO_AGENDADA → RECHAZADO → CONVERTIDO`.
+  - Campos: `agency_name`, `manager_name`, `manager_role`, `email_official`, `email_personal`, `phone_official`, `whatsapp_contact`, `website_url`, `linkedin_url`, `meeting_link`, `last_contacted_at`.
+  - RLS activo para `authenticated` y `anon`.
+* **UI en SuperAdmin (`src/components/admin/B2bProspectingView.tsx`):**
+  - Pestaña "🏢 Prospección B2B" en sidebar de SuperAdminPanel.
+  - Selector rápido de ciudades bolivianas, tabla de prospectos con estado de pipeline.
+  - Modal de invitación: configuración de plataforma (Google Meet/Zoom), fecha propuesta, mensaje personalizado.
+  - Copiar HTML, texto plano y asunto en 1 clic.
+  - Botón de conversión directa a tenant.
+* **Limite Vercel Hobby:** 12 functions. Inventario actual: `api/index.ts`, `api/admin/b2b.ts`, `api/admin/create-user.ts`, `api/ai/compile-prompt.ts`, `api/ai/generate-copy.ts`, `api/booking/create.ts`, `api/booking/feedback.ts`, `api/contracts/generate.ts`, `api/cron/followup.ts`, `api/rag/auto-embed.ts`, `api/rag/reindex.ts`, `api/webhooks/meta-leads.ts`, `api/whatsapp/webhook.ts` = **13 funciones**. ⚠️ Se debe consolidar 1 más antes del próximo nuevo endpoint.
+
 ### 🟢 Módulo de Cotización Financiera & Tabla de Amortización
-* **Motor Matemático (`src/utils/mortgageCalculator.ts`):** 
+* **Motor Matemático (`src/utils/mortgageCalculator.ts`):**
   - Cálculo de cuotas fijas bajo **Sistema Francés**, Vivienda Social VIS/ASFI (~5.5%), Hipotecario Bancario (~7.5%) y Financiamiento Directo 0%.
   - Tabla de amortización período a período (hasta 360 meses) con desglose de capital, intereses, seguros y saldo insoluto.
   - Cálculo de DTI (ingreso familiar requerido al 30%) y generador de copys WhatsApp.
@@ -25,128 +61,89 @@
   - Integrado en `LeadCard.tsx` (Kanban) y `PropertyDetailModal.tsx`.
 
 ### 🟢 Módulo de Arquitectura Multi-Pipeline (3 Embudos Especializados)
-* **Tipología y Columnas Dinámicas (`src/types/property.ts` & `src/components/kanban/KanbanBoard.tsx`):**
-  - **1. Embudo de Ventas (Compradores):** `NUEVO` ➔ `EN_CALIFICACION` ➔ `CALIFICADO_VISITA_PENDIENTE` ➔ `VISITA_AGENDADA` ➔ `VISITA_REALIZADA` ➔ `EN_NEGOCIACION` ➔ `CERRADO`.
-  - **2. Embudo de Captación (Propietarios):** `PROSPECTO_PROPIETARIO` ➔ `EVALUACION_INMUEBLE` ➔ `ACM_ESTUDIO_MERCADO` ➔ `AUDITORIA_DOCUMENTAL` ➔ `CONTRATO_CONSIGNACION` ➔ `INMUEBLE_CAPTADO`.
-  - **3. Embudo de Alquileres (Rentas):** `SOLICITUD_RENTA` ➔ `PERFILAMIENTO_INGRESOS` ➔ `VISITA_RENTA` ➔ `REVISION_GARANTIAS` ➔ `CONTRATO_RENTA_FIRMADO`.
-* **Experiencia de Usuario:**
-  - Selector de pestañas dinámico en Kanban con contadores y volumen en cartera en vivo.
-  - Selector contextual de etapas en `LeadCard.tsx` y creación adaptativa en `NewLeadModal.tsx`.
+* **1. Embudo de Ventas (Compradores):** `NUEVO` ➔ `EN_CALIFICACION` ➔ `CALIFICADO_VISITA_PENDIENTE` ➔ `VISITA_AGENDADA` ➔ `VISITA_REALIZADA` ➔ `EN_NEGOCIACION` ➔ `CERRADO`.
+* **2. Embudo de Captación (Propietarios):** `PROSPECTO_PROPIETARIO` ➔ `EVALUACION_INMUEBLE` ➔ `ACM_ESTUDIO_MERCADO` ➔ `AUDITORIA_DOCUMENTAL` ➔ `CONTRATO_CONSIGNACION` ➔ `INMUEBLE_CAPTADO`.
+* **3. Embudo de Alquileres (Rentas):** `SOLICITUD_RENTA` ➔ `PERFILAMIENTO_INGRESOS` ➔ `VISITA_RENTA` ➔ `REVISION_GARANTIAS` ➔ `CONTRATO_RENTA_FIRMADO`.
 
 ### 🟢 Módulo de Sincronización Universal de Calendarios
-* **Utilidad (`src/utils/calendarHelper.ts`):**
-  - Generador de enlaces `TEMPLATE` a **Google Calendar** con formateo UTC ISO, parámetros BANT y geolocalización.
-  - Generador y descargador instantáneo de archivos estándar **`.ics` (iCalendar)** para Apple Calendar y Outlook.
-  - Redacción automática de mensaje de confirmación para WhatsApp con enlace a Google Calendar y GPS.
-* **Componentes UI Enriquecidos:**
-  - `AppointmentModal.tsx`: Selector de duración, sync automático a Google Calendar, descarga `.ics` y envío WhatsApp.
-  - `LeadCard.tsx`: Badge interactivo con botón directo "Ver en Google Calendar".
+* Generador de enlaces Google Calendar con formateo UTC ISO y parámetros BANT.
+* Descargador instantáneo de archivos `.ics` para Apple Calendar y Outlook.
+* Mensajería automática de confirmación para WhatsApp.
 
 ### 🟢 Módulo de Simulador Visual de Bot & Playground IA
-* **Componente UI (`src/components/simulator/BotSimulatorView.tsx`):**
-  - **Editor de Reglas & Prompt Studio:** Configuración en tiempo real del nombre del bot, especialización, tono, `<system_rules>`, `<fallbacks>` y regla RAG estricta anti-alucinación.
-  - **Playground Interactivo (WhatsApp Sandbox):** Interfaz fidedigna de WhatsApp con pruebas One-Click (Compradores VIS, Dueños para Captación, Citas y Rentas).
-  - **Telemetría BANT en Vivo:** Desglose visual en tiempo real de Budget, Authority, Need, Timeline y RAG Match.
-  - **Persistencia en DB:** Guardado directo en la columna `ai_config` de Supabase para adopción inmediata del webhook.
+* Editor de Reglas y Prompt Studio con persistencia en `ai_config` de Supabase.
+* Playground Interactivo (WhatsApp Sandbox) con telemetría BANT en vivo.
 
-### 🟢 Estabilización de Webhook Serverless & Sincronización Realtime
-* **Webhook Serverless Autónomo (`api/whatsapp/webhook.ts`):**
-  - Eliminadas dependencias problemáticas de cold start (`waitUntil`), implementando un handler asíncrono robusto con Proxy Lazy de Supabase.
-  - Guardado exacto de mensajes en la tabla `messages` con roles `'lead'` y `'ai_sofia'` y columna `text`.
-  - Actualización automática de `budget_max_usd`, `preferred_zone`, `pipeline_stage`, `ai_summary` y `bant_score` en la tabla `leads`.
-* **Sincronización Continua Frontend (`src/App.tsx` & `src/components/chat/ChatDrawer.tsx`):**
-### 🟢 Módulo de Ficha Lateral de Calificación IA en ChatDrawer (Telemetría BANT Realtime)
-* **Sincronización Bidireccional (`src/components/chat/ChatDrawer.tsx`):**
-  - Estado local reactivo `liveLead` sincronizado con Supabase (`messages` y `leads` con join a `matchedProperty:properties(*)`) vía polling (3.5s) y canal Postgres Realtime.
-  - Telemetría BANT en vivo: Termómetro de temperatura de intención (0-100), desglose de 4 pilares (Presupuesto B, Autoridad/Aporte A, Zona/Necesidad N, Plazo/Urgencia T) y badge de etapa de pipeline dinámico.
-  - Diagnóstico ejecutivo de Sofía IA (`aiSummary`), tarjeta de match RAG con foto y afinidad en %, y botones de acción rápida para Google Calendar, Ficha de Reserva PDF y control humano/IA persistente.
+### 🟢 Módulo de Auditoría Legal & Compliance Inmobiliario
+* Checklist documental boliviano: Folio Real (DDRR), RUAT/Alcaldía, Catastro Municipal.
+* Semáforo algorítmico: 🟢 Viable / 🟡 Observado / 🔴 Bloqueado.
 
-### 🟢 Módulo de Calibración Fina de Sofía IA & RAG Geográfico (`api/whatsapp/webhook.ts`)
-* **Extracción de Entidades & Filtrado Geográfico:**
-  - Extractor semántico de ciudad (`Santa Cruz`, `La Paz`, `Cochabamba`, etc.) y zona (`Calacoto`, `Sopocachi`, `Equipetrol`, `Sirari`, `Urubó`, etc.).
-  - Motor RAG con pre-filtrado prioritario por zona y ciudad antes del scoring coseno para evitar alucinaciones geográficas entre ciudades. Fallback contextual con `geoNotice` que instruye a Sofía a ser transparente si no hay stock en la zona exacta pero sí en la misma ciudad.
-* **Manejo de Consultas Mixtas (Venta + Alquiler):**
-  - Detección de intenciones mixtas en el mismo turno; Sofía estructura la respuesta presentando 1 opción en venta (con precio y cuota referencial VIS) y 1 opción en alquiler (con canon mensual).
-* **Proactividad Comercial de Cierre hacia Visitas Presenciales:**
-  - Cuando el prospecto califica con `intent_score >= 80` o muestra interés concreto, Sofía propone proactivamente coordinar visita presencial o videollamada guiada.
-* **Clasificación BANT y Pipeline Automatizado:**
-  - Clasificación instantánea de `pipeline_type` (`VENTAS`, `ALQUILERES`, `CAPTACIONES`), `lead_type` (`BUYER`, `TENANT`, `SELLER_OWNER`), `payment_method` (`CREDITO_VIS`, `CREDITO_BANCARIO`, `CONTADO`) e `intent_score` calibrado (60-98).
+### 🟢 Generador de Contratos Digitales & Data Binding PDF
+* Contrato de Reserva con Arras, Promesa Bilateral de Compraventa, Contrato de Consignación.
+* Sanitizador de glifos WinAnsi/Latin-1, fallback base64, conversión USD→BOB (TC 6.96).
 
-### 🟢 Módulo de Auditoría Legal & Compliance Inmobiliario (`PropertyLegalAuditModal.tsx` & `RagInventoryView.tsx`)
-* **Checklist Documental Boliviano:**
-  - **1. Folio Real (DDRR):** Evaluación de gravámenes e hipotecas (`AL_DIA` vs `CON_GRAVAMEN` vs `PENDIENTE`).
-  - **2. Impuestos Municipales (RUAT / Alcaldía):** Estado fiscal de la última gestión (`AL_DIA` vs `DEUDA` vs `PENDIENTE`).
-  - **3. Catastro Municipal & Uso de Suelo:** Visación municipal del plano (`APROBADO` vs `EN_TRAMITE` vs `NO_TIENE` vs `PENDIENTE`).
-* **Semáforo Algorítmico de Riesgo en Tiempo Real:**
-  - `🟢 VERDE (Viable / Seguro)`: Cumplimiento 100% en Folio Real, Impuestos y Catastro. Apto para venta y crédito VIS/Bancario.
-  - `🟡 AMARILLO (Observado / Subsanable)`: Gravámenes en trámite de levantamiento o deuda fiscal subsanable antes de minuta.
-  - `🔴 ROJO (Bloqueado / Alto Riesgo)`: Sin catastro, vicios documentales graves o folio observado.
-* **Persistencia Relacional en Base de Datos:**
-  - Upsert y consulta directa contra la tabla `property_legal_audit` en Supabase unida a `properties` en `App.tsx`.
-  - Pestañas e insignias dinámicas en la tabla de inventario y en el modal de ficha detallada.
+### 🟢 Gobernanza SaaS: SuperAdmin Global
+* Panel SuperAdmin en tiempo real con gestión de inmobiliarias, módulos por tenant, métricas consolidadas y editor de system prompts.
 
-### 🟢 Generador de Contratos Digitales & Data Binding PDF (`api/contracts/generate.ts` & `GenerateContractModal.tsx`)
-* **Multi-Contrato Formal:**
-  - **1. Contrato de Reserva Formal (con Arras / Señal de Trato):** Retiro de mercado, imputación a precio y plazo de vigencia.
-  - **2. Promesa Bilateral de Compraventa:** Condiciones de pago, saldo financiado bancario/VIS y penalidades.
-  - **3. Contrato de Consignación & Mandato Inmobiliario:** Para captación con propietarios (comisión convenida y representación).
-* **Robustez & Resiliencia en PDF:**
-  - Sanitizador de glifos y acentos (WinAnsi/Latin-1) para prevenir errores de rendering en fuentes PDF estándar.
-  - Fallback automático a `data:application/pdf;base64` si Supabase Storage no tiene bucket público activo.
-  - Conversión monetaria en tiempo real USD a Bolivianos (TC oficial 6.96).
-
-### 🟢 Autenticación, Roles Multi-Tenant y Seguridad (`src/lib/auth.ts`, `AppHeader.tsx`)
-* **Jerarquía de Roles Estricta:**
-  - `superadmin` (`rolangutiali.rg@gmail.com`): Control omnisciente del ecosistema SaaS, visor global y métricas consolidadas.
-  - `agency_admin`: Control exclusivo de su organización (`organization_id`), gestión de asesores de su equipo y personalización de Sofía IA.
-  - `agent`: Asesor inmobiliario operativo enfocado en gestión de leads y agendamiento.
-* **Sincronización en Base de Datos:**
-  - Función `fetchUserDbProfile` que enlaza el usuario autenticado con la tabla `users` y `organizations` en Supabase.
-
-### 🟢 Gobernanza SaaS: SuperAdmin Global & Panel de Agencia (`SuperAdminPanel.tsx` & `AgencySettingsModal.tsx`)
-* **Panel SuperAdmin Conectado en Tiempo Real:**
-  - Listado y creación de nuevas inmobiliarias con persistencia en tabla `organizations`.
-  - Conmutadores de módulos por agencia (`module_sofia_ia`, `module_bant_kanban`, `module_legal_audit`, `module_contract_generator`).
-  - Métricas globales consolidadas (leads totales, propiedades, mensajes WhatsApp, latencia).
-  - Editor dinámico de System Prompts y reglas de Sofía por inmobiliaria.
-* **Panel de Administración de Inmobiliaria (`AgencySettingsModal`):**
-  - Gestión de equipo: Invitar y administrar asesores por email.
-  - Configuración de personalidad y tono de Sofía IA con inyección de reglas locales.
-
-### 🟢 Módulo Nativo de Marketing Studio & Generador Flow (Estructura de 2 Bloques)
-* **Componente UI Principal (`src/components/marketing/MarketingStudioView.tsx`):**
-  - **1. Primer Bloque (Concepto y Configuración de Escena):**
-    * Textarea amplio para descripción libre de la idea en español.
-    * Selector desplegable de temas predefinidos con opción de incluir nuevo tema personalizado.
-    * Selector dinámico de 1 a 4 personajes (`@personaje_1` a `@personaje_4`) con especificación de rol/nombre.
-    * Casilla de selección rápida de elementos y espacios (`@logo`, `@afiche`, `@sala`, `@cocina`, `@baño`, `@atico`, `@terraza`, `@dormitorio`, `@smartphone`, `@tablet`, `@laptop`, `@holograma`) con campo para añadir elementos personalizados.
-    * Botón de acción principal: *"✨ Generar Guión y Prompts con IA"*.
-  - **2. Segundo Bloque (Guiones Bilingües, Diálogos y JSON):**
-    * Casilla de Guión / Prompt en Inglés Completo (Cinematic Video Prompt con tokens `@` e inyección de audio) lado a lado con Casilla de Guión en Español Completo.
-    * Barra de acciones: Botones *"Editar Textos"*, *"Rehacer con IA"* y *"Generar JSON"*.
-    * Casilla de texto de audio / conversación desglosada por cada personaje en español.
-    * Casilla de código generado `.json` con botones *"Copiar JSON"* y *"Descargar .json"*.
-* **Backend de Inferencia (`api/ai/compile-prompt.ts`):** Endpoint serverless optimizado con OpenAI/Gemini para parsing estructurado multi-personaje y asignación de tokens cinematográficos.
-* **Compilación y Verificación:** `npm run lint` (0 errores) y `npx vite build` completado exitosamente.
+### 🟢 Módulo de Marketing Studio & Flow JSON (EN PAUSA)
+* Generador de script.json para Google Flow / Vibes AI con estructura de 2 bloques (Concepto → Guión EN/ES → JSON).
+* **Nota:** Módulo funcional pero requiere profundización en el lenguaje cinematográfico de Flow/Vibes AI para que los prompts sean interpretados correctamente. Se reactivará cuando el equipo tenga dominio del protocolo de tokens.
 
 ---
 
-## ⏳ 2. TAREAS PENDIENTES Y HOJA DE RUTA
+## ⏳ 2. TAREAS PENDIENTES — HOJA DE RUTA PRÓXIMA SESIÓN
 
-### 🟡 1. Mejoras y Adaptación Continua de la Extensión Chrome (`Property AI Content Generator`)
-* Implementar manejo resiliente de focus en editores **Slate.js** en Google Flow para evitar pérdidas de foco en prompts largos.
-* Integrar descarga automática y secuencial de archivos MP4 generados directamente en la carpeta del proyecto.
+### 🔴 CRÍTICO — Resolver antes de avanzar
+1. **Reset de contraseña SuperAdmin en producción**
+   - Supabase Dashboard → Auth Users → `rolangutiali.rg@gmail.com` → Change Password.
+   - Actualmente el login falla con error 400 en local. El SuperAdmin debe poder acceder fluidamente.
 
-### 🟡 2. Testing End-to-End y UAT de Campañas de Redes
-* Pruebas de publicación de los primeros 4 videos (9:16) con subtítulos y locución en español en TikTok e Instagram Reels.
-* Verificación de la captura de leads mediante palabras clave (`CALCULAR`, `BOT`, `AUDITORIA`) conectadas al webhook de WhatsApp y Kanban.
+2. **Ejecutar migración SQL en Supabase**
+   - Archivo: `supabase/migrations/20260822_b2b_agency_prospects.sql`
+   - Ir a: [Supabase SQL Editor](https://supabase.com/dashboard/project/lqagnlbygzurddkzbbwn/sql) → Pegar y ejecutar.
+   - Sin esto, las inserciones del módulo B2B fallarán con error de tabla no encontrada.
 
-### 🟡 3. Escalamiento del Programa de Embajadores
-* Distribución del playbook de onboarding (`PARTNER_ONBOARDING_PLAYBOOK.md`) a los primeros 15 asesores de la red.
+3. **Consolidar inventario de Serverless Functions a máximo 12**
+   - Actualmente hay 13. Antes del próximo nuevo endpoint, consolidar `api/booking/create.ts` + `api/booking/feedback.ts` → `api/booking/index.ts` (action routing).
+
+### 🟡 IMPORTANTE — Próxima Sesión de Crecimiento B2B
+4. **Implementar envío real de correos (Resend / SendGrid)**
+   - El módulo B2B genera el HTML pero el envío es manual (copiar + pegar en Gmail).
+   - Integrar Resend.com (plan gratuito 3.000 emails/mes) como capa de envío real desde `/api/admin/b2b`.
+
+5. **Pipeline de seguimiento B2B (CRM interno de prospectos)**
+   - Vista de Kanban para prospectos B2B con columnas: `NUEVO → CONTACTADO → DEMO_AGENDADA → EN_NEGOCIACION → CONVERTIDO → RECHAZADO`.
+   - Recordatorios automáticos de seguimiento (cron job existente en `api/cron/followup.ts` puede extenderse).
+
+6. **Página de Landing / Demo pública de Property OS**
+   - Crear una landing page atractiva en `/demo` o en dominio propio que capture el interés de gerentes de agencias.
+   - Con formulario de solicitud de demo que alimente directamente la tabla `b2b_agency_prospects`.
+
+### 🟢 MEJORAS DE PRODUCTO — Mediano Plazo
+7. **Flow / Marketing Studio v2** — Reactivar con conocimiento profundo del protocolo de tokens de Google Flow. Documentar los tokens reales que el motor interpreta.
+8. **App Móvil (PWA)** — Convertir Property OS en PWA instalable para los asesores de campo.
+9. **Integración Meta Leads Ads** — Activar el endpoint `api/webhooks/meta-leads.ts` con conexión real a Meta Ads Manager para captura automática de leads desde Facebook/Instagram.
+10. **Analytics de Pipeline** — Dashboard de conversión: tasa de leads calificados por Sofía IA, tiempo promedio en cada etapa, ROI por inmobiliaria.
 
 ---
 
-## 🔒 3. VARIABLES DE ENTORNO EN PRODUCCIÓN
+## 🎯 3. VISIÓN ESTRATÉGICA — Network Marketing Digital Inmobiliario
+
+**Problema central:** Las agencias inmobiliarias de Bolivia pierden leads por no tener respuesta inmediata 24/7, contratos digitales y análisis de mercado en tiempo real.
+
+**Propuesta de valor de Property OS:**
+- 🤖 Sofía IA califica leads en WhatsApp a las 3 AM sin costo adicional de personal.
+- 📄 Contratos de reserva en minutos con firma digital.
+- 📊 CMA automatizado con datos reales del mercado local.
+- 🏢 Escalable: 1 plataforma → N agencias → modelo SaaS B2B.
+
+**Canal de adquisición B2B (nuevo):**
+- Escanear agencias por ciudad → Cold email personalizado con IA → Demo 30 min → Conversión.
+- El módulo recién construido automatiza el 80% de este proceso.
+
+---
+
+## 🔒 4. VARIABLES DE ENTORNO EN PRODUCCIÓN
 
 ```env
 # Supabase
@@ -162,4 +159,18 @@ GEMINI_API_KEY="..."
 EVOLUTION_API_URL="https://evolution-api-production-a3a5.up.railway.app"
 EVOLUTION_API_KEY="a2bf8aaaec21a9806766c4a536c75e716d1480feff6f9705697bf626e8fab135"
 EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
+
+# Vercel Function Limit: MAX 12 (actualmente 13 — consolidar antes del próximo endpoint)
 ```
+
+---
+
+## 📝 5. DECISIONES ARQUITECTÓNICAS REGISTRADAS
+
+| Fecha | Decisión | Razón |
+|---|---|---|
+| 22-Ago-2026 | Consolidar 3 endpoints B2B → 1 handler `api/admin/b2b.ts` con `action` routing | Límite de 12 Serverless Functions en Vercel Hobby |
+| 22-Ago-2026 | Pausa del módulo Flow/Marketing Studio | El equipo necesita profundizar en el protocolo de tokens de Google Flow antes de continuar. No avanzar sin dominio del lenguaje cinematográfico |
+| 22-Ago-2026 | Cambio de timón 180°: Marketing → B2B Prospecting | El crecimiento de la plataforma depende de adquirir agencias como clientes SaaS, no solo de crear contenido |
+| 22-Ago-2026 | Vite watcher `ignored` para archivos `.mp4` en Windows | Error EBUSY en Windows al intentar watching de archivos multimedia grandes |
+| Anterior | Flow/Vibes AI requiere `script.json` estrictamente en carpeta vacía | Cualquier otro nombre o estructura hace fallar la extensión |
