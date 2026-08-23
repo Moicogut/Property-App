@@ -93,10 +93,10 @@ export const B2bProspectingView: React.FC = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      const res = await fetch("/api/admin/prospects-search", {
+      const res = await fetch("/api/admin/b2b", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city, country: "Bolivia", limit: prospectCount }),
+        body: JSON.stringify({ action: "search", city, country: "Bolivia", limit: prospectCount }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al escanear");
@@ -114,10 +114,11 @@ export const B2bProspectingView: React.FC = () => {
     setIsGeneratingInvitation(true);
     setGeneratedInvitation(null);
     try {
-      const res = await fetch("/api/admin/send-invitation", {
+      const res = await fetch("/api/admin/b2b", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "invite",
           prospectId: selectedProspect.id || "local",
           agencyName: selectedProspect.agency_name,
           managerName: selectedProspect.manager_name || "Gerente",
@@ -153,10 +154,10 @@ export const B2bProspectingView: React.FC = () => {
     setIsConverting(prospect.id);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/admin/convert-prospect", {
+      const res = await fetch("/api/admin/b2b", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prospectId: prospect.id }),
+        body: JSON.stringify({ action: "convert", prospectId: prospect.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error convirtiendo prospecto");
