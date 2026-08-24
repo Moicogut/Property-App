@@ -109,7 +109,14 @@ export const LeadCard: React.FC<LeadCardProps> = ({
       <div className="mb-3">
         <select
           value={lead.pipelineStage}
-          onChange={(e) => onMoveStage(lead.id, e.target.value as PipelineStage)}
+          onChange={(e) => {
+            const nextStage = e.target.value as PipelineStage;
+            if (nextStage === "VISITA_AGENDADA" && !lead.appointmentDate) {
+              onOpenAppointmentModal(lead);
+              return;
+            }
+            onMoveStage(lead.id, nextStage);
+          }}
           className="w-full text-[10px] font-bold text-slate-300 bg-[#090D16] border border-slate-800 rounded-xl py-1.5 px-2 outline-none focus:border-[#D4AF37] cursor-pointer"
         >
           {lead.leadType === 'SELLER_OWNER' || lead.pipelineStage === 'PROSPECTO_PROPIETARIO' || lead.pipelineStage === 'EVALUACION_INMUEBLE' || lead.pipelineStage === 'ACM_ESTUDIO_MERCADO' || lead.pipelineStage === 'AUDITORIA_DOCUMENTAL' || lead.pipelineStage === 'CONTRATO_CONSIGNACION' || lead.pipelineStage === 'INMUEBLE_CAPTADO' ? (

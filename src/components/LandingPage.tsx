@@ -25,16 +25,25 @@ interface Property {
   type?: string;
 }
 
-export function getPropertyCategory(p: { title?: string; rawDescription?: string; description?: string; type?: string }): string {
-  if (p.type && p.type !== "Inmueble" && p.type !== "inmueble") return p.type;
+export function getPropertyCategory(p: { title?: string; rawDescription?: string; description?: string; type?: string; property_type?: string; propertyType?: string }): string {
+  const explicitType = p.property_type || p.propertyType || p.type;
+  if (explicitType && explicitType !== "Inmueble" && explicitType !== "inmueble") {
+    const norm = explicitType.toUpperCase();
+    if (norm === "DEPARTAMENTO") return "Departamento";
+    if (norm === "CASA") return "Casa";
+    if (norm === "TERRENO_LOTE" || norm === "TERRENO") return "Terreno / Lote";
+    if (norm === "OFICINA") return "Oficina";
+    if (norm === "LOCAL_COMERCIAL" || norm === "LOCAL") return "Local Comercial";
+  }
   const t = `${p.title || ""} ${p.rawDescription || ""} ${p.description || ""}`.toLowerCase();
   if (t.includes("penthouse")) return "Penthouse";
   if (t.includes("loft")) return "Loft";
   if (t.includes("garzonier") || t.includes("monoambiente") || t.includes("estudio") || t.includes("studio")) return "Garzonier";
-  if (t.includes("departamento") || t.includes("depto") || t.includes("condominio") || t.includes("edificio") || t.includes("piso")) return "Departamento";
+  if (t.includes("terreno") || t.includes("lote") || t.includes("parcela") || t.includes("hectarea") || t.includes("hectárea")) return "Terreno / Lote";
+  if (t.includes("oficina") || t.includes("consultorio")) return "Oficina";
+  if (t.includes("local") || t.includes("galpon") || t.includes("galpón") || t.includes("comercial")) return "Local Comercial";
   if (t.includes("casa") || t.includes("chalet") || t.includes("villa") || t.includes("residencia") || t.includes("townhouse")) return "Casa";
-  if (t.includes("terreno") || t.includes("lote") || t.includes("parcela") || t.includes("hectarea") || t.includes("hectárea")) return "Terreno";
-  if (t.includes("oficina") || t.includes("local") || t.includes("comercial") || t.includes("consultorio") || t.includes("galpon") || t.includes("galpón")) return "Oficina";
+  if (t.includes("departamento") || t.includes("depto") || t.includes("condominio") || t.includes("edificio") || t.includes("piso")) return "Departamento";
   return "Departamento";
 }
 
@@ -91,9 +100,9 @@ export const LandingPage: React.FC<Props> = ({ properties, onLoginClick, onOpenS
       } else if (filterType === 'Casa') {
         matchesType = ['Casa'].includes(category);
       } else if (filterType === 'Terreno') {
-        matchesType = ['Terreno'].includes(category);
+        matchesType = ['Terreno / Lote', 'Terreno'].includes(category);
       } else if (filterType === 'Oficina') {
-        matchesType = ['Oficina'].includes(category);
+        matchesType = ['Oficina', 'Local Comercial'].includes(category);
       } else {
         matchesType = category.toLowerCase() === filterType.toLowerCase();
       }

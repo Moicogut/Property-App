@@ -77,6 +77,7 @@ export interface Property {
   organizationId: string;
   propertyCode?: string;
   title: string;
+  propertyType?: 'DEPARTAMENTO' | 'CASA' | 'TERRENO_LOTE' | 'OFICINA' | 'LOCAL_COMERCIAL';
   city: string;
   zone: string;
   priceUsd: number;
@@ -91,7 +92,16 @@ export interface Property {
   images?: string[];
   vectorIndexed?: boolean;
   vectorDimensions?: number;
+  isDemo?: boolean;
+  environment?: 'production' | 'staging' | 'demo';
   legalAudit?: PropertyLegalAudit;
+}
+
+export interface BantFieldProvenance {
+  source: 'DECLARED' | 'INFERRED' | 'UNKNOWN';
+  sourceMessageId?: string;
+  confidence?: number;
+  extractedAt?: string;
 }
 
 export interface BantScore {
@@ -136,6 +146,10 @@ export interface Lead {
   aiPaused: boolean;
   intentScore: number; // e.g. 95 (Hot Lead)
   bantScore?: BantScore;
+  provenance?: Record<string, BantFieldProvenance>;
+  isDemo?: boolean;
+  environment?: 'production' | 'staging' | 'demo';
+  traceId?: string;
   appointmentDate?: string;
   createdAt: string;
 }

@@ -60,6 +60,15 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "lead_phone and datetime are required" });
   }
 
+  // Validación temporal estricta: Rechazar fechas pasadas (IA-03)
+  const appointmentTarget = new Date(datetime);
+  if (isNaN(appointmentTarget.getTime())) {
+    return res.status(400).json({ error: "Formato de fecha u hora inválido." });
+  }
+  if (appointmentTarget.getTime() < Date.now()) {
+    return res.status(400).json({ error: "No se pueden agendar visitas en fechas u horarios pasados (IA-03)." });
+  }
+
   // 1. Obtener Lead por teléfono
   const cleanPhone = lead_phone.replace(/\D/g, "");
   const { data: lead, error: leadErr } = await supabaseServer
@@ -94,7 +103,7 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
         scopes: ["https://www.googleapis.com/auth/calendar.events"],
       });
       const calendar = google.calendar({ version: "v3", auth });
-      const start = new Date(datetime);
+      const start = appointmentTarget;
       const end = new Date(start.getTime() + 60 * 60 * 1000);
       const event = await calendar.events.insert({
         calendarId: "primary",
@@ -118,7 +127,7 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
       organization_id: lead.organization_id,
       lead_id: lead.id,
       property_id: property_id || null,
-      appointment_date: new Date(datetime).toISOString(),
+      appointment_date: appointmentTarget.toISOString(),
       status: "SCHEDULED",
       notes: notes || "",
     }])
@@ -130,17 +139,21 @@ async function handleCreate(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: "Error saving appointment" });
   }
 
-  // 5. Actualizar etapa del pipeline del lead
+  // 5. Actualizar etapa del pipeline y fecha de cita del lead
   await supabaseServer
     .from("leads")
-    .update({ pipeline_stage: "VISITA_AGENDADA" })
+    .update({ 
+      pipeline_stage: "VISITA_AGENDADA",
+      appointment_date: appointmentTarget.toISOString(),
+    })
     .eq("id", lead.id);
 
   // 6. Enviar confirmación por WhatsApp
-  const formattedDate = new Date(datetime).toLocaleString("es-BO", {
+  const formattedDate = appointmentTarget.toLocaleString("es-BO", {
+    timeZone: "America/La_Paz",
     weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit",
   });
-  const wsText = `¡Perfecto ${lead.full_name}! Hemos agendado tu visita para ${propertyTitle}.\n\n📅 *Fecha y Hora:* ${formattedDate}\n📍 Un asesor te contactará pronto con la ubicación exacta.\n\n${eventLink ? `🔗 Puedes añadirlo a tu calendario aquí: ${eventLink}` : ""}\n\n¡Te esperamos!`;
+  const wsText = `¡Perfecto ${lead.full_name}! Hemos agendado tu visita para ${propertyTitle}.\n\n📅 *Fecha y Hora:* ${formattedDate} (Bolivia)\n📍 Un asesor te contactará pronto con la ubicación exacta.\n\n${eventLink ? `🔗 Puedes añadirlo a tu calendario aquí: ${eventLink}` : ""}\n\n¡Te esperamos!`;
   await sendWhatsAppMessage(cleanPhone, wsText);
 
   return res.status(200).json({ success: true, appointment, calendarLink: eventLink });

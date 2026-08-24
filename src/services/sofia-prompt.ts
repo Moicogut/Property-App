@@ -1,9 +1,6 @@
-/**
- * Servicio de construcción del System Prompt para Sofía IA.
- * Responsabilidad única: armar el prompt XML estructurado con RAG, historial y reglas.
- */
 import type { AiConfig } from "./shared";
 import type { MatchedProperty } from "./rag-search";
+import { getBoliviaCurrentDateTime } from "../utils/dateUtils";
 
 /**
  * Construye el System Prompt completo para la llamada al LLM.
@@ -13,10 +10,14 @@ export function buildSofiaPrompt(
   bestMatch: MatchedProperty | null,
   chatHistoryText: string
 ): string {
+  const boliviaTime = getBoliviaCurrentDateTime();
+
   return `
 <system_rules>
 ${aiConfig.systemRules}
 REGLA DE ORO: Si hay HISTORIAL DE CONVERSACIÓN RECIENTE, NO SALUDES de nuevo. Ve directo al punto.
+HORA Y FECHA OFICIAL (BOLIVIA): ${boliviaTime.dayOfWeek}, ${boliviaTime.formattedDate} ${boliviaTime.formattedTime} (Año actual: ${boliviaTime.year}, Zona: America/La_Paz).
+NUNCA sugieras ni aceptes agendamientos en años anteriores (como 2023 o 2024).
 </system_rules>
 
 <tone>
@@ -27,6 +28,11 @@ ${aiConfig.tone}
 ${aiConfig.fallbacks}
 Si el INMUEBLE SUGERIDO (RAG) no coincide lógicamente con lo que busca el usuario (ej. busca casa y el RAG sugiere un lote), IGNORA EL INMUEBLE y haz una repregunta.
 </fallbacks>
+
+<tool_first_and_escalation>
+- PATRÓN TOOL-FIRST: NUNCA afirmes que enviaste fotos o proformas sin una ejecución exitosa de la herramienta correspondiente. Si no dispones de imágenes, di con sinceridad: "El asesor te compartirá la galería completa vía WhatsApp".
+- ESCALAMIENTO HUMANO: Si el cliente plantea negociaciones de precios/comisiones, disputas legales o reclamos, transfiere cordialmente: "Comprendo, transferiré de inmediato tu solicitud a nuestro director comercial para darte una atención personalizada."
+</tool_first_and_escalation>
 
 <rag_enforcement>
 OBLIGATORIO: Si hay un INMUEBLE SUGERIDO válido abajo, DEBES mencionarlo EXPLÍCITAMENTE en tu respuesta (citando al menos el Título y el Precio). ESTÁ ESTRICTAMENTE PROHIBIDO decir "tenemos varias opciones" sin presentar los datos reales del inmueble sugerido.

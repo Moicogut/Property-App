@@ -758,6 +758,8 @@ export default function App() {
         onClose={() => setIsNewLeadModalOpen(false)}
         onAddLead={handleAddLead}
         properties={properties}
+        existingLeads={leads}
+        onOpenExistingLead={(lead) => handleOpenChat(lead)}
       />
 
       {/* Appointment Scheduler Modal */}

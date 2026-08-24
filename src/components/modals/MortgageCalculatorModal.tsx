@@ -42,8 +42,8 @@ export const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = (
   if (!isOpen) return null;
 
   // Estados base
-  const initialPrice = property?.priceUsd || (lead?.budgetMaxUsd ? Number(lead.budgetMaxUsd) : 85000);
-  const [propertyPrice, setPropertyPrice] = useState<number>(initialPrice);
+  const initialPrice = property?.priceUsd || (lead?.budgetMaxUsd ? Number(lead.budgetMaxUsd) : 0);
+  const [propertyPrice, setPropertyPrice] = useState<number>(initialPrice > 0 ? initialPrice : 75000);
   const [downPaymentPercent, setDownPaymentPercent] = useState<number>(lead?.downPaymentPercent || 20);
   const [interestRate, setInterestRate] = useState<number>(7.5);
   const [loanTermYears, setLoanTermYears] = useState<number>(20);
@@ -660,6 +660,14 @@ export const MortgageCalculatorModal: React.FC<MortgageCalculatorModalProps> = (
 
             </div>
           )}
+
+          {/* AVISO REGULATORIO Y LEGAL ASFI */}
+          <div className="mt-4 p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-start gap-2.5 text-[11px] text-amber-200/90 leading-relaxed">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <p>
+              <strong>Aviso Legal & Regulatorio (Bolivia):</strong> Los montos, cuotas y proformas calculadas son de carácter estrictamente informativo y referencial. Las condiciones definitivas, tasa de interés aplicable y aprobación están sujetas a la evaluación crediticia y requisitos documentales de cada entidad financiera regulada por la ASFI bajo el marco legal del Crédito de Vivienda de Interés Social (VIS) o Hipotecario Estándar.
+            </p>
+          </div>
 
         </div>
 

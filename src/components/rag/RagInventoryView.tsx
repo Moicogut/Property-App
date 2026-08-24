@@ -82,15 +82,16 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
     return data.publicUrl;
   };
 
-  // Form State for new property
+  // Form State for new property (INV-01: Esquema limpio sin defaults artificiales)
   const [title, setTitle] = useState("");
-  const [city, setCity] = useState("Santa Cruz");
+  const [propertyType, setPropertyType] = useState<string>("DEPARTAMENTO");
+  const [city, setCity] = useState("");
   const [zone, setZone] = useState("");
-  const [priceUsd, setPriceUsd] = useState(85000);
-  const [bedrooms, setBedrooms] = useState(2);
-  const [bathrooms, setBathrooms] = useState(2);
-  const [areaSqm, setAreaSqm] = useState(70);
-  const [acceptsSocialHousing, setAcceptsSocialHousing] = useState(true);
+  const [priceUsd, setPriceUsd] = useState<number | "">("");
+  const [bedrooms, setBedrooms] = useState<number | "">("");
+  const [bathrooms, setBathrooms] = useState<number | "">("");
+  const [areaSqm, setAreaSqm] = useState<number | "">("");
+  const [acceptsSocialHousing, setAcceptsSocialHousing] = useState(false);
   const [rawDescription, setRawDescription] = useState("");
   const [imageUrls, setImageUrls] = useState("");
 
@@ -104,33 +105,47 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
 
   const handleCreatePropertySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
-
-    const parsedUrls = imageUrls.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
-    if (parsedUrls.length < 2 || parsedUrls.length > 6) {
-      alert("Por favor ingresa entre 2 y 6 enlaces de imágenes válidos.");
+    if (!title.trim() || !city.trim() || !zone.trim()) {
+      alert("Por favor completa los campos obligatorios: Título, Ciudad y Zona.");
       return;
     }
 
+    const parsedUrls = imageUrls.split(/[\n,]+/).map(u => u.trim()).filter(Boolean);
+    if (parsedUrls.length < 1 || parsedUrls.length > 6) {
+      alert("Por favor ingresa al menos 1 enlace de imagen válido (máximo 6).");
+      return;
+    }
+
+    const priceNum = typeof priceUsd === "number" ? priceUsd : 0;
+    const bedroomsNum = typeof bedrooms === "number" ? bedrooms : 0;
+    const bathroomsNum = typeof bathrooms === "number" ? bathrooms : 0;
+    const areaNum = typeof areaSqm === "number" ? areaSqm : 0;
+
     onAddProperty({
-      title,
-      city,
-      zone,
-      priceUsd: Number(priceUsd),
-      bedrooms: Number(bedrooms),
-      bathrooms: Number(bathrooms),
-      areaSqm: Number(areaSqm),
+      title: title.trim(),
+      city: city.trim(),
+      zone: zone.trim(),
+      priceUsd: priceNum,
+      bedrooms: bedroomsNum,
+      bathrooms: bathroomsNum,
+      areaSqm: areaNum,
       acceptsSocialHousing,
       status: "AVAILABLE",
-      rawDescription: rawDescription || `${title} ubicado en ${zone}, ${city}. Excelente oportunidad inmobiliaria.`,
+      rawDescription: rawDescription.trim() || `${title.trim()} (${propertyType}) ubicado en ${zone.trim()}, ${city.trim()}.`,
       imageUrl: parsedUrls.join(","),
       vectorIndexed: true,
-      vectorDimensions: 1536,
+      vectorDimensions: 768,
     });
 
     setIsModalOpen(false);
     setTitle("");
+    setCity("");
     setZone("");
+    setPriceUsd("");
+    setBedrooms("");
+    setBathrooms("");
+    setAreaSqm("");
+    setAcceptsSocialHousing(false);
     setRawDescription("");
     setImageUrls("");
   };
@@ -201,7 +216,7 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                 {isProcessingDoc ? "Generando vectores RAG de alta dimensión..." : "Arrastra un dossier PDF, envía un audio de WhatsApp o pega el texto plano"}
               </p>
               <p className="text-xs text-slate-500 mt-1 max-w-lg mx-auto">
-                La IA estructurará la ficha y generará los vectores de embeddings (`pgvector` 1536d) automáticamente para ser consultados por la Agente Sofía.
+                La IA estructurará la ficha y generará los vectores de embeddings (`pgvector` 768d) automáticamente para ser consultados por la Agente Sofía.
               </p>
             </div>
 
@@ -438,49 +453,69 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
             </div>
 
             <form onSubmit={handleCreatePropertySubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Título de la Propiedad</label>
-                <input 
-                  type="text" 
-                  required
-                  value={title} 
-                  onChange={(e) => setTitle(e.target.value)} 
-                  placeholder="ej. Loft Moderno Equipetrol Norte"
-                  className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Título de la Propiedad *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={title} 
+                    onChange={(e) => setTitle(e.target.value)} 
+                    placeholder="ej. Loft Equipetrol con Terraza"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Tipo de Inmueble *</label>
+                  <select
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-xs font-semibold text-slate-800"
+                  >
+                    <option value="DEPARTAMENTO">🏢 Departamento / Flat</option>
+                    <option value="CASA">🏡 Casa Residencial</option>
+                    <option value="TERRENO_LOTE">📐 Terreno / Lote</option>
+                    <option value="OFICINA">💼 Oficina Comercial</option>
+                    <option value="LOCAL_COMERCIAL">🏬 Local Comercial</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Ciudad</label>
+                  <label className="block font-bold text-slate-700 mb-1">Ciudad *</label>
                   <input 
                     type="text" 
+                    required
                     value={city} 
                     onChange={(e) => setCity(e.target.value)} 
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
+                    placeholder="ej. Santa Cruz, La Paz, Cochabamba"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Zona / Barrio</label>
+                  <label className="block font-bold text-slate-700 mb-1">Zona / Barrio *</label>
                   <input 
                     type="text" 
                     required
                     value={zone} 
                     onChange={(e) => setZone(e.target.value)} 
-                    placeholder="ej. Equipetrol"
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
+                    placeholder="ej. Equipetrol, Sopocachi, Calacoto"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Precio (USD)</label>
+                  <label className="block font-bold text-slate-700 mb-1">Precio (USD) *</label>
                   <input 
                     type="number" 
+                    required
                     value={priceUsd} 
-                    onChange={(e) => setPriceUsd(Number(e.target.value))} 
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
+                    onChange={(e) => setPriceUsd(e.target.value === "" ? "" : Number(e.target.value))} 
+                    placeholder="ej. 85000"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-900"
                   />
                 </div>
                 <div>
@@ -488,8 +523,9 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                   <input 
                     type="number" 
                     value={bedrooms} 
-                    onChange={(e) => setBedrooms(Number(e.target.value))} 
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
+                    onChange={(e) => setBedrooms(e.target.value === "" ? "" : Number(e.target.value))} 
+                    placeholder="ej. 2"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
                 <div>
@@ -497,8 +533,9 @@ export const RagInventoryView: React.FC<RagInventoryViewProps> = ({
                   <input 
                     type="number" 
                     value={areaSqm} 
-                    onChange={(e) => setAreaSqm(Number(e.target.value))} 
-                    className="w-full p-2.5 border border-slate-200 rounded-xl text-sm"
+                    onChange={(e) => setAreaSqm(e.target.value === "" ? "" : Number(e.target.value))} 
+                    placeholder="ej. 75"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs"
                   />
                 </div>
               </div>

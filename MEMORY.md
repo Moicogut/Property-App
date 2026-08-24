@@ -115,9 +115,15 @@ EVOLUTION_INSTANCE_NAME="PropertyOS-Main"
 
 | Fecha | Decisión | Razón |
 |---|---|---|
+| 24-Ago-2026 | Certificación Sprint 4 (Gate Review & Piloto Listo) | 100% de defectos P0/P1 auditados remediados. Compilación de producción en verde (0 errores de tipos TS). Cobertura completa de aislamiento multi-tenant, Sofía supervisada bajo hora oficial Bolivia y pipelines con Quality Gates listos para el primer piloto comercial. |
+| 24-Ago-2026 | Remediación Sprint 3 (Cotizador ASFI & UX Gobernanza) | Inserción de descargo regulatorio ASFI y eliminación de defaults en MortgageCalculatorModal (COT-01, COT-02). Diferenciación estricta entre retorno al CRM y cierre de sesión en SuperAdminPanel (AUTH-01). |
+| 24-Ago-2026 | Remediación Sprint 2 (Núcleo CRM & Catálogo Canónico) | Implementación de Quality Gates en LeadCard/KanbanBoard (CRM-02), normalización de teléfonos a formato E.164 (CRM-04), clasificación canónica de inmuebles en LandingPage (PORT-02) y etiquetado explícito de Captación/Rentas como Beta Interna (CRM-03). |
+| 24-Ago-2026 | Remediación Sprint 1 (Sofía IA Confiable & Supervisada) | Implementación de patrón Tool-First y validación estricta de agendamiento futuro en api/booking/index.ts (IA-03, IA-04). Inyección de reloj dinámico America/La_Paz en sofia-prompt.ts y normalización de etapas canónicas en SofiaPublicChatModal (CRM-02). |
+| 24-Ago-2026 | Remediación Sprint 0 (Contención y Verdad del Dato) | Auditoría Técnico-Funcional: Eliminación de defaults en NewLeadModal y RagInventoryView (CRM-01, INV-01), migración 20260824_v10 con is_demo/tenant isolation (SAAS-02, INV-02), reloj America/La_Paz dinámico (IA-03), procedencia BANT (IA-02), y estandarización a 768d (IA-06). |
 | 24-Ago-2026 | Migrar de generación sintética GPT a Google Places API | Los datos de contacto deben ser 100% reales, con teléfonos y direcciones auditables |
 | 24-Ago-2026 | Priorizar WhatsApp Directo 1-Clic sobre Cold Email | El 85%+ de las inmobiliarias bolivianas operan por WhatsApp/teléfono, no por email corporativo |
 | 24-Ago-2026 | Algoritmo Data Quality Score (0-100%) | Permite filtrar y priorizar agencias con datos completos antes de contactar |
 | 24-Ago-2026 | Web Scraping asíncrono con timeout de 6s | Evita bloquear la UI al verificar dominios lentos o caídos |
 | 22-Ago-2026 | Consolidar endpoints B2B en único handler `api/admin/b2b.ts` | Límite de 12 funciones serverless en Vercel Hobby |
 | 22-Ago-2026 | Pausa del módulo Flow/Marketing Studio | Priorizar adquisición B2B de agencias antes de expandir herramientas de video |
+

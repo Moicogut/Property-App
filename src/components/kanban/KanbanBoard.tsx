@@ -35,12 +35,16 @@ export interface PipelineColumnDef {
 
 export const PIPELINES_CONFIG: Record<PipelineType, {
   name: string;
+  badge?: string;
+  badgeClass?: string;
   icon: any;
   description: string;
   columns: PipelineColumnDef[];
 }> = {
   VENTAS: {
     name: "Ventas & Compradores",
+    badge: "PILOTO OFICIAL",
+    badgeClass: "bg-emerald-950/80 text-emerald-300 border-emerald-500/30",
     icon: Building,
     description: "Pipeline de prospectos calificados por Sofía IA para compra de propiedades",
     columns: [
@@ -55,6 +59,8 @@ export const PIPELINES_CONFIG: Record<PipelineType, {
   },
   CAPTACIONES: {
     name: "Captación de Inmuebles",
+    badge: "BETA INTERNA",
+    badgeClass: "bg-amber-950/80 text-amber-300 border-amber-500/30",
     icon: FileText,
     description: "Pipeline de propietarios que consignan sus casas y departamentos en la agencia",
     columns: [
@@ -68,6 +74,8 @@ export const PIPELINES_CONFIG: Record<PipelineType, {
   },
   ALQUILERES: {
     name: "Rentas & Inquilinos",
+    badge: "BETA INTERNA",
+    badgeClass: "bg-amber-950/80 text-amber-300 border-amber-500/30",
     icon: Key,
     description: "Pipeline de solicitudes de arrendamiento y calificación de solvencia",
     columns: [
@@ -177,6 +185,15 @@ export function KanbanBoard({
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-[#D4AF37]'}`} />
                 <span>{pConfig.name}</span>
+                {pConfig.badge && (
+                  <span
+                    className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold uppercase border ${
+                      isActive ? 'bg-slate-950/80 text-emerald-300 border-slate-950' : pConfig.badgeClass
+                    }`}
+                  >
+                    {pConfig.badge}
+                  </span>
+                )}
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                     isActive ? 'bg-slate-950/40 text-slate-950' : 'bg-slate-900 text-slate-400'

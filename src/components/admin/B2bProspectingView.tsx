@@ -2313,6 +2313,9 @@ export const B2bProspectingView: React.FC = () => {
               })()}
             </div>
           </div>
+        </div>
+      )}
+
       {/* ════════════════════════════════════════════════════════════════
           MODAL: WHATSAPP DIRECT OUTREACH (CANAL #1 BOLIVIA)
       ════════════════════════════════════════════════════════════════ */}

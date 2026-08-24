@@ -259,14 +259,19 @@ function parseEvolutionPayload(body: Record<string, unknown>): ParsedIncomingMes
 
   const messageContent = msgData.message as Record<string, unknown> | undefined;
   const extText = messageContent?.extendedTextMessage as Record<string, unknown> | undefined;
-  const userMessageText = (messageContent?.conversation as string) || (extText?.text as string) || (body.message as string) || "";
+  const isAudio = Boolean(messageContent?.audioMessage);
+  let userMessageText = (messageContent?.conversation as string) || (extText?.text as string) || (body.message as string) || "";
+
+  if (!userMessageText && isAudio) {
+    userMessageText = "[Nota de Voz Recibida]";
+  }
 
   const senderName = (msgData.pushName as string) || (body.pushName as string) || "Cliente";
 
-  return { rawPhoneNumber, senderName, userMessageText, messageId, fromMe, rawRemoteJid, payloadApiKey };
+  return { rawPhoneNumber, senderName, userMessageText, messageId, fromMe, rawRemoteJid, payloadApiKey, isAudio };
 }
 
-// ── 5. ENVÍO DE MENSAJES WHATSAPP ──
+// ── 5. ENVÍO DE MENSAJES Y MULTIMEDIA WHATSAPP ──
 async function sendWhatsAppMessage(
   phone: string,
   text: string,
@@ -300,6 +305,47 @@ async function sendWhatsAppMessage(
     return response.ok;
   } catch (err) {
     console.error("[Evolution API] Fallo de red:", err);
+    return false;
+  }
+}
+
+async function sendWhatsAppMedia(
+  phone: string,
+  mediaUrl: string,
+  caption: string,
+  mediaType: "image" | "document",
+  instanceName: string,
+  apiUrl: string,
+  apiKey: string
+): Promise<boolean> {
+  const recipientNumber = phone.replace(/\D/g, "");
+  try {
+    const rawBaseUrl = apiUrl || process.env.EVOLUTION_API_URL || "https://evolution-api-production-a3a5.up.railway.app";
+    const cleanBaseUrl = rawBaseUrl.trim().replace(/\/+$/, "");
+    const instance = instanceName || process.env.EVOLUTION_INSTANCE_NAME || "PropertyOS-Main";
+    const targetUrl = `${cleanBaseUrl}/message/sendMedia/${instance}`;
+    const activeApiKey = apiKey || process.env.EVOLUTION_API_KEY || "";
+
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: activeApiKey,
+      },
+      body: JSON.stringify({
+        number: String(recipientNumber),
+        mediaMessage: {
+          mediatype: mediaType,
+          media: mediaUrl,
+          caption,
+        },
+        delay: 1200,
+      }),
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.error("[Evolution API] Fallo al enviar media:", err);
     return false;
   }
 }
@@ -432,9 +478,26 @@ export async function processWebhookMessage(
     inventoryContext += `\n- OTRA OPCIÓN DISPONIBLE: "${secondaryMatch.title}" en ${secondaryMatch.zone}, ${secondaryMatch.city} | Precio: $${secondaryMatch.price_usd?.toLocaleString()} USD`;
   }
 
+  // 5. Reloj Dinámico del Servidor con Huso Horario de Bolivia (America/La_Paz) - IA-03
+  const boliviaDateFormatted = new Intl.DateTimeFormat("es-BO", {
+    timeZone: "America/La_Paz",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date());
+
+  const traceId = `trc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
   // System Prompt de Alta Conversión Inmobiliaria Calibrado
   const systemPrompt = `Eres Sofía, Asesora Inmobiliaria Senior de Property OS.
 Tu misión es asesorar al cliente de forma natural, empática, consultiva y con alta persuasión comercial, como una agente de bienes raíces de primer nivel en Bolivia.
+
+⏰ FECHA Y HORA OFICIAL DEL SERVIDOR (BOLIVIA): ${boliviaDateFormatted} (Zona Horaria: America/La_Paz).
+IMPORTANTE: Estamos en el año 2026. NUNCA menciones, propongas ni aceptes fechas en años anteriores (como 2023 o 2024).
 
 REGLAS DE ORO OBLIGATORIAS:
 1. PROHIBICIÓN TOTAL DE BUCLES Y ROBOTISMO:
@@ -454,7 +517,7 @@ REGLAS DE ORO OBLIGATORIAS:
 4. PROACTIVIDAD COMERCIAL HACIA VISITAS PRESENCIALES:
    - En cuanto el cliente muestre interés (presupuesto, zonas, fotos, cuotas o consultas concretas), sé proactiva e invítalo a coordinar una visita presencial:
      "¿Te gustaría que coordinemos una visita presencial para conocer el departamento en persona? 📅"
-   - Si el cliente acepta o consulta disponibilidad, propón turnos claros (ej. "mañana por la mañana a las 10:00 o por la tarde a las 16:00").
+   - Si el cliente acepta o consulta disponibilidad, propón turnos claros a partir de la fecha actual (${boliviaDateFormatted}).
 
 5. CLIENTES SIN PRESUPUESTO CLARO O CON APORTE INICIAL:
    - Si el cliente dice que "no sabe su presupuesto" o solo menciona su aporte inicial, ¡felicítalo y dale rangos reales!
@@ -510,22 +573,21 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
 
   const aiSummary = `[${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]: ${msg.userMessageText.substring(0, 90)}...`;
 
-  // Detección de presupuesto
-  let budget = existingLead?.budget_max_usd || null;
+  // Detección rigurosa de presupuesto (solo datos declarados, nunca inferencias fantasma) - IA-01 / IA-02
+  let budget = existingLead?.budget_max_usd || 0;
+  let budgetSource: 'DECLARED' | 'UNKNOWN' = budget > 0 ? 'DECLARED' : 'UNKNOWN';
+
   const budgetMatch = msg.userMessageText.match(/\$?\s*(\d{2,6})\s*(usd|dolares|k)?/i);
   if (budgetMatch) {
     let parsed = parseInt(budgetMatch[1]);
     if (parsed < 1000) parsed *= 1000;
     budget = parsed;
-  } else if (bestMatch?.price_usd && !budget) {
-    budget = bestMatch.price_usd;
+    budgetSource = 'DECLARED';
   }
 
-  // Detección de zona preferida
-  let zone = geoIntent.zone || existingLead?.preferred_zone || null;
-  if (!zone && bestMatch?.zone) {
-    zone = bestMatch.zone;
-  }
+  // Detección rigurosa de zona preferida
+  let zone = geoIntent.zone || existingLead?.preferred_zone || "";
+  let zoneSource: 'DECLARED' | 'UNKNOWN' = zone ? 'DECLARED' : 'UNKNOWN';
 
   // Detección de método de pago
   const paymentMethod = geoIntent.paymentMethodHint || existingLead?.payment_method || "POR_DEFINIR";
@@ -533,14 +595,14 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
   // Detección de aporte propio
   const hasDownPayment = lowerMsg.includes("inicial") || lowerMsg.includes("aporte") || existingLead?.has_down_payment || false;
 
-  // Detección de etapa y tipo de lead
+  // Detección de etapa y tipo de lead con Quality Gates - CRM-02
   const isAskingVisit = lowerMsg.includes("visita") || lowerMsg.includes("agendar") || lowerMsg.includes("cuando se puede") || lowerMsg.includes("verlo") || lowerMsg.includes("mañana") || lowerMsg.includes("hora");
   
-  let stage = existingLead?.pipeline_stage || "EN_CALIFICACION";
+  let stage = existingLead?.pipeline_stage || "NUEVO";
   if (isAskingVisit) {
-    stage = "VISITA_AGENDADA";
-  } else if (budget && zone) {
     stage = "CALIFICADO_VISITA_PENDIENTE";
+  } else if (budget > 0 && zone) {
+    stage = "EN_CALIFICACION";
   }
 
   // Tipología de Pipeline y Lead
@@ -558,15 +620,21 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
     leadType = "BUYER";
   }
 
-  // Cálculo de Intent Score BANT Dinámico (60 - 98)
-  let intentScore = 65;
-  if (zone) intentScore += 10;
-  if (budget) intentScore += 10;
-  if (hasDownPayment || paymentMethod !== "POR_DEFINIR") intentScore += 8;
-  if (isAskingVisit) intentScore += 12;
-  intentScore = Math.min(intentScore, 98);
+  // Cálculo de Intent Score BANT Dinámico y Verificable
+  let intentScore = 20; // Base inicial
+  if (zone) intentScore += 25;
+  if (budget > 0) intentScore += 30;
+  if (hasDownPayment || paymentMethod !== "POR_DEFINIR") intentScore += 15;
+  if (isAskingVisit) intentScore += 10;
+  intentScore = Math.min(intentScore, 100);
 
-  // Upsert Lead con todos los campos calculados en tiempo real
+  // Registro de procedencia y trazabilidad de campos (IA-02)
+  const provenance = {
+    budget: { source: budgetSource, confidence: budgetSource === 'DECLARED' ? 0.95 : 0, extractedAt: new Date().toISOString() },
+    zone: { source: zoneSource, confidence: zoneSource === 'DECLARED' ? 0.95 : 0, extractedAt: new Date().toISOString() },
+  };
+
+  // Upsert Lead con aislamiento multi-tenant y trazabilidad
   const { data: upsertedLead } = await supabase
     .from("leads")
     .upsert({
@@ -577,14 +645,18 @@ INVENTARIO DESTACADO DE PROPERTY OS:${inventoryContext || "\n- Smart Tower Equip
       pipeline_stage: stage,
       pipeline_type: pipelineType,
       lead_type: leadType,
-      budget_max_usd: budget,
-      preferred_zone: zone,
+      budget_max_usd: budget > 0 ? budget : null,
+      preferred_zone: zone || null,
       payment_method: paymentMethod,
       has_down_payment: hasDownPayment,
-      down_payment_percent: existingLead?.down_payment_percent || 20,
+      down_payment_percent: existingLead?.down_payment_percent || 0,
       property_interest_id: bestMatch?.id || undefined,
       ai_summary: aiSummary,
       intent_score: intentScore,
+      provenance: provenance,
+      trace_id: traceId,
+      is_demo: false,
+      environment: 'production',
       bant_score: {
         budget: budget || 0,
         preferred_zone: zone || "Por definir",

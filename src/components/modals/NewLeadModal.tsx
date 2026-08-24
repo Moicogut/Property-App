@@ -24,6 +24,8 @@ interface NewLeadModalProps {
   onClose: () => void;
   onAddLead: (newLead: Lead) => void;
   properties: Property[];
+  existingLeads?: Lead[];
+  onOpenExistingLead?: (lead: Lead) => void;
 }
 
 export const NewLeadModal: React.FC<NewLeadModalProps> = ({
@@ -31,72 +33,104 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
   onClose,
   onAddLead,
   properties,
+  existingLeads = [],
+  onOpenExistingLead,
 }) => {
   if (!isOpen) return null;
 
   const [pipelineType, setPipelineType] = useState<PipelineType>("VENTAS");
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("+591 ");
-  const [budgetMaxUsd, setBudgetMaxUsd] = useState(90000);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CREDITO_VIS");
-  const [hasDownPayment, setHasDownPayment] = useState(true);
-  const [downPaymentPercent, setDownPaymentPercent] = useState(15);
-  const [downPaymentBank, setDownPaymentBank] = useState("Banco BCP");
-  const [preferredZone, setPreferredZone] = useState("Equipetrol Norte");
+  const [budgetMaxUsd, setBudgetMaxUsd] = useState<number | "">("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("POR_DEFINIR");
+  const [hasDownPayment, setHasDownPayment] = useState(false);
+  const [downPaymentPercent, setDownPaymentPercent] = useState<number | "">("");
+  const [downPaymentBank, setDownPaymentBank] = useState("");
+  const [preferredZone, setPreferredZone] = useState("");
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>("NUEVO");
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string>(properties[0]?.id || "");
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   const [aiSummary, setAiSummary] = useState("");
+  const [duplicateWarning, setDuplicateWarning] = useState<Lead | null>(null);
 
-  // Manejo de cambio de pipeline type para fijar etapa inicial adecuada
+  // Verificación de duplicado en tiempo real al ingresar teléfono
+  const handlePhoneChange = (val: string) => {
+    setPhoneNumber(val);
+    const clean = val.replace(/\D/g, "");
+    if (clean.length >= 8) {
+      const found = existingLeads.find((l) => {
+        const lClean = l.phoneNumber.replace(/\D/g, "");
+        return lClean.endsWith(clean.slice(-8)) || clean.endsWith(lClean.slice(-8));
+      });
+      setDuplicateWarning(found || null);
+    } else {
+      setDuplicateWarning(null);
+    }
+  };
+
+  // Manejo de cambio de pipeline type para fijar etapa inicial adecuada sin alterar valores de negocio
   const handlePipelineTypeChange = (type: PipelineType) => {
     setPipelineType(type);
     if (type === "CAPTACIONES") {
       setPipelineStage("PROSPECTO_PROPIETARIO");
-      setBudgetMaxUsd(120000);
     } else if (type === "ALQUILERES") {
       setPipelineStage("SOLICITUD_RENTA");
-      setBudgetMaxUsd(650);
     } else {
       setPipelineStage("NUEVO");
-      setBudgetMaxUsd(90000);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !phoneNumber) return;
+    if (!fullName.trim() || !phoneNumber.trim()) return;
 
     const matchedProperty = properties.find((p) => p.id === selectedPropertyId);
     const leadType: LeadType = 
       pipelineType === "CAPTACIONES" ? "SELLER_OWNER" : 
       pipelineType === "ALQUILERES" ? "TENANT" : "BUYER";
 
+    const budgetNum = typeof budgetMaxUsd === "number" ? budgetMaxUsd : 0;
+    const downPaymentNum = typeof downPaymentPercent === "number" ? downPaymentPercent : 0;
+
     const defaultSummary = 
       pipelineType === "CAPTACIONES" 
-        ? `Propietario interesado en consignar inmueble en ${preferredZone} valorado en $${budgetMaxUsd.toLocaleString()} USD.`
+        ? `Propietario interesado en consignar inmueble${preferredZone ? ` en ${preferredZone}` : ""}${budgetNum > 0 ? ` valorado en $${budgetNum.toLocaleString()} USD.` : "."}`
         : pipelineType === "ALQUILERES"
-        ? `Inquilino buscando alquiler en ${preferredZone} con presupuesto de $${budgetMaxUsd.toLocaleString()} USD/mes.`
-        : `Lead comprador. Presupuesto $${budgetMaxUsd.toLocaleString()} USD en ${preferredZone}.`;
+        ? `Inquilino buscando alquiler${preferredZone ? ` en ${preferredZone}` : ""}${budgetNum > 0 ? ` con presupuesto de $${budgetNum.toLocaleString()} USD/mes.` : "."}`
+        : `Lead comprador.${budgetNum > 0 ? ` Presupuesto $${budgetNum.toLocaleString()} USD` : ""}${preferredZone ? ` en ${preferredZone}.` : "."}`;
+
+    // Score calculado de forma real según información realmente suministrada
+    let calculatedScore = 20; // Base por contacto
+    if (budgetNum > 0) calculatedScore += 30;
+    if (preferredZone) calculatedScore += 20;
+    if (hasDownPayment && downPaymentNum > 0) calculatedScore += 20;
+
+    // Normalización E.164 del teléfono (CRM-04)
+    const rawDigits = phoneNumber.replace(/\D/g, "");
+    const cleanPhone = rawDigits.startsWith("591") 
+      ? `+591 ${rawDigits.slice(3)}` 
+      : rawDigits.length === 8 
+      ? `+591 ${rawDigits}` 
+      : phoneNumber.trim();
 
     const newLead: Lead = {
       id: `lead-${Date.now()}`,
       organizationId: "org-1",
-      fullName,
-      phoneNumber,
+      fullName: fullName.trim(),
+      phoneNumber: cleanPhone,
       pipelineType,
       leadType,
       pipelineStage,
-      budgetMaxUsd: Number(budgetMaxUsd),
+      budgetMaxUsd: budgetNum,
       paymentMethod,
       hasDownPayment: pipelineType === "VENTAS" ? hasDownPayment : false,
-      downPaymentPercent: Number(downPaymentPercent),
-      downPaymentBank,
-      preferredZone,
+      downPaymentPercent: downPaymentNum,
+      downPaymentBank: downPaymentBank.trim() || undefined,
+      preferredZone: preferredZone.trim(),
       propertyInterestId: selectedPropertyId || undefined,
       matchedProperty: pipelineType !== "CAPTACIONES" ? matchedProperty : undefined,
-      aiSummary: aiSummary || defaultSummary,
+      aiSummary: aiSummary.trim() || defaultSummary,
       aiPaused: false,
-      intentScore: hasDownPayment || pipelineType === "CAPTACIONES" ? 92 : 75,
+      intentScore: calculatedScore,
       createdAt: "Ahora mismo",
     };
 
@@ -106,6 +140,13 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
     // Reset fields
     setFullName("");
     setPhoneNumber("+591 ");
+    setBudgetMaxUsd("");
+    setPaymentMethod("POR_DEFINIR");
+    setHasDownPayment(false);
+    setDownPaymentPercent("");
+    setDownPaymentBank("");
+    setPreferredZone("");
+    setSelectedPropertyId("");
     setAiSummary("");
   };
 
@@ -206,12 +247,37 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                 type="text"
                 required
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+                onChange={(e) => handlePhoneChange(e.target.value)}
                 placeholder="+591 71234567"
                 className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-mono text-xs"
               />
             </div>
           </div>
+
+          {/* Banner de Advertencia de Prospecto Duplicado (CRM-04) */}
+          {duplicateWarning && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚠️</span>
+                <div>
+                  <p className="font-bold">Número ya registrado con "{duplicateWarning.fullName}"</p>
+                  <p className="text-[11px] text-amber-700">Etapa: {duplicateWarning.pipelineStage} · Evita duplicar el historial.</p>
+                </div>
+              </div>
+              {onOpenExistingLead && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenExistingLead(duplicateWarning);
+                    onClose();
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[10px] transition shrink-0"
+                >
+                  Abrir Lead
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -225,7 +291,8 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
               <input
                 type="number"
                 value={budgetMaxUsd}
-                onChange={(e) => setBudgetMaxUsd(Number(e.target.value))}
+                onChange={(e) => setBudgetMaxUsd(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder={pipelineType === "ALQUILERES" ? "ej. 650" : "ej. 85000"}
                 className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-bold text-xs"
               />
             </div>
@@ -236,7 +303,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
               </label>
               {pipelineType === "CAPTACIONES" ? (
                 <select
-                  value="CONTADO"
+                  value="EXCLUSIVA"
                   onChange={() => {}}
                   className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-semibold text-xs"
                 >
@@ -249,6 +316,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                   onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                   className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-semibold text-xs"
                 >
+                  <option value="POR_DEFINIR">-- Por Definir --</option>
                   <option value="CONTADO">Garantía + Mes Adelantado</option>
                   <option value="CREDITO_BANCARIO">Póliza de Arrendamiento</option>
                 </select>
@@ -258,10 +326,10 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                   onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
                   className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-semibold text-xs"
                 >
+                  <option value="POR_DEFINIR">-- Por Definir --</option>
                   <option value="CREDITO_VIS">Crédito VIS (Vivienda Social ASFI)</option>
                   <option value="CREDITO_BANCARIO">Crédito Bancario Tradicional</option>
                   <option value="CONTADO">Pago al Contado</option>
-                  <option value="POR_DEFINIR">Por Definir</option>
                 </select>
               )}
             </div>
@@ -293,7 +361,8 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                     <input
                       type="number"
                       value={downPaymentPercent}
-                      onChange={(e) => setDownPaymentPercent(Number(e.target.value))}
+                      onChange={(e) => setDownPaymentPercent(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="ej. 15"
                       className="w-full p-2 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs"
                     />
                   </div>
@@ -303,7 +372,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                       type="text"
                       value={downPaymentBank}
                       onChange={(e) => setDownPaymentBank(e.target.value)}
-                      placeholder="ej. Banco BCP, Mercantil"
+                      placeholder="ej. Banco BCP, Mercantil Santa Cruz, BNB"
                       className="w-full p-2 border border-slate-200 rounded-lg text-slate-900 text-xs"
                     />
                   </div>
@@ -321,7 +390,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                 type="text"
                 value={preferredZone}
                 onChange={(e) => setPreferredZone(e.target.value)}
-                placeholder="ej. Equipetrol, Urubó, Zona Sur"
+                placeholder="ej. Equipetrol, Sopocachi, Calacoto, Urubó"
                 className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-xs"
               />
             </div>
@@ -370,6 +439,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({
                 onChange={(e) => setSelectedPropertyId(e.target.value)}
                 className="w-full p-2.5 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 font-medium text-xs"
               >
+                <option value="">-- Ninguno / Por Definir --</option>
                 {properties.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.title} — ${(p.priceUsd ?? 0).toLocaleString()} USD ({p.zone}, {p.city})

@@ -272,29 +272,33 @@ export const SofiaPublicChatModal: React.FC<SofiaPublicChatModalProps> = ({
 
     try {
       const p = focusedProperty || initialProperty;
-      const budget = p?.price || p?.priceUsd || 95000;
-      const zone = p?.zone || p?.city || 'La Paz';
+      const budget = Number(p?.price || p?.priceUsd || 0);
+      const zone = p?.zone || p?.city || 'Bolivia';
+      const determinedStage = preferredVisitDate ? 'VISITA_AGENDADA' : 'CALIFICADO_VISITA_PENDIENTE';
 
       // 1. Registrar Lead calificado en Supabase
       const { data: createdLead, error: leadErr } = await supabase
         .from('leads')
         .insert({
+          organization_id: p?.organizationId || 'org-1',
           full_name: leadName.trim(),
           phone_number: leadPhone.trim(),
-          pipeline_stage: 'AGENDADO_VISITA',
+          pipeline_stage: determinedStage,
           pipeline_type: 'VENTAS',
           lead_type: 'BUYER',
-          intent_score: interestGrade === 'FULL' ? 95 : 85,
-          budget_max_usd: budget,
+          intent_score: interestGrade === 'FULL' ? 95 : 80,
+          budget_max_usd: budget > 0 ? budget : null,
           preferred_zone: zone,
           property_interest_id: p?.id || undefined,
-          ai_summary: `Prospecto con Grado de Interés ${interestGrade}. Inmueble: "${p?.title || 'General'}". Fecha sugerida: "${preferredVisitDate || 'A coordinar'}".`,
+          is_demo: false,
+          environment: 'production',
+          ai_summary: `Prospecto web con Grado de Interés ${interestGrade}. Inmueble: "${p?.title || 'General'}". Fecha sugerida: "${preferredVisitDate || 'A coordinar'}".`,
           bant_score: {
             budget: budget,
             authority: true,
             need: p?.title || "Compra de inmueble calificado",
             timeline: preferredVisitDate || "Inmediata",
-            score: interestGrade === 'FULL' ? 95 : 85,
+            score: interestGrade === 'FULL' ? 95 : 80,
           },
         })
         .select()

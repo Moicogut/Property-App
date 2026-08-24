@@ -106,7 +106,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({
           rawDescription: lData.matchedProperty.raw_description || "",
           imageUrl: lData.matchedProperty.image_url || "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&auto=format&fit=crop&q=80",
           vectorIndexed: true,
-          vectorDimensions: 1536,
+          vectorDimensions: 768,
         } : liveLead.matchedProperty;
 
         const updated: Lead = {

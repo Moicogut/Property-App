@@ -484,32 +484,49 @@ export const SuperAdminPanel: React.FC<SuperAdminPanelProps> = ({ currentUser, o
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Direct Portal Web / Landing Shortcut */}
+        <div className="flex items-center gap-2.5">
+          {/* Botón Volver al Portal Web */}
           {onNavigateToLanding && (
             <button
               onClick={onNavigateToLanding}
               className="flex items-center gap-1.5 px-3 py-2 bg-[#111622] hover:bg-[#1A2234] border border-slate-800 hover:border-[#D4AF37]/50 text-slate-200 hover:text-[#F3E5AB] rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Ver Portal Inmobiliario Público / Catálogo"
+              title="Ver Portal Inmobiliario Público"
             >
               <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span className="hidden sm:inline">Portal Web</span>
             </button>
           )}
 
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-bold text-white">{currentUser.fullName}</p>
-            <p className="text-[10px] text-slate-400">{currentUser.email}</p>
+          {/* Botón Volver al CRM de Agencia */}
+          {onSwitchTenant && (
+            <button
+              onClick={() => onSwitchTenant("org-1", "Agencia Principal")}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="Volver a la vista operativa del CRM sin cerrar sesión"
+            >
+              <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Volver al CRM</span>
+            </button>
+          )}
+
+          <div className="text-right hidden md:block px-2">
+            <p className="text-xs font-bold text-white leading-tight">{currentUser.fullName}</p>
+            <p className="text-[10px] text-slate-400 font-mono">{currentUser.email}</p>
           </div>
+
+          {/* Botón Cerrar Sesión Definitivo */}
           <button
             onClick={async () => {
+              const confirmLogout = window.confirm("¿Deseas cerrar tu sesión de SuperAdmin?");
+              if (!confirmLogout) return;
               await signOut();
               onLogout();
             }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-rose-900/30 border border-slate-700 hover:border-rose-800/50 text-slate-300 hover:text-rose-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/60 hover:border-rose-600 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+            title="Cerrar sesión completamente"
           >
-            <LogOut className="w-3.5 h-3.5" />
-            Salir
+            <LogOut className="w-3.5 h-3.5 text-rose-400" />
+            <span>Cerrar Sesión</span>
           </button>
         </div>
       </header>

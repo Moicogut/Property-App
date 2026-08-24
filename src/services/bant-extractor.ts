@@ -5,8 +5,8 @@
 import OpenAI from "openai";
 import type { BantScore } from "./shared";
 
-const BANT_PROMPT = `Eres un sistema experto en Scoring Inmobiliario BANT (Budget, Authority, Need, Timeline). 
-Extrae o deduce estos atributos basados en el historial y el último mensaje del lead.
+const BANT_PROMPT = `Eres un sistema experto en Scoring Inmobiliario BANT (Budget, Authority, Need, Timeline) para Property OS en Bolivia. 
+Analiza objetivamente el historial y el último mensaje del lead.
 Responde ÚNICAMENTE en JSON con la siguiente estructura estricta:
 {
   "budget": 0,
@@ -14,16 +14,20 @@ Responde ÚNICAMENTE en JSON con la siguiente estructura estricta:
   "need": "",
   "timeline": "",
   "preferred_zone": "",
+  "payment_method": "POR_DEFINIR",
+  "bank_declared": "",
   "score": 0
 }
 
-Reglas:
-- budget: número (USD). Extrae el presupuesto máximo declarado por el cliente. 0 si es desconocido.
-- authority: booleano. ¿Es el tomador de decisión? (asume true a menos que diga que debe consultar a un familiar/pareja).
-- need: string corto de 5 palabras máximo resumiendo lo que busca.
-- timeline: string corto (ej. "En 3 meses", "Inmediato"). "" si es desconocido.
-- preferred_zone: string. La zona o barrio que el cliente mencionó explícitamente (ej. "Sopocachi", "Equipetrol Norte"). "" si no se mencionó.
-- score: número de 0 a 100 (100 = listo para comprar, 50 = tibio, 0 = no calificado).`;
+Reglas estrictas de veracidad del dato:
+- budget: número (USD). Extrae ÚNICAMENTE el monto explícitamente declarado por el cliente. Si no declaró monto numérico, devuelve 0.
+- authority: booleano. true si es el tomador de decisión, false si dice consultar con otros.
+- need: string corto de máximo 6 palabras resumiendo el requerimiento real.
+- timeline: string corto (ej. "Inmediata", "1 a 3 meses", "Por definir").
+- preferred_zone: string. La zona/barrio/ciudad mencionada por el cliente. "" si no se mencionó. NUNCA inventes una zona.
+- payment_method: "CREDITO_VIS" | "CREDITO_BANCARIO" | "CONTADO" | "POR_DEFINIR".
+- bank_declared: string con el nombre del banco si y solo si el cliente lo mencionó (ej. "Banco BCP", "BNB"). "" si no mencionó ningún banco. PROHIBIDO inferir bancos por defecto.
+- score: número de 0 a 100 calculado objetivamente según datos verificados.`;
 
 /**
  * Extrae el BANT Score del historial de conversación usando gpt-4o-mini en JSON mode.
