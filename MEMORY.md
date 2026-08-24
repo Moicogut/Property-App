@@ -1,34 +1,36 @@
 # 🧠 MEMORY.md — Property OS (Historial de Despliegue e Infraestructura)
 
-**Última actualización:** 24 de Agosto de 2026 (Sprint B2B Growth & Real Data Validation — Cierre de Sesión)  
-**Estado General:** Plataforma **operativa en producción**. Se completó la transición de datos sintéticos a **datos 100% reales mediante Google Places API**, enriquecimiento de sitios web con scraping de emails/WhatsApp, algoritmo de puntuación de calidad de datos (Data Quality Score), y el **módulo de prospección por WhatsApp Directo 1-Clic adaptado a la realidad del mercado boliviano**.
+**Última actualización:** 24 de Agosto de 2026 (Cierre Oficial de Auditoría Técnico-Funcional & Certificación de Salida)  
+**Estado General:** Plataforma **100% remediada y certificada para entrada a Piloto Comercial**. Se levantó el 100% de los defectos P0/P1 de la Auditoría Técnico-Funcional: erradicación de defaults fantasma, aislamiento multi-tenant con RLS y segregación demo/producción, sincronización horaria dinámica oficial de Bolivia (`America/La_Paz`, GMT-4), patrón Tool-First y escalamiento humano en Sofía IA, Quality Gates en el CRM, disclaimer regulatorio ASFI y generación de informes oficiales en Word y PDF con identidad Obsidian/Champagne Gold.
 
 ---
 
 ## 🌐 Entorno de Producción Oficial
 * **URL de Producción (Vercel):** [https://property-app-ashen.vercel.app](https://property-app-ashen.vercel.app)
-* **Commit activo:** `f066c1b` — feat(b2b): WhatsApp direct 1-click outreach, AI pitch copy generator, segment filter, and quick contact editor
+* **Commit activo:** `52211b7` — feat: remediacion auditoria integral P0/P1 - aislamiento tenant, reloj Bolivia, quality gates y Sofia confiable
 * **Evolution API Gateway (Railway):** `https://evolution-api-production-a3a5.up.railway.app`
 * **Instancia Activa:** `PropertyOS-Main`
 * **Supabase Project:** `lqagnlbygzurddkzbbwn` (`https://lqagnlbygzurddkzbbwn.supabase.co`)
+* **Documentos Oficiales Generados:**
+  - Word: `INFORME_DE_RESPUESTA_AUDITORIA_PROPERTY_OS.docx`
+  - PDF: `INFORME_DE_RESPUESTA_AUDITORIA_PROPERTY_OS.pdf`
 
 ---
 
-## 📊 STATUS DE LA PLATAFORMA (24-Ago-2026)
+## 📊 STATUS DE LA PLATAFORMA (24-Ago-2026 — Auditoría Certificada)
 
 | Módulo | Estado | Notas |
 |---|---|---|
+| **Sofía IA RAG WhatsApp (Oficial Piloto)** | ✅ CERTIFICADO | Tool-First, reloj La Paz, trazabilidad BANT y escalamiento humano |
+| **Kanban Ventas & Compradores (Piloto GA)**| ✅ CERTIFICADO | Quality Gates activos, prevención de duplicados E.164 |
+| **Aislamiento Multi-Tenant & RLS** | ✅ CERTIFICADO | Migración SQL `20260824_v10`, flags `is_demo`, RPC seguro |
+| **Cotizador Financiero & ASFI** | ✅ CERTIFICADO | Sistema Francés, VIS/ASFI con leyenda legal regulatoria |
+| **Catálogo Público & Portal Web** | ✅ CERTIFICADO | Taxonomía canónica (Depto, Casa, Terreno, Oficina, Local) |
+| **SuperAdmin SaaS & Gobernanza** | ✅ CERTIFICADO | Separación explícita entre 'Volver al CRM' y 'Cerrar Sesión' |
 | **B2B Prospección Agencias (Datos Reales)** | ✅ OPERATIVO | Google Places API + Scraper de emails + WhatsApp 1-Clic |
-| **Generador de Pitch WhatsApp IA** | ✅ OPERATIVO | 3 enfoques para Bolivia (Sofía 24/7, Demo 15 min, Pitch Rápido) |
-| **Filtros por Segmento & Ciudad** | ✅ OPERATIVO | Badges por ciudad + Segmentos (Celular/WA, Web, Email) |
-| **Reportes B2B & Exportación CSV** | ✅ OPERATIVO | Resumen por ciudad, pipeline status y exportación CSV |
-| **Edición Rápida de Contactos** | ✅ OPERATIVO | Pestaña de edición en modal con persistencia en Supabase |
-| Sofía IA RAG WhatsApp | ✅ OPERATIVO | Webhook bidireccional activo en Evolution API |
-| Kanban Multi-Pipeline | ✅ OPERATIVO | 3 embudos: Ventas, Captación, Alquileres |
-| Cotizador Financiero | ✅ OPERATIVO | Sistema Francés, VIS/ASFI, Hipotecario |
-| Contratos Digitales PDF | ✅ OPERATIVO | Reserva, Promesa, Consignación |
-| Auditoría Legal | ✅ OPERATIVO | Semáforo de riesgo verde/amarillo/rojo |
-| SuperAdmin SaaS | ✅ OPERATIVO | Multi-tenant, gobernanza y configuración IA |
+| **Contratos Digitales PDF** | ✅ OPERATIVO | Reserva, Promesa, Consignación |
+| **Auditoría Legal Inmuebles** | ✅ OPERATIVO | Semáforo verde/amarillo/rojo (exclusión automática en RAG) |
+| **Pipelines Captaciones y Alquileres** | 🟡 BETA INTERNA | Etiquetados explícitamente para no contaminar el piloto |
 
 ---
 
