@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Search,
   Building2,
@@ -10,11 +10,9 @@ import {
   MessageSquare,
   Loader2,
   CheckCircle2,
-  XCircle,
   Sparkles,
   RefreshCw,
   ExternalLink,
-  Send,
   Zap,
   Clock,
   Eye,
@@ -22,10 +20,15 @@ import {
   Copy,
   Check,
   Video,
-  Building,
-  ChevronDown,
-  Linkedin
+  Filter,
+  FileDown,
+  BarChart3,
+  CheckSquare,
+  Square,
+  Printer,
 } from "lucide-react";
+
+// ─── TYPES ────────────────────────────────────────────────────────────────────
 
 export interface B2bProspect {
   id: string;
@@ -49,7 +52,10 @@ export interface B2bProspect {
   created_at?: string;
 }
 
-const OUTREACH_STATUS_CONFIG: Record<B2bProspect["outreach_status"], { label: string; color: string; bg: string }> = {
+const OUTREACH_STATUS_CONFIG: Record<
+  B2bProspect["outreach_status"],
+  { label: string; color: string; bg: string }
+> = {
   NUEVO: { label: "Nuevo", color: "text-slate-300", bg: "bg-slate-800" },
   EMAIL_ENVIADO: { label: "Email Enviado", color: "text-blue-300", bg: "bg-blue-950/60" },
   DEMO_AGENDADA: { label: "Demo Agendada", color: "text-amber-300", bg: "bg-amber-950/60" },
@@ -57,21 +63,41 @@ const OUTREACH_STATUS_CONFIG: Record<B2bProspect["outreach_status"], { label: st
   CONVERTIDO: { label: "✅ Convertido", color: "text-emerald-300", bg: "bg-emerald-950/60" },
 };
 
-const BOLIVIAN_CITIES = ["Santa Cruz", "La Paz", "Cochabamba", "Oruro", "Potosí", "Sucre", "Trinidad", "Tarija"];
+const BOLIVIAN_CITIES = [
+  "Santa Cruz",
+  "La Paz",
+  "Cochabamba",
+  "Oruro",
+  "Potosí",
+  "Sucre",
+  "Trinidad",
+  "Tarija",
+];
+
+// ─── COMPONENT ────────────────────────────────────────────────────────────────
 
 export const B2bProspectingView: React.FC = () => {
-  const [city, setCity] = useState("Santa Cruz");
-  const [prospectCount, setProspectCount] = useState(10);
-  const [prospects, setProspects] = useState<B2bProspect[]>([]);
+  // ── Scan state
+  const [scanCity, setScanCity] = useState("Santa Cruz");
+  const [prospectCount, setProspectCount] = useState(15);
   const [isScanning, setIsScanning] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Modal: Ver Detalle / Generar Invitación
+  // ── Data state
+  const [allProspects, setAllProspects] = useState<B2bProspect[]>([]);
+  const [isLoadingProspects, setIsLoadingProspects] = useState(true);
+
+  // ── Filter state
+  const [filterCity, setFilterCity] = useState("Todas");
+  const [searchText, setSearchText] = useState("");
+
+  // ── Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // ── Modal: single prospect
   const [selectedProspect, setSelectedProspect] = useState<B2bProspect | null>(null);
   const [modalMode, setModalMode] = useState<"detail" | "invitation">("detail");
 
-  // Estado de la Invitación Generada
+  // ── Invitation state (single)
   const [meetingType, setMeetingType] = useState<"meet" | "zoom">("meet");
   const [proposedDate, setProposedDate] = useState("el próximo martes a las 10:00 AM");
   const [customMessage, setCustomMessage] = useState("");
@@ -85,8 +111,84 @@ export const B2bProspectingView: React.FC = () => {
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Estado de Conversión
+  // ── Bulk email state
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkMeetingType, setBulkMeetingType] = useState<"meet" | "zoom">("meet");
+  const [bulkDate, setBulkDate] = useState("el próximo martes a las 10:00 AM");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [bulkResults, setBulkResults] = useState<
+    Array<{ prospect: B2bProspect; subject: string; to: string; error?: string }>
+  >([]);
+
+  // ── Report state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTab, setReportTab] = useState<"total" | "selected">("total");
+
+  // ── Convert state
   const [isConverting, setIsConverting] = useState<string | null>(null);
+
+  // ── Messages
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // ── COMPUTED ─────────────────────────────────────────────────────────────────
+
+  const citiesWithData = [
+    "Todas",
+    ...Array.from(new Set(allProspects.map((p) => p.city).filter(Boolean))),
+  ];
+
+  const visibleProspects = allProspects
+    .filter((p) => filterCity === "Todas" || p.city === filterCity)
+    .filter((p) => {
+      if (!searchText.trim()) return true;
+      const q = searchText.toLowerCase();
+      return (
+        p.agency_name.toLowerCase().includes(q) ||
+        (p.manager_name || "").toLowerCase().includes(q) ||
+        (p.email_official || "").toLowerCase().includes(q) ||
+        (p.zone || "").toLowerCase().includes(q)
+      );
+    });
+
+  const allVisibleSelected =
+    visibleProspects.length > 0 && visibleProspects.every((p) => selectedIds.has(p.id));
+
+  const globalStats = {
+    total: allProspects.length,
+    nuevo: allProspects.filter((p) => p.outreach_status === "NUEVO").length,
+    enviado: allProspects.filter((p) => p.outreach_status === "EMAIL_ENVIADO").length,
+    demo: allProspects.filter((p) => p.outreach_status === "DEMO_AGENDADA").length,
+    convertido: allProspects.filter((p) => p.outreach_status === "CONVERTIDO").length,
+  };
+
+  // ── LOAD ON MOUNT ─────────────────────────────────────────────────────────
+
+  const loadAllProspects = useCallback(async () => {
+    setIsLoadingProspects(true);
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "list" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllProspects(data.prospects || []);
+      }
+    } catch {
+      // Empezamos con array vacío si falla
+    } finally {
+      setIsLoadingProspects(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllProspects();
+  }, [loadAllProspects]);
+
+  // ── SCAN (acumula, no reemplaza) ─────────────────────────────────────────
 
   const handleScan = async () => {
     setIsScanning(true);
@@ -96,18 +198,33 @@ export const B2bProspectingView: React.FC = () => {
       const res = await fetch("/api/admin/b2b", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "search", city, country: "Bolivia", limit: prospectCount }),
+        body: JSON.stringify({
+          action: "search",
+          city: scanCity,
+          country: "Bolivia",
+          limit: prospectCount,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error al escanear");
-      setProspects(data.prospects || []);
-      setSuccessMessage(`✅ ${data.total} agencias inmobiliarias detectadas en ${city}`);
+
+      setAllProspects((prev) => {
+        const existingKeys = new Set(prev.map((p) => `${p.agency_name}|${p.city}`));
+        const newOnes = (data.prospects as B2bProspect[]).filter(
+          (p) => !existingKeys.has(`${p.agency_name}|${p.city}`)
+        );
+        return [...prev, ...newOnes];
+      });
+      setFilterCity(scanCity);
+      setSuccessMessage(`✅ ${data.total} agencias detectadas en ${scanCity}`);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Error al escanear agencias");
     } finally {
       setIsScanning(false);
     }
   };
+
+  // ── SINGLE INVITATION ─────────────────────────────────────────────────────
 
   const handleGenerateInvitation = async () => {
     if (!selectedProspect) return;
@@ -133,9 +250,7 @@ export const B2bProspectingView: React.FC = () => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error generando invitación");
       setGeneratedInvitation(data);
-
-      // Actualizar el estado local del prospecto
-      setProspects((prev) =>
+      setAllProspects((prev) =>
         prev.map((p) =>
           p.id === selectedProspect.id
             ? { ...p, outreach_status: "EMAIL_ENVIADO", meeting_link: data.meeting_link }
@@ -149,6 +264,70 @@ export const B2bProspectingView: React.FC = () => {
     }
   };
 
+  // ── BULK EMAIL ────────────────────────────────────────────────────────────
+
+  const handleBulkEmail = async () => {
+    const targets = visibleProspects.filter((p) => selectedIds.has(p.id));
+    if (targets.length === 0) return;
+
+    setBulkResults([]);
+    setBulkProgress({ done: 0, total: targets.length });
+
+    const results: Array<{
+      prospect: B2bProspect;
+      subject: string;
+      to: string;
+      error?: string;
+    }> = [];
+
+    for (let i = 0; i < targets.length; i++) {
+      const prospect = targets[i];
+      try {
+        const res = await fetch("/api/admin/b2b", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "invite",
+            prospectId: prospect.id || "local",
+            agencyName: prospect.agency_name,
+            managerName: prospect.manager_name || "Gerente",
+            emailOfficial: prospect.email_official,
+            emailPersonal: prospect.email_personal,
+            city: prospect.city,
+            meetingType: bulkMeetingType,
+            proposedDate: bulkDate,
+            customMessage: bulkMessage,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        results.push({ prospect, subject: data.subject, to: data.to });
+        setAllProspects((prev) =>
+          prev.map((p) =>
+            p.id === prospect.id ? { ...p, outreach_status: "EMAIL_ENVIADO" } : p
+          )
+        );
+      } catch (err) {
+        results.push({
+          prospect,
+          subject: "ERROR",
+          to: prospect.email_official || "—",
+          error: err instanceof Error ? err.message : "Error desconocido",
+        });
+      }
+      setBulkProgress({ done: i + 1, total: targets.length });
+      if (i < targets.length - 1) await new Promise((r) => setTimeout(r, 400));
+    }
+
+    setBulkResults(results);
+    setBulkProgress(null);
+    setSuccessMessage(
+      `✅ ${results.filter((r) => !r.error).length}/${targets.length} correos generados`
+    );
+  };
+
+  // ── CONVERT ───────────────────────────────────────────────────────────────
+
   const handleConvertToTenant = async (prospect: B2bProspect) => {
     if (!prospect.id) return;
     setIsConverting(prospect.id);
@@ -161,10 +340,12 @@ export const B2bProspectingView: React.FC = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error convirtiendo prospecto");
-      setProspects((prev) =>
+      setAllProspects((prev) =>
         prev.map((p) => (p.id === prospect.id ? { ...p, outreach_status: "CONVERTIDO" } : p))
       );
-      setSuccessMessage(`✅ ${prospect.agency_name} convertida a inmobiliaria activa — Org ID: ${data.organization?.id}`);
+      setSuccessMessage(
+        `✅ ${prospect.agency_name} convertida a inmobiliaria activa — Org ID: ${data.organization?.id}`
+      );
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Error convirtiendo prospecto");
     } finally {
@@ -172,13 +353,79 @@ export const B2bProspectingView: React.FC = () => {
     }
   };
 
+  // ── SELECTION ─────────────────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visibleProspects.map((p) => p.id)));
+    }
+  };
+
+  // ── CSV EXPORT ────────────────────────────────────────────────────────────
+
+  const exportCSV = (data: B2bProspect[], filename: string) => {
+    const headers = [
+      "Agencia",
+      "Ciudad",
+      "Zona",
+      "Gerente",
+      "Cargo",
+      "Email Oficial",
+      "Email Personal",
+      "Teléfono",
+      "WhatsApp",
+      "Sitio Web",
+      "Estado Pipeline",
+      "Último Contacto",
+    ];
+    const rows = data.map((p) => [
+      p.agency_name,
+      p.city,
+      p.zone || "",
+      p.manager_name || "",
+      p.manager_role || "",
+      p.email_official || "",
+      p.email_personal || "",
+      p.phone_official || "",
+      p.whatsapp_contact || "",
+      p.website_url || "",
+      p.outreach_status,
+      p.last_contacted_at || "",
+    ]);
+    const csv = [headers, ...rows]
+      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── HELPERS ───────────────────────────────────────────────────────────────
+
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2500);
   };
 
-  const openDetailModal = (prospect: B2bProspect, mode: "detail" | "invitation" = "detail") => {
+  const openDetailModal = (
+    prospect: B2bProspect,
+    mode: "detail" | "invitation" = "detail"
+  ) => {
     setSelectedProspect(prospect);
     setModalMode(mode);
     setGeneratedInvitation(null);
@@ -190,13 +437,7 @@ export const B2bProspectingView: React.FC = () => {
     setGeneratedInvitation(null);
   };
 
-  const statusCounts = {
-    total: prospects.length,
-    nuevo: prospects.filter((p) => p.outreach_status === "NUEVO").length,
-    enviado: prospects.filter((p) => p.outreach_status === "EMAIL_ENVIADO").length,
-    demo: prospects.filter((p) => p.outreach_status === "DEMO_AGENDADA").length,
-    convertido: prospects.filter((p) => p.outreach_status === "CONVERTIDO").length,
-  };
+  // ── RENDER ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -210,19 +451,27 @@ export const B2bProspectingView: React.FC = () => {
               Prospección B2B — Agencias Inmobiliarias
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Descubre gerentes y brokers de agencias inmobiliarias por ciudad. Genera y envía invitaciones de demo en 1 clic.
+              Descubre gerentes y brokers de agencias inmobiliarias por ciudad. Genera y
+              envía invitaciones de demo en 1 clic.
             </p>
           </div>
-          {prospects.length > 0 && (
+          {allProspects.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs">
               {[
-                { label: "Total", value: statusCounts.total, color: "text-slate-300" },
-                { label: "Nuevos", value: statusCounts.nuevo, color: "text-slate-400" },
-                { label: "Enviados", value: statusCounts.enviado, color: "text-blue-400" },
-                { label: "Demos", value: statusCounts.demo, color: "text-amber-400" },
-                { label: "Convertidos", value: statusCounts.convertido, color: "text-emerald-400" },
+                { label: "Total", value: globalStats.total, color: "text-slate-300" },
+                { label: "Nuevos", value: globalStats.nuevo, color: "text-slate-400" },
+                { label: "Enviados", value: globalStats.enviado, color: "text-blue-400" },
+                { label: "Demos", value: globalStats.demo, color: "text-amber-400" },
+                {
+                  label: "Convertidos",
+                  value: globalStats.convertido,
+                  color: "text-emerald-400",
+                },
               ].map((stat) => (
-                <div key={stat.label} className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-center min-w-[60px]">
+                <div
+                  key={stat.label}
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-center min-w-[60px]"
+                >
                   <div className={`font-black text-lg ${stat.color}`}>{stat.value}</div>
                   <div className="text-slate-500 text-[10px]">{stat.label}</div>
                 </div>
@@ -236,17 +485,21 @@ export const B2bProspectingView: React.FC = () => {
       {successMessage && (
         <div className="p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs flex items-center justify-between">
           <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)}><X className="w-3.5 h-3.5" /></button>
+          <button onClick={() => setSuccessMessage(null)}>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
       {errorMessage && (
         <div className="p-3 bg-rose-950/80 border border-rose-500/50 rounded-xl text-rose-300 text-xs flex items-center justify-between">
           <span>⚠️ {errorMessage}</span>
-          <button onClick={() => setErrorMessage(null)}><X className="w-3.5 h-3.5" /></button>
+          <button onClick={() => setErrorMessage(null)}>
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
-      {/* ── PANEL DE BÚSQUEDA ── */}
+      {/* ── PANEL DE BÚSQUEDA (SCAN) ── */}
       <div className="bg-[#111622] border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
           <div className="flex-1 space-y-1.5">
@@ -255,9 +508,9 @@ export const B2bProspectingView: React.FC = () => {
               {BOLIVIAN_CITIES.slice(0, 4).map((c) => (
                 <button
                   key={c}
-                  onClick={() => setCity(c)}
+                  onClick={() => setScanCity(c)}
                   className={`py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                    city === c
+                    scanCity === c
                       ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37] font-black"
                       : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
                   }`}
@@ -267,12 +520,14 @@ export const B2bProspectingView: React.FC = () => {
               ))}
             </div>
             <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
+              value={scanCity}
+              onChange={(e) => setScanCity(e.target.value)}
               className="w-full bg-slate-950 text-slate-200 px-3 py-2.5 rounded-xl text-xs border border-slate-800 outline-none focus:border-[#D4AF37]"
             >
               {BOLIVIAN_CITIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>
@@ -299,7 +554,7 @@ export const B2bProspectingView: React.FC = () => {
             {isScanning ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Escaneando {city}...</span>
+                <span>Escaneando {scanCity}...</span>
               </>
             ) : (
               <>
@@ -311,28 +566,162 @@ export const B2bProspectingView: React.FC = () => {
         </div>
       </div>
 
+      {/* ── BARRA DE FILTROS Y ACCIONES ── */}
+      {(allProspects.length > 0 || isLoadingProspects) && (
+        <div className="bg-[#111622] border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          {/* Badges por ciudad */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <Filter className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+            {citiesWithData.map((c) => {
+              const count =
+                c === "Todas"
+                  ? allProspects.length
+                  : allProspects.filter((p) => p.city === c).length;
+              return (
+                <button
+                  key={c}
+                  onClick={() => setFilterCity(c)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                    filterCity === c
+                      ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]"
+                      : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-600"
+                  }`}
+                >
+                  {c !== "Todas" && "📍"} {c}
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      filterCity === c
+                        ? "bg-slate-950/30 text-slate-900"
+                        : "bg-slate-800 text-slate-300"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Buscador + acciones masivas */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+              <input
+                type="text"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Buscar agencia, gerente, email, zona..."
+                className="w-full pl-9 pr-8 py-2 bg-slate-950 text-slate-200 rounded-xl text-xs border border-slate-800 outline-none focus:border-[#D4AF37] placeholder-slate-600"
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-2 flex-wrap">
+              {/* Select all */}
+              <button
+                onClick={toggleSelectAll}
+                className="px-3 py-2 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                {allVisibleSelected ? (
+                  <CheckSquare className="w-3.5 h-3.5 text-[#D4AF37]" />
+                ) : (
+                  <Square className="w-3.5 h-3.5" />
+                )}
+                {allVisibleSelected ? "Quitar Todo" : "Sel. Todo"}
+              </button>
+
+              {/* Bulk email */}
+              <button
+                onClick={() => {
+                  setBulkResults([]);
+                  setBulkProgress(null);
+                  setShowBulkModal(true);
+                }}
+                disabled={selectedIds.size === 0}
+                className="px-3 py-2 bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#F3E5AB] rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Correo Masivo ({selectedIds.size})
+              </button>
+
+              {/* Report */}
+              <button
+                onClick={() => {
+                  setReportTab("total");
+                  setShowReportModal(true);
+                }}
+                className="px-3 py-2 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-700/40 text-blue-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Reporte
+              </button>
+
+              {/* Refresh */}
+              <button
+                onClick={loadAllProspects}
+                disabled={isLoadingProspects}
+                className="px-3 py-2 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingProspects ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Info selección */}
+          {selectedIds.size > 0 && (
+            <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" />
+              {selectedIds.size} agencias seleccionadas
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-rose-400 hover:text-rose-300 cursor-pointer ml-1"
+              >
+                (limpiar selección)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── TABLA DE PROSPECTOS ── */}
-      {prospects.length > 0 && (
+      {visibleProspects.length > 0 && (
         <div className="bg-[#111622] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
             <h3 className="text-sm font-black text-white">
-              Agencias Detectadas en {city} ({prospects.length})
+              {filterCity === "Todas" ? "Todas las Agencias" : `Agencias en ${filterCity}`}
+              <span className="text-slate-500 font-normal ml-2">
+                ({visibleProspects.length}
+                {searchText && ` de ${allProspects.filter((p) => filterCity === "Todas" || p.city === filterCity).length}`})
+              </span>
             </h3>
-            <button
-              onClick={handleScan}
-              disabled={isScanning}
-              className="text-xs text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Actualizar</span>
-            </button>
+            {searchText && (
+              <span className="text-[11px] text-[#D4AF37]">
+                Filtrado por: "{searchText}"
+              </span>
+            )}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-950/60 text-slate-400 text-[11px] uppercase">
-                  <th className="text-left px-5 py-3 font-bold">Agencia / Zona</th>
+                  <th className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="accent-[#D4AF37] cursor-pointer w-3.5 h-3.5"
+                    />
+                  </th>
+                  <th className="text-left px-3 py-3 font-bold">Agencia / Zona</th>
+                  <th className="text-left px-3 py-3 font-bold">Ciudad</th>
                   <th className="text-left px-4 py-3 font-bold">Gerente / Cargo</th>
                   <th className="text-left px-4 py-3 font-bold">Contacto</th>
                   <th className="text-left px-4 py-3 font-bold">Estado Pipeline</th>
@@ -340,19 +729,36 @@ export const B2bProspectingView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {prospects.map((prospect, idx) => {
+                {visibleProspects.map((prospect, idx) => {
                   const statusCfg = OUTREACH_STATUS_CONFIG[prospect.outreach_status];
+                  const isSelected = selectedIds.has(prospect.id);
                   return (
                     <tr
                       key={prospect.id || idx}
-                      className="hover:bg-slate-900/40 transition group"
+                      className={`hover:bg-slate-900/40 transition group ${
+                        isSelected
+                          ? "bg-[#D4AF37]/5 border-l-2 border-l-[#D4AF37]/60"
+                          : ""
+                      }`}
                     >
+                      {/* Checkbox */}
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(prospect.id)}
+                          className="accent-[#D4AF37] cursor-pointer w-3.5 h-3.5"
+                        />
+                      </td>
+
                       {/* Agencia / Zona */}
-                      <td className="px-5 py-4">
-                        <div className="font-black text-white text-[13px]">{prospect.agency_name}</div>
+                      <td className="px-3 py-4">
+                        <div className="font-black text-white text-[13px]">
+                          {prospect.agency_name}
+                        </div>
                         <div className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
                           <MapPin className="w-3 h-3" />
-                          {prospect.zone || prospect.city}
+                          {prospect.zone || "—"}
                         </div>
                         {prospect.website_url && (
                           <a
@@ -367,10 +773,24 @@ export const B2bProspectingView: React.FC = () => {
                         )}
                       </td>
 
+                      {/* Ciudad */}
+                      <td className="px-3 py-4">
+                        <button
+                          onClick={() => setFilterCity(prospect.city)}
+                          className="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] text-slate-300 font-medium transition cursor-pointer"
+                        >
+                          📍 {prospect.city}
+                        </button>
+                      </td>
+
                       {/* Gerente / Cargo */}
                       <td className="px-4 py-4">
-                        <div className="font-bold text-slate-200">{prospect.manager_name || "—"}</div>
-                        <div className="text-slate-400 text-[11px]">{prospect.manager_role || "—"}</div>
+                        <div className="font-bold text-slate-200">
+                          {prospect.manager_name || "—"}
+                        </div>
+                        <div className="text-slate-400 text-[11px]">
+                          {prospect.manager_role || "—"}
+                        </div>
                       </td>
 
                       {/* Contacto */}
@@ -378,7 +798,9 @@ export const B2bProspectingView: React.FC = () => {
                         {prospect.email_official && (
                           <div className="flex items-center gap-1 text-slate-300">
                             <Mail className="w-3 h-3 text-[#D4AF37]" />
-                            <span className="truncate max-w-[160px]">{prospect.email_official}</span>
+                            <span className="truncate max-w-[160px]">
+                              {prospect.email_official}
+                            </span>
                           </div>
                         )}
                         {prospect.phone_official && (
@@ -402,7 +824,9 @@ export const B2bProspectingView: React.FC = () => {
 
                       {/* Estado Pipeline */}
                       <td className="px-4 py-4">
-                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${statusCfg.bg} ${statusCfg.color}`}>
+                        <span
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${statusCfg.bg} ${statusCfg.color}`}
+                        >
                           {statusCfg.label}
                         </span>
                         {prospect.last_contacted_at && (
@@ -423,7 +847,6 @@ export const B2bProspectingView: React.FC = () => {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-
                           <button
                             onClick={() => openDetailModal(prospect, "invitation")}
                             title="Generar Invitación de Demo"
@@ -432,10 +855,12 @@ export const B2bProspectingView: React.FC = () => {
                           >
                             <Sparkles className="w-3.5 h-3.5" />
                           </button>
-
                           <button
                             onClick={() => handleConvertToTenant(prospect)}
-                            disabled={prospect.outreach_status === "CONVERTIDO" || isConverting === prospect.id}
+                            disabled={
+                              prospect.outreach_status === "CONVERTIDO" ||
+                              isConverting === prospect.id
+                            }
                             title="Convertir a Inmobiliaria Activa"
                             className="p-1.5 bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-400 rounded-lg border border-emerald-700/40 transition cursor-pointer disabled:opacity-40"
                           >
@@ -457,18 +882,28 @@ export const B2bProspectingView: React.FC = () => {
       )}
 
       {/* ── ESTADO VACÍO ── */}
-      {!isScanning && prospects.length === 0 && (
+      {!isScanning && !isLoadingProspects && allProspects.length === 0 && (
         <div className="bg-[#111622] border border-slate-800 rounded-2xl p-16 text-center">
           <Building2 className="w-14 h-14 text-slate-700 mx-auto mb-4" />
           <h3 className="text-white font-black text-lg mb-2">Sin Prospectos Aún</h3>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Selecciona una ciudad boliviana y presiona <strong>"🔍 Escanear Agencias"</strong> para detectar gerentes y brokers de agencias inmobiliarias.
+            Selecciona una ciudad boliviana y presiona{" "}
+            <strong>"🔍 Escanear Agencias"</strong> para detectar gerentes y brokers de
+            agencias inmobiliarias.
           </p>
         </div>
       )}
 
+      {/* ── CARGANDO ── */}
+      {isLoadingProspects && allProspects.length === 0 && (
+        <div className="bg-[#111622] border border-slate-800 rounded-2xl p-16 text-center">
+          <Loader2 className="w-8 h-8 text-[#D4AF37] mx-auto mb-4 animate-spin" />
+          <p className="text-slate-400 text-sm">Cargando prospectos...</p>
+        </div>
+      )}
+
       {/* ════════════════════════════════════════════════════════════════
-          MODAL: DETALLE / GENERADOR DE INVITACIÓN
+          MODAL: DETALLE / GENERADOR DE INVITACIÓN INDIVIDUAL
       ════════════════════════════════════════════════════════════════ */}
       {selectedProspect && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
@@ -480,25 +915,40 @@ export const B2bProspectingView: React.FC = () => {
                   <Building2 className="w-5 h-5 text-[#D4AF37]" />
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base">{selectedProspect.agency_name}</h3>
-                  <p className="text-xs text-slate-400">{selectedProspect.city} — {selectedProspect.manager_name}</p>
+                  <h3 className="font-black text-white text-base">
+                    {selectedProspect.agency_name}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {selectedProspect.city} — {selectedProspect.manager_name}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setModalMode("detail")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${modalMode === "detail" ? "bg-[#D4AF37] text-slate-950" : "text-slate-400 hover:text-white"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                    modalMode === "detail"
+                      ? "bg-[#D4AF37] text-slate-950"
+                      : "text-slate-400 hover:text-white"
+                  }`}
                 >
                   Detalles
                 </button>
                 <button
                   onClick={() => setModalMode("invitation")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${modalMode === "invitation" ? "bg-[#D4AF37] text-slate-950" : "text-slate-400 hover:text-white"}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                    modalMode === "invitation"
+                      ? "bg-[#D4AF37] text-slate-950"
+                      : "text-slate-400 hover:text-white"
+                  }`}
                 >
                   <Sparkles className="w-3 h-3 inline mr-1" />
                   Invitación
                 </button>
-                <button onClick={closeModal} className="p-1.5 text-slate-400 hover:text-white cursor-pointer">
+                <button
+                  onClick={closeModal}
+                  className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+                >
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -509,26 +959,76 @@ export const B2bProspectingView: React.FC = () => {
               {modalMode === "detail" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   {[
-                    { label: "Agencia", value: selectedProspect.agency_name, icon: <Building2 className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "Ciudad / Zona", value: `${selectedProspect.city} — ${selectedProspect.zone || "N/A"}`, icon: <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "Gerente", value: selectedProspect.manager_name || "—", icon: <User className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "Cargo", value: selectedProspect.manager_role || "—", icon: <User className="w-3.5 h-3.5 text-slate-400" /> },
-                    { label: "Email Oficial", value: selectedProspect.email_official || "—", icon: <Mail className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "Email Personal", value: selectedProspect.email_personal || "—", icon: <Mail className="w-3.5 h-3.5 text-slate-400" /> },
-                    { label: "Teléfono Oficial", value: selectedProspect.phone_official || "—", icon: <Phone className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "WhatsApp", value: selectedProspect.whatsapp_contact || "—", icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> },
-                    { label: "Sitio Web", value: selectedProspect.website_url || "—", icon: <Globe className="w-3.5 h-3.5 text-[#D4AF37]" /> },
-                    { label: "LinkedIn", value: selectedProspect.linkedin_url || "—", icon: <ExternalLink className="w-3.5 h-3.5 text-blue-400" /> },
+                    {
+                      label: "Agencia",
+                      value: selectedProspect.agency_name,
+                      icon: <Building2 className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "Ciudad / Zona",
+                      value: `${selectedProspect.city} — ${selectedProspect.zone || "N/A"}`,
+                      icon: <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "Gerente",
+                      value: selectedProspect.manager_name || "—",
+                      icon: <User className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "Cargo",
+                      value: selectedProspect.manager_role || "—",
+                      icon: <User className="w-3.5 h-3.5 text-slate-400" />,
+                    },
+                    {
+                      label: "Email Oficial",
+                      value: selectedProspect.email_official || "—",
+                      icon: <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "Email Personal",
+                      value: selectedProspect.email_personal || "—",
+                      icon: <Mail className="w-3.5 h-3.5 text-slate-400" />,
+                    },
+                    {
+                      label: "Teléfono Oficial",
+                      value: selectedProspect.phone_official || "—",
+                      icon: <Phone className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "WhatsApp",
+                      value: selectedProspect.whatsapp_contact || "—",
+                      icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />,
+                    },
+                    {
+                      label: "Sitio Web",
+                      value: selectedProspect.website_url || "—",
+                      icon: <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                    },
+                    {
+                      label: "LinkedIn",
+                      value: selectedProspect.linkedin_url || "—",
+                      icon: <ExternalLink className="w-3.5 h-3.5 text-blue-400" />,
+                    },
                   ].map((field) => (
-                    <div key={field.label} className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
-                      <div className="flex items-center gap-1.5 text-slate-400 mb-1">{field.icon} <span>{field.label}</span></div>
-                      <div className="text-slate-200 font-medium text-[13px] break-all">{field.value}</div>
+                    <div
+                      key={field.label}
+                      className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800"
+                    >
+                      <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+                        {field.icon}
+                        <span>{field.label}</span>
+                      </div>
+                      <div className="text-slate-200 font-medium text-[13px] break-all">
+                        {field.value}
+                      </div>
                     </div>
                   ))}
                   {selectedProspect.notes && (
                     <div className="sm:col-span-2 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
                       <div className="text-slate-400 mb-1">Notas</div>
-                      <div className="text-slate-300 text-[13px] leading-relaxed">{selectedProspect.notes}</div>
+                      <div className="text-slate-300 text-[13px] leading-relaxed">
+                        {selectedProspect.notes}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -541,14 +1041,18 @@ export const B2bProspectingView: React.FC = () => {
                     <>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-[#F3E5AB]">Plataforma de Demo:</label>
+                          <label className="text-xs font-bold text-[#F3E5AB]">
+                            Plataforma de Demo:
+                          </label>
                           <div className="flex gap-2">
                             {(["meet", "zoom"] as const).map((t) => (
                               <button
                                 key={t}
                                 onClick={() => setMeetingType(t)}
                                 className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                                  meetingType === t ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]" : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                                  meetingType === t
+                                    ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]"
+                                    : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
                                 }`}
                               >
                                 <Video className="w-3.5 h-3.5" />
@@ -558,7 +1062,9 @@ export const B2bProspectingView: React.FC = () => {
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-slate-300">Fecha / Hora Propuesta:</label>
+                          <label className="text-xs font-bold text-slate-300">
+                            Fecha / Hora Propuesta:
+                          </label>
                           <input
                             type="text"
                             value={proposedDate}
@@ -570,7 +1076,9 @@ export const B2bProspectingView: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-slate-300">Mensaje Adicional (Opcional):</label>
+                        <label className="text-xs font-bold text-slate-300">
+                          Mensaje Adicional (Opcional):
+                        </label>
                         <textarea
                           value={customMessage}
                           onChange={(e) => setCustomMessage(e.target.value)}
@@ -603,48 +1111,81 @@ export const B2bProspectingView: React.FC = () => {
                       {/* Asunto */}
                       <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-[#F3E5AB]">📧 Asunto del Correo</span>
+                          <span className="text-xs font-bold text-[#F3E5AB]">
+                            📧 Asunto del Correo
+                          </span>
                           <button
-                            onClick={() => handleCopy(generatedInvitation.subject, "subject")}
+                            onClick={() =>
+                              handleCopy(generatedInvitation.subject, "subject")
+                            }
                             className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
                           >
-                            {copiedKey === "subject" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            {copiedKey === "subject" ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
                             Copiar
                           </button>
                         </div>
-                        <p className="text-white font-bold text-sm">{generatedInvitation.subject}</p>
+                        <p className="text-white font-bold text-sm">
+                          {generatedInvitation.subject}
+                        </p>
                       </div>
 
                       {/* Para */}
                       <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                        <span className="text-slate-400">Para: <span className="text-slate-200 font-bold">{generatedInvitation.to}</span></span>
+                        <span className="text-slate-400">
+                          Para:{" "}
+                          <span className="text-slate-200 font-bold">
+                            {generatedInvitation.to}
+                          </span>
+                        </span>
                         <span className="text-emerald-400 font-bold">📅 {proposedDate}</span>
                       </div>
 
                       {/* Texto Plano */}
                       <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-slate-300">Texto Plano del Correo:</span>
+                          <span className="text-xs font-bold text-slate-300">
+                            Texto Plano del Correo:
+                          </span>
                           <button
-                            onClick={() => handleCopy(generatedInvitation.plain_text, "plaintext")}
+                            onClick={() =>
+                              handleCopy(generatedInvitation.plain_text, "plaintext")
+                            }
                             className="text-[11px] text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            {copiedKey === "plaintext" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            {copiedKey === "plaintext" ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
                             Copiar Texto
                           </button>
                         </div>
-                        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">{generatedInvitation.plain_text}</pre>
+                        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
+                          {generatedInvitation.plain_text}
+                        </pre>
                       </div>
 
                       {/* HTML Body */}
                       <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-slate-300">HTML Completo (para Pegar en Gmail / Resend / SendGrid):</span>
+                          <span className="text-xs font-bold text-slate-300">
+                            HTML Completo (para Gmail / Resend / SendGrid):
+                          </span>
                           <button
-                            onClick={() => handleCopy(generatedInvitation.html_body, "html")}
+                            onClick={() =>
+                              handleCopy(generatedInvitation.html_body, "html")
+                            }
                             className="text-[11px] text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
                           >
-                            {copiedKey === "html" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                            {copiedKey === "html" ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
                             Copiar HTML
                           </button>
                         </div>
@@ -656,7 +1197,7 @@ export const B2bProspectingView: React.FC = () => {
                         />
                       </div>
 
-                      {/* Link de la Reunión */}
+                      {/* Link reunión */}
                       <div className="flex items-center gap-2">
                         <a
                           href={generatedInvitation.meeting_link}
@@ -678,6 +1219,498 @@ export const B2bProspectingView: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          MODAL: CORREO MASIVO
+      ════════════════════════════════════════════════════════════════ */}
+      {showBulkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#111622] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 sticky top-0 bg-[#111622] z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/20 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-[#D4AF37]" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">Correo Masivo con IA</h3>
+                  <p className="text-xs text-slate-400">
+                    {selectedIds.size} agencias seleccionadas
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* ── Config (solo cuando no hay progreso ni resultados) ── */}
+              {!bulkProgress && bulkResults.length === 0 && (
+                <>
+                  {/* Chips de agencias seleccionadas */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-[#F3E5AB]">
+                      Agencias a contactar:
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-2 bg-slate-950/60 rounded-xl border border-slate-800">
+                      {visibleProspects
+                        .filter((p) => selectedIds.has(p.id))
+                        .map((p) => (
+                          <span
+                            key={p.id}
+                            className="px-2 py-1 bg-slate-800 text-slate-300 rounded-lg text-[11px] flex items-center gap-1"
+                          >
+                            📍 {p.agency_name}{" "}
+                            <span className="text-slate-500">({p.city})</span>
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300">Plataforma:</label>
+                      <div className="flex gap-2">
+                        {(["meet", "zoom"] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setBulkMeetingType(t)}
+                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                              bulkMeetingType === t
+                                ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]"
+                                : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                            }`}
+                          >
+                            <Video className="w-3.5 h-3.5" />
+                            {t === "meet" ? "Google Meet" : "Zoom"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-300">
+                        Fecha / Hora:
+                      </label>
+                      <input
+                        type="text"
+                        value={bulkDate}
+                        onChange={(e) => setBulkDate(e.target.value)}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2.5 rounded-xl text-xs border border-slate-800 outline-none focus:border-[#D4AF37]"
+                        placeholder="ej. martes 26 de agosto a las 10:00 AM"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300">
+                      Mensaje adicional (opcional):
+                    </label>
+                    <textarea
+                      value={bulkMessage}
+                      onChange={(e) => setBulkMessage(e.target.value)}
+                      rows={2}
+                      className="w-full bg-slate-950 text-slate-200 px-3 py-2.5 rounded-xl text-xs border border-slate-800 outline-none focus:border-[#D4AF37] leading-relaxed"
+                      placeholder="Contexto adicional para personalizar cada correo..."
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleBulkEmail}
+                    className="w-full py-3.5 bg-gradient-to-r from-[#D4AF37] to-[#B89628] hover:brightness-110 text-slate-950 font-black rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer transition"
+                  >
+                    <Sparkles className="w-5 h-5" />✨ Generar {selectedIds.size} Correos
+                    con IA
+                  </button>
+                </>
+              )}
+
+              {/* ── Progress bar ── */}
+              {bulkProgress && (
+                <div className="space-y-5 py-4">
+                  <div className="text-center">
+                    <Loader2 className="w-10 h-10 text-[#D4AF37] mx-auto mb-3 animate-spin" />
+                    <p className="text-white font-black text-base">
+                      Procesando {bulkProgress.done}/{bulkProgress.total}...
+                    </p>
+                    <p className="text-slate-400 text-xs mt-1">
+                      Generando correos personalizados con IA
+                    </p>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-[#D4AF37] to-[#B89628] h-3 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${(bulkProgress.done / bulkProgress.total) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-center text-[#D4AF37] font-black text-2xl">
+                    {Math.round((bulkProgress.done / bulkProgress.total) * 100)}%
+                  </p>
+                </div>
+              )}
+
+              {/* ── Resultados ── */}
+              {bulkResults.length > 0 && !bulkProgress && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-black text-white">
+                      ✅ {bulkResults.filter((r) => !r.error).length}/{bulkResults.length}{" "}
+                      correos generados
+                    </h4>
+                    <button
+                      onClick={() => {
+                        const csv = ["Agencia,Ciudad,Email,Asunto"]
+                          .concat(
+                            bulkResults.map(
+                              (r) =>
+                                `"${r.prospect.agency_name}","${r.prospect.city}","${r.to}","${r.subject}"`
+                            )
+                          )
+                          .join("\n");
+                        navigator.clipboard.writeText(csv);
+                        handleCopy(csv, "bulk-csv");
+                      }}
+                      className="text-xs text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedKey === "bulk-csv" ? (
+                        <Check className="w-3 h-3 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                      Copiar CSV
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+                    {bulkResults.map((r, i) => (
+                      <div
+                        key={i}
+                        className={`flex items-start gap-3 p-3 text-xs ${
+                          r.error ? "bg-rose-950/20" : "bg-slate-950/40"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-white truncate">
+                            {r.prospect.agency_name}
+                            <span className="text-slate-500 font-normal ml-1">
+                              ({r.prospect.city})
+                            </span>
+                          </div>
+                          <div className="text-slate-400 text-[11px]">{r.to}</div>
+                          {r.error ? (
+                            <div className="text-rose-400 text-[11px]">❌ {r.error}</div>
+                          ) : (
+                            <div className="text-slate-300 text-[11px] truncate">
+                              {r.subject}
+                            </div>
+                          )}
+                        </div>
+                        {!r.error && (
+                          <button
+                            onClick={() => handleCopy(r.subject, `bulk-${i}`)}
+                            className="text-slate-400 hover:text-white cursor-pointer flex-shrink-0 mt-0.5"
+                          >
+                            {copiedKey === `bulk-${i}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setBulkResults([]);
+                      setBulkProgress(null);
+                    }}
+                    className="w-full py-2.5 bg-slate-900 border border-slate-700 text-slate-300 font-bold rounded-xl text-xs cursor-pointer hover:text-white transition"
+                  >
+                    ↩ Nueva Campaña
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════
+          MODAL: REPORTE
+      ════════════════════════════════════════════════════════════════ */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#111622] border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 sticky top-0 bg-[#111622] z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-900/40 flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">Reporte B2B</h3>
+                  <p className="text-xs text-slate-400">
+                    Análisis de prospectos y pipeline de ventas
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  title="Imprimir"
+                  className="p-2 bg-slate-900 border border-slate-800 text-slate-400 hover:text-white rounded-lg cursor-pointer transition"
+                >
+                  <Printer className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setShowReportModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Tabs */}
+              <div className="flex gap-2">
+                {(["total", "selected"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setReportTab(tab)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold border cursor-pointer transition ${
+                      reportTab === tab
+                        ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                    }`}
+                  >
+                    {tab === "total"
+                      ? `📊 Reporte Total (${allProspects.length})`
+                      : `☑ Seleccionados (${selectedIds.size})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Report content */}
+              {(() => {
+                const reportData =
+                  reportTab === "total"
+                    ? allProspects
+                    : allProspects.filter((p) => selectedIds.has(p.id));
+
+                const byCities = Array.from(
+                  new Set(reportData.map((p) => p.city))
+                ).map((c) => {
+                  const cp = reportData.filter((p) => p.city === c);
+                  return {
+                    city: c,
+                    total: cp.length,
+                    nuevo: cp.filter((p) => p.outreach_status === "NUEVO").length,
+                    enviado: cp.filter((p) => p.outreach_status === "EMAIL_ENVIADO").length,
+                    demo: cp.filter((p) => p.outreach_status === "DEMO_AGENDADA").length,
+                    convertido: cp.filter((p) => p.outreach_status === "CONVERTIDO").length,
+                  };
+                });
+
+                return (
+                  <>
+                    {/* Summary stats */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      {[
+                        {
+                          label: "Total",
+                          value: reportData.length,
+                          color: "text-slate-200",
+                          bg: "bg-slate-800/80",
+                          border: "border-slate-700",
+                        },
+                        {
+                          label: "Nuevos",
+                          value: reportData.filter((p) => p.outreach_status === "NUEVO").length,
+                          color: "text-slate-300",
+                          bg: "bg-slate-800/60",
+                          border: "border-slate-700",
+                        },
+                        {
+                          label: "Email Enviado",
+                          value: reportData.filter((p) => p.outreach_status === "EMAIL_ENVIADO").length,
+                          color: "text-blue-300",
+                          bg: "bg-blue-950/50",
+                          border: "border-blue-800/50",
+                        },
+                        {
+                          label: "Demo Agendada",
+                          value: reportData.filter((p) => p.outreach_status === "DEMO_AGENDADA").length,
+                          color: "text-amber-300",
+                          bg: "bg-amber-950/50",
+                          border: "border-amber-800/50",
+                        },
+                        {
+                          label: "Convertidos",
+                          value: reportData.filter((p) => p.outreach_status === "CONVERTIDO").length,
+                          color: "text-emerald-300",
+                          bg: "bg-emerald-950/50",
+                          border: "border-emerald-800/50",
+                        },
+                      ].map((s) => (
+                        <div
+                          key={s.label}
+                          className={`${s.bg} border ${s.border} rounded-xl p-4 text-center`}
+                        >
+                          <div className={`text-3xl font-black ${s.color}`}>{s.value}</div>
+                          <div className="text-[11px] text-slate-500 mt-1">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Por ciudad */}
+                    {byCities.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-bold text-[#F3E5AB] mb-2">
+                          📊 Resumen por Ciudad
+                        </h4>
+                        <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-slate-950/60 text-slate-400 text-[11px] uppercase">
+                                <th className="text-left px-4 py-3 font-bold">Ciudad</th>
+                                <th className="text-center px-3 py-3 font-bold">Total</th>
+                                <th className="text-center px-3 py-3 font-bold">Nuevos</th>
+                                <th className="text-center px-3 py-3 font-bold text-blue-400">
+                                  Enviados
+                                </th>
+                                <th className="text-center px-3 py-3 font-bold text-amber-400">
+                                  Demos
+                                </th>
+                                <th className="text-center px-3 py-3 font-bold text-emerald-400">
+                                  Convertidos
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/60">
+                              {byCities.map((row) => (
+                                <tr key={row.city} className="hover:bg-slate-900/40">
+                                  <td className="px-4 py-3 font-bold text-white">
+                                    📍 {row.city}
+                                  </td>
+                                  <td className="px-3 py-3 text-center font-black text-slate-200">
+                                    {row.total}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-slate-400">
+                                    {row.nuevo}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-blue-400 font-bold">
+                                    {row.enviado}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-amber-400 font-bold">
+                                    {row.demo}
+                                  </td>
+                                  <td className="px-3 py-3 text-center text-emerald-400 font-bold">
+                                    {row.convertido}
+                                  </td>
+                                </tr>
+                              ))}
+                              {/* Totales */}
+                              <tr className="bg-slate-950/40 border-t-2 border-slate-700">
+                                <td className="px-4 py-3 font-black text-[#D4AF37]">
+                                  TOTAL
+                                </td>
+                                <td className="px-3 py-3 text-center font-black text-[#D4AF37]">
+                                  {reportData.length}
+                                </td>
+                                <td className="px-3 py-3 text-center font-black text-slate-300">
+                                  {byCities.reduce((s, r) => s + r.nuevo, 0)}
+                                </td>
+                                <td className="px-3 py-3 text-center font-black text-blue-300">
+                                  {byCities.reduce((s, r) => s + r.enviado, 0)}
+                                </td>
+                                <td className="px-3 py-3 text-center font-black text-amber-300">
+                                  {byCities.reduce((s, r) => s + r.demo, 0)}
+                                </td>
+                                <td className="px-3 py-3 text-center font-black text-emerald-300">
+                                  {byCities.reduce((s, r) => s + r.convertido, 0)}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lista detallada */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-bold text-slate-300">
+                          Lista Detallada ({reportData.length})
+                        </h4>
+                        <button
+                          onClick={() =>
+                            exportCSV(
+                              reportData,
+                              `prospectos_b2b_${reportTab}_${new Date()
+                                .toISOString()
+                                .split("T")[0]}.csv`
+                            )
+                          }
+                          className="text-xs text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer font-bold"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />⬇ Exportar CSV
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-800 rounded-xl max-h-72 overflow-y-auto">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0">
+                            <tr className="bg-slate-950/90 text-slate-400 text-[11px] uppercase">
+                              <th className="text-left px-4 py-3 font-bold">Agencia</th>
+                              <th className="text-left px-3 py-3 font-bold">Ciudad</th>
+                              <th className="text-left px-3 py-3 font-bold">Gerente</th>
+                              <th className="text-left px-3 py-3 font-bold">Email</th>
+                              <th className="text-left px-3 py-3 font-bold">Estado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {reportData.map((p, i) => {
+                              const sc = OUTREACH_STATUS_CONFIG[p.outreach_status];
+                              return (
+                                <tr key={p.id || i} className="hover:bg-slate-900/40">
+                                  <td className="px-4 py-2.5 font-bold text-white">
+                                    {p.agency_name}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-400">📍 {p.city}</td>
+                                  <td className="px-3 py-2.5 text-slate-300">
+                                    {p.manager_name || "—"}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-400 max-w-[160px] truncate">
+                                    {p.email_official || "—"}
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${sc.bg} ${sc.color}`}
+                                    >
+                                      {sc.label}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

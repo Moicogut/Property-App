@@ -41,6 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleInvite(req, res);
       case "convert":
         return await handleConvert(req, res);
+      case "list":
+        return await handleList(req, res);
       default:
         return res.status(400).json({ error: `Action '${action}' no reconocida. Usa: 'search' | 'invite' | 'convert'` });
     }
@@ -49,6 +51,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error(`[api/admin/b2b] Error en action='${action}':`, error);
     return res.status(500).json({ error: msg });
   }
+}
+
+// ─── ACTION: LIST ───────────────────────────────────────────────────────────
+
+async function handleList(req: VercelRequest, res: VercelResponse) {
+  const { limit = 500 } = req.body as { limit?: number };
+  const { data, error } = await supabaseAdmin
+    .from("b2b_agency_prospects")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(Number(limit));
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+  return res.status(200).json({ success: true, prospects: data || [], total: (data || []).length });
 }
 
 // ─── ACTION: SEARCH ─────────────────────────────────────────────────────────
