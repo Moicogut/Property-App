@@ -26,6 +26,11 @@ import {
   CheckSquare,
   Square,
   Printer,
+  ShieldCheck,
+  AlertTriangle,
+  Trash2,
+  Wand2,
+  Star,
 } from "lucide-react";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -44,12 +49,57 @@ export interface B2bProspect {
   email_official?: string;
   email_personal?: string;
   linkedin_url?: string;
-  enrichment_status: "PENDING" | "ENRICHED" | "FAILED";
+  enrichment_status: "PENDING" | "ENRICHED" | "PARTIAL" | "FAILED";
   outreach_status: "NUEVO" | "EMAIL_ENVIADO" | "DEMO_AGENDADA" | "RECHAZADO" | "CONVERTIDO";
   last_contacted_at?: string;
   meeting_link?: string;
   notes?: string;
   created_at?: string;
+  // Google Places fields
+  place_id?: string;
+  google_rating?: number;
+  google_reviews?: number;
+  // Data quality fields
+  web_status?: "UNVERIFIED" | "ACTIVE" | "BROKEN" | "NONE";
+  web_http_status?: number;
+  data_quality_score?: number;
+  data_source?: "AI_GENERATED" | "GOOGLE_PLACES";
+  scrape_attempted_at?: string;
+}
+
+// ── Quality badge helper ──────────────────────────────────────────────────────
+
+function QualityBadge({ score, source }: { score?: number; source?: string }) {
+  if (source === "AI_GENERATED") {
+    return (
+      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-500 border border-slate-700">
+        <AlertTriangle className="w-2.5 h-2.5" /> IA
+      </span>
+    );
+  }
+  const s = score ?? 0;
+  if (s >= 75) return (
+    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-700/40">
+      <ShieldCheck className="w-2.5 h-2.5" /> {s}%
+    </span>
+  );
+  if (s >= 40) return (
+    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-950/60 text-amber-400 border border-amber-700/40">
+      <AlertTriangle className="w-2.5 h-2.5" /> {s}%
+    </span>
+  );
+  return (
+    <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-950/40 text-rose-400 border border-rose-700/30">
+      <AlertTriangle className="w-2.5 h-2.5" /> {s}%
+    </span>
+  );
+}
+
+function WebStatusDot({ status }: { status?: string }) {
+  if (status === "ACTIVE") return <span title="Web activa" className="text-emerald-400">●</span>;
+  if (status === "BROKEN") return <span title="Web caída" className="text-rose-400">●</span>;
+  if (status === "NONE") return <span title="Sin web" className="text-slate-600">●</span>;
+  return <span title="Web no verificada" className="text-amber-400">◌</span>;
 }
 
 const OUTREACH_STATUS_CONFIG: Record<
@@ -128,6 +178,10 @@ export const B2bProspectingView: React.FC = () => {
   // ── Convert state
   const [isConverting, setIsConverting] = useState<string | null>(null);
 
+  // ── Enrich state
+  const [enrichingIds, setEnrichingIds] = useState<Set<string>>(new Set());
+  const [isDeletingAI, setIsDeletingAI] = useState(false);
+
   // ── Messages
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -161,6 +215,23 @@ export const B2bProspectingView: React.FC = () => {
     enviado: allProspects.filter((p) => p.outreach_status === "EMAIL_ENVIADO").length,
     demo: allProspects.filter((p) => p.outreach_status === "DEMO_AGENDADA").length,
     convertido: allProspects.filter((p) => p.outreach_status === "CONVERTIDO").length,
+  };
+
+  const qualityStats = {
+    fromGoogle: allProspects.filter((p) => p.data_source === "GOOGLE_PLACES").length,
+    withWebActive: allProspects.filter((p) => p.web_status === "ACTIVE").length,
+    withEmail: allProspects.filter((p) => !!p.email_official).length,
+    withPhone: allProspects.filter((p) => !!p.phone_official).length,
+    unverifiedWeb: allProspects.filter(
+      (p) => p.website_url && p.web_status === "UNVERIFIED"
+    ).length,
+    avgScore:
+      allProspects.length > 0
+        ? Math.round(
+            allProspects.reduce((s, p) => s + (p.data_quality_score ?? 0), 0) /
+              allProspects.length
+          )
+        : 0,
   };
 
   // ── LOAD ON MOUNT ─────────────────────────────────────────────────────────
@@ -221,6 +292,86 @@ export const B2bProspectingView: React.FC = () => {
       setErrorMessage(err instanceof Error ? err.message : "Error al escanear agencias");
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  // ── ENRICH SINGLE PROSPECT (scrape website) ───────────────────────────────
+
+  const handleEnrichOne = async (prospectId: string) => {
+    setEnrichingIds((prev) => new Set(prev).add(prospectId));
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "enrich", prospectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al enriquecer");
+      setAllProspects((prev) =>
+        prev.map((p) =>
+          p.id === prospectId
+            ? {
+                ...p,
+                email_official: data.email ?? p.email_official,
+                whatsapp_contact: data.whatsapp ?? p.whatsapp_contact,
+                web_status: data.web_status ?? p.web_status,
+                web_http_status: data.http_status ?? p.web_http_status,
+                data_quality_score: data.data_quality_score ?? p.data_quality_score,
+                scrape_attempted_at: new Date().toISOString(),
+              }
+            : p
+        )
+      );
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Error enriqueciendo prospecto");
+    } finally {
+      setEnrichingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(prospectId);
+        return next;
+      });
+    }
+  };
+
+  // ── ENRICH ALL WITH WEBSITE ───────────────────────────────────────────────
+
+  const handleEnrichAllVisible = async () => {
+    const targets = visibleProspects.filter(
+      (p) => p.website_url && p.web_status === "UNVERIFIED" && !enrichingIds.has(p.id)
+    );
+    if (targets.length === 0) {
+      setSuccessMessage("No hay webs pendientes de verificar en la vista actual.");
+      return;
+    }
+    setSuccessMessage(`⏳ Verificando ${targets.length} sitios web...`);
+    for (const p of targets) {
+      await handleEnrichOne(p.id);
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    setSuccessMessage(`✅ Verificación completada para ${targets.length} agencias`);
+  };
+
+  // ── DELETE AI GENERATED PROSPECTS ─────────────────────────────────────────
+
+  const handleDeleteAI = async () => {
+    const aiCount = allProspects.filter((p) => p.data_source === "AI_GENERATED").length;
+    if (aiCount === 0) return setErrorMessage("No hay prospectos de IA para limpiar.");
+    if (!window.confirm(`¿Eliminar los ${aiCount} prospectos generados por IA? Esta acción no se puede deshacer.`)) return;
+    setIsDeletingAI(true);
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_ai" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAllProspects((prev) => prev.filter((p) => p.data_source !== "AI_GENERATED"));
+      setSuccessMessage(`🗑 ${data.deleted} prospectos IA eliminados`);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Error eliminando prospectos IA");
+    } finally {
+      setIsDeletingAI(false);
     }
   };
 
@@ -456,26 +607,51 @@ export const B2bProspectingView: React.FC = () => {
             </p>
           </div>
           {allProspects.length > 0 && (
-            <div className="flex flex-wrap gap-2 text-xs">
-              {[
-                { label: "Total", value: globalStats.total, color: "text-slate-300" },
-                { label: "Nuevos", value: globalStats.nuevo, color: "text-slate-400" },
-                { label: "Enviados", value: globalStats.enviado, color: "text-blue-400" },
-                { label: "Demos", value: globalStats.demo, color: "text-amber-400" },
-                {
-                  label: "Convertidos",
-                  value: globalStats.convertido,
-                  color: "text-emerald-400",
-                },
-              ].map((stat) => (
-                <div
-                  key={stat.label}
-                  className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-center min-w-[60px]"
-                >
-                  <div className={`font-black text-lg ${stat.color}`}>{stat.value}</div>
-                  <div className="text-slate-500 text-[10px]">{stat.label}</div>
+            <div className="flex flex-col gap-3">
+              {/* Pipeline stats */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                {[
+                  { label: "Total", value: globalStats.total, color: "text-slate-300" },
+                  { label: "Nuevos", value: globalStats.nuevo, color: "text-slate-400" },
+                  { label: "Enviados", value: globalStats.enviado, color: "text-blue-400" },
+                  { label: "Demos", value: globalStats.demo, color: "text-amber-400" },
+                  { label: "Convertidos", value: globalStats.convertido, color: "text-emerald-400" },
+                ].map((stat) => (
+                  <div key={stat.label} className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-center min-w-[60px]">
+                    <div className={`font-black text-lg ${stat.color}`}>{stat.value}</div>
+                    <div className="text-slate-500 text-[10px]">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Quality stats */}
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/40 border border-emerald-700/30 rounded-lg text-emerald-400">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Google Places: <strong>{qualityStats.fromGoogle}</strong></span>
                 </div>
-              ))}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-300">
+                  <Globe className="w-3 h-3 text-emerald-400" />
+                  <span>Web real: <strong>{qualityStats.withWebActive}</strong>/{allProspects.filter(p => p.website_url).length}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-300">
+                  <Mail className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Con email: <strong>{qualityStats.withEmail}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-300">
+                  <Phone className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Con teléfono: <strong>{qualityStats.withPhone}</strong></span>
+                </div>
+                {qualityStats.unverifiedWeb > 0 && (
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-950/40 border border-amber-700/30 rounded-lg text-amber-400">
+                    <AlertTriangle className="w-3 h-3" />
+                    <span>Sin verificar: <strong>{qualityStats.unverifiedWeb}</strong> webs</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-slate-300">
+                  <Star className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Calidad prom: <strong>{qualityStats.avgScore}%</strong></span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -636,6 +812,40 @@ export const B2bProspectingView: React.FC = () => {
                 )}
                 {allVisibleSelected ? "Quitar Todo" : "Sel. Todo"}
               </button>
+
+              {/* Verificar webs */}
+              {qualityStats.unverifiedWeb > 0 && (
+                <button
+                  onClick={handleEnrichAllVisible}
+                  disabled={enrichingIds.size > 0}
+                  title={`Verificar ${qualityStats.unverifiedWeb} webs pendientes y extraer emails`}
+                  className="px-3 py-2 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-700/40 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                >
+                  {enrichingIds.size > 0 ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-3.5 h-3.5" />
+                  )}
+                  Verificar Webs ({qualityStats.unverifiedWeb})
+                </button>
+              )}
+
+              {/* Limpiar IA */}
+              {allProspects.some(p => p.data_source === "AI_GENERATED") && (
+                <button
+                  onClick={handleDeleteAI}
+                  disabled={isDeletingAI}
+                  title="Eliminar prospectos generados por IA (datos ficticios)"
+                  className="px-3 py-2 bg-rose-950/50 hover:bg-rose-900/50 border border-rose-700/40 text-rose-400 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                >
+                  {isDeletingAI ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  Limpiar IA
+                </button>
+              )}
 
               {/* Bulk email */}
               <button
@@ -822,11 +1032,9 @@ export const B2bProspectingView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Estado Pipeline */}
+                      {/* Estado Pipeline + Calidad */}
                       <td className="px-4 py-4">
-                        <span
-                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${statusCfg.bg} ${statusCfg.color}`}
-                        >
+                        <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] ${statusCfg.bg} ${statusCfg.color}`}>
                           {statusCfg.label}
                         </span>
                         {prospect.last_contacted_at && (
@@ -835,6 +1043,10 @@ export const B2bProspectingView: React.FC = () => {
                             {new Date(prospect.last_contacted_at).toLocaleDateString("es-BO")}
                           </div>
                         )}
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <QualityBadge score={prospect.data_quality_score} source={prospect.data_source} />
+                          {prospect.website_url && <WebStatusDot status={prospect.web_status} />}
+                        </div>
                       </td>
 
                       {/* Acciones */}
@@ -847,6 +1059,21 @@ export const B2bProspectingView: React.FC = () => {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
+                          {/* Enrich individual: solo si tiene web y no se ha scrapeado */}
+                          {prospect.website_url && prospect.web_status === "UNVERIFIED" && (
+                            <button
+                              onClick={() => handleEnrichOne(prospect.id)}
+                              disabled={enrichingIds.has(prospect.id)}
+                              title="Verificar web y extraer email real"
+                              className="p-1.5 bg-emerald-950/50 hover:bg-emerald-900/50 text-emerald-400 rounded-lg border border-emerald-700/30 transition cursor-pointer disabled:opacity-40"
+                            >
+                              {enrichingIds.has(prospect.id) ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Wand2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
                           <button
                             onClick={() => openDetailModal(prospect, "invitation")}
                             title="Generar Invitación de Demo"
