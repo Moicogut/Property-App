@@ -77,6 +77,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return await handleEnrich(req, res);
       case "invite":
         return await handleInvite(req, res);
+      case "whatsapp_pitch":
+        return await handleWhatsAppPitch(req, res);
+      case "update":
+        return await handleUpdate(req, res);
       case "convert":
         return await handleConvert(req, res);
       case "list":
@@ -693,3 +697,177 @@ async function handleConvert(req: VercelRequest, res: VercelResponse) {
     organization: { id: newOrg.id, name: newOrg.name, city: prospect.city },
   });
 }
+
+// ── ACTION: UPDATE (Manual quick edit & status updates) ───────────────────────
+
+async function handleUpdate(req: VercelRequest, res: VercelResponse) {
+  const { prospectId, updates } = req.body as {
+    prospectId: string;
+    updates: Partial<{
+      agency_name: string;
+      manager_name: string;
+      manager_role: string;
+      email_official: string;
+      email_personal: string;
+      phone_official: string;
+      whatsapp_contact: string;
+      website_url: string;
+      outreach_status: string;
+      notes: string;
+    }>;
+  };
+
+  if (!prospectId || !updates) {
+    return res.status(400).json({ error: "prospectId y updates son requeridos." });
+  }
+
+  // Traer registro actual para recalcular score
+  const { data: current } = await supabaseAdmin
+    .from("b2b_agency_prospects")
+    .select("*")
+    .eq("id", prospectId)
+    .single();
+
+  const merged = { ...current, ...updates };
+  const newScore = calcQualityScore({
+    phone_official: merged.phone_official,
+    website_url: merged.website_url,
+    web_status: merged.web_status,
+    email_official: merged.email_official,
+    manager_name: merged.manager_name,
+  });
+
+  const { data: updated, error } = await supabaseAdmin
+    .from("b2b_agency_prospects")
+    .update({
+      ...updates,
+      data_quality_score: newScore,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", prospectId)
+    .select()
+    .single();
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  return res.status(200).json({ success: true, prospect: updated });
+}
+
+// ── ACTION: WHATSAPP PITCH (Pitch generador con IA para WhatsApp) ─────────────
+
+async function handleWhatsAppPitch(req: VercelRequest, res: VercelResponse) {
+  const {
+    prospectId,
+    agencyName,
+    managerName = "",
+    phone = "",
+    city = "Bolivia",
+    pitchType = "sofia_ai", // 'sofia_ai' | 'demo' | 'quick_intro'
+  } = req.body as {
+    prospectId: string;
+    agencyName: string;
+    managerName?: string;
+    phone?: string;
+    city?: string;
+    pitchType?: "sofia_ai" | "demo" | "quick_intro";
+  };
+
+  if (!agencyName) {
+    return res.status(400).json({ error: "agencyName es obligatorio" });
+  }
+
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  let formattedPhone = cleanPhone;
+  if (formattedPhone.length === 8 && (formattedPhone.startsWith("6") || formattedPhone.startsWith("7"))) {
+    formattedPhone = `591${formattedPhone}`;
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  let messageText = "";
+
+  if (apiKey) {
+    try {
+      const openai = new OpenAI({ apiKey });
+      const promptInstruction = `Eres un experto en ventas B2B Inmobiliarias en Bolivia.
+Redacta un mensaje de WhatsApp corto, directo, persuasivo y conversacional para contactar a una inmobiliaria en Bolivia.
+Usa emojis clave, tono ejecutivo pero cercano.
+ENFOQUE: ${
+        pitchType === "sofia_ai"
+          ? "Presentar a Sofía IA, que atiende y califica clientes en WhatsApp 24/7 para que no pierdan clientes en la noche"
+          : pitchType === "demo"
+          ? "Invitar a una videollamada de 15 min para mostrarles cómo automatizar contratos y captar más propiedades en " + city
+          : "Presentación rápida de Property OS para inmobiliarias líderes en " + city
+      }.
+NOMBRE AGENCIA: ${agencyName}
+GERENTE/CONTACTO: ${managerName || "el equipo comercial"}
+CIUDAD: ${city}
+
+Responde ÚNICAMENTE con json en este formato: { "message": "texto del mensaje para WhatsApp" }`;
+
+      const aiRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.6,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: promptInstruction }],
+      });
+
+      const parsed = JSON.parse(aiRes.choices[0].message.content || "{}");
+      messageText = parsed.message || "";
+    } catch (e) {
+      console.warn("[b2b/whatsapp_pitch] OpenAI fallback:", e);
+    }
+  }
+
+  // Fallback si no hay OpenAI o falló
+  if (!messageText) {
+    const greeting = managerName ? `Hola ${managerName}` : `Hola equipo de *${agencyName}*`;
+    if (pitchType === "sofia_ai") {
+      messageText = `${greeting} 👋, un gusto saludarte.
+
+Vi su destacada presencia inmobiliaria en *${city}* 🏢.
+
+Quería consultarles: ¿cuántos clientes potenciales pierden al mes porque nadie les responde el WhatsApp después de las 6 PM o fines de semana? 🤔
+
+Desarrollamos *Sofía IA* (Property OS), un asistente de inteligencia artificial entrenado para el mercado boliviano que:
+✅ Responde y precalifica leads en WhatsApp 24/7 al instante.
+✅ Filtra presupuesto y agenda visitas automáticamente.
+✅ Genera contratos de alquiler/venta en minutos.
+
+¿Tendrías 10 minutos esta semana para mostrarte una demo rápida en vivo? 🚀`;
+    } else {
+      messageText = `${greeting} 👋, un gusto saludarte.
+
+Te contacto desde *Property OS*. Estamos digitalizando las inmobiliarias más importantes de *${city}* con automatización de contratos, análisis de mercado con IA y atención automática de WhatsApp 24/7 🚀.
+
+¿Podríamos agendar una breve demo de 15 minutos para que veas cómo funciona para *${agencyName}*?`;
+    }
+  }
+
+  const waLink = formattedPhone
+    ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(messageText)}`
+    : `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+
+  // Actualizar prospecto si tiene ID
+  if (prospectId && prospectId !== "local") {
+    try {
+      await supabaseAdmin
+        .from("b2b_agency_prospects")
+        .update({
+          last_contacted_at: new Date().toISOString(),
+        })
+        .eq("id", prospectId);
+    } catch (e) {
+      console.warn("[b2b/whatsapp_pitch] supabase update warn:", e);
+    }
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: messageText,
+    wa_link: waLink,
+    formatted_phone: formattedPhone,
+  });
+}
+

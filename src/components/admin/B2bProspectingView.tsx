@@ -50,7 +50,13 @@ export interface B2bProspect {
   email_personal?: string;
   linkedin_url?: string;
   enrichment_status: "PENDING" | "ENRICHED" | "PARTIAL" | "FAILED";
-  outreach_status: "NUEVO" | "EMAIL_ENVIADO" | "DEMO_AGENDADA" | "RECHAZADO" | "CONVERTIDO";
+  outreach_status:
+    | "NUEVO"
+    | "CONTACTADO_WHATSAPP"
+    | "EMAIL_ENVIADO"
+    | "DEMO_AGENDADA"
+    | "RECHAZADO"
+    | "CONVERTIDO";
   last_contacted_at?: string;
   meeting_link?: string;
   notes?: string;
@@ -107,6 +113,7 @@ const OUTREACH_STATUS_CONFIG: Record<
   { label: string; color: string; bg: string }
 > = {
   NUEVO: { label: "Nuevo", color: "text-slate-300", bg: "bg-slate-800" },
+  CONTACTADO_WHATSAPP: { label: "💬 WhatsApp Enviado", color: "text-emerald-300", bg: "bg-emerald-950/70" },
   EMAIL_ENVIADO: { label: "Email Enviado", color: "text-blue-300", bg: "bg-blue-950/60" },
   DEMO_AGENDADA: { label: "Demo Agendada", color: "text-amber-300", bg: "bg-amber-950/60" },
   RECHAZADO: { label: "Rechazado", color: "text-rose-300", bg: "bg-rose-950/60" },
@@ -138,6 +145,7 @@ export const B2bProspectingView: React.FC = () => {
 
   // ── Filter state
   const [filterCity, setFilterCity] = useState("Todas");
+  const [filterSegment, setFilterSegment] = useState<"all" | "phone" | "web" | "email">("all");
   const [searchText, setSearchText] = useState("");
 
   // ── Selection state
@@ -145,7 +153,17 @@ export const B2bProspectingView: React.FC = () => {
 
   // ── Modal: single prospect
   const [selectedProspect, setSelectedProspect] = useState<B2bProspect | null>(null);
-  const [modalMode, setModalMode] = useState<"detail" | "invitation">("detail");
+  const [modalMode, setModalMode] = useState<"detail" | "invitation" | "edit">("detail");
+  const [editFormData, setEditFormData] = useState<Partial<B2bProspect>>({});
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  // ── WhatsApp Pitch Modal state
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [whatsAppProspect, setWhatsAppProspect] = useState<B2bProspect | null>(null);
+  const [whatsAppPitchType, setWhatsAppPitchType] = useState<"sofia_ai" | "demo" | "quick_intro">("sofia_ai");
+  const [whatsAppCustomText, setWhatsAppCustomText] = useState("");
+  const [isGeneratingWAPitch, setIsGeneratingWAPitch] = useState(false);
+  const [whatsAppCopied, setWhatsAppCopied] = useState(false);
 
   // ── Invitation state (single)
   const [meetingType, setMeetingType] = useState<"meet" | "zoom">("meet");
@@ -200,6 +218,12 @@ export const B2bProspectingView: React.FC = () => {
         (p.city && p.city.trim().toLowerCase() === filterCity.trim().toLowerCase())
     )
     .filter((p) => {
+      if (filterSegment === "phone") return !!(p.phone_official || p.whatsapp_contact);
+      if (filterSegment === "web") return !!p.website_url;
+      if (filterSegment === "email") return !!p.email_official;
+      return true;
+    })
+    .filter((p) => {
       if (!searchText.trim()) return true;
       const q = searchText.toLowerCase();
       return (
@@ -207,7 +231,8 @@ export const B2bProspectingView: React.FC = () => {
         (p.manager_name || "").toLowerCase().includes(q) ||
         (p.email_official || "").toLowerCase().includes(q) ||
         (p.zone || "").toLowerCase().includes(q) ||
-        (p.phone_official || "").toLowerCase().includes(q)
+        (p.phone_official || "").toLowerCase().includes(q) ||
+        (p.whatsapp_contact || "").toLowerCase().includes(q)
       );
     });
 
@@ -583,9 +608,19 @@ export const B2bProspectingView: React.FC = () => {
 
   const openDetailModal = (
     prospect: B2bProspect,
-    mode: "detail" | "invitation" = "detail"
+    mode: "detail" | "invitation" | "edit" = "detail"
   ) => {
     setSelectedProspect(prospect);
+    setEditFormData({
+      manager_name: prospect.manager_name || "",
+      manager_role: prospect.manager_role || "Gerente Comercial",
+      email_official: prospect.email_official || "",
+      whatsapp_contact: prospect.whatsapp_contact || "",
+      phone_official: prospect.phone_official || "",
+      website_url: prospect.website_url || "",
+      outreach_status: prospect.outreach_status || "NUEVO",
+      notes: prospect.notes || "",
+    });
     setModalMode(mode);
     setGeneratedInvitation(null);
     setErrorMessage(null);
@@ -594,6 +629,132 @@ export const B2bProspectingView: React.FC = () => {
   const closeModal = () => {
     setSelectedProspect(null);
     setGeneratedInvitation(null);
+  };
+
+  // ── QUICK EDIT HANDLER ───────────────────────────────────────────────────
+
+  const handleSaveEdit = async () => {
+    if (!selectedProspect) return;
+    setIsSavingEdit(true);
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          prospectId: selectedProspect.id,
+          updates: editFormData,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al guardar");
+      const updated = data.prospect as B2bProspect;
+      setAllProspects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setSelectedProspect(updated);
+      setSuccessMessage(`✅ Datos de ${updated.agency_name} actualizados`);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : "Error al guardar cambios");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  // ── WHATSAPP PITCH HANDLERS ──────────────────────────────────────────────
+
+  const handleOpenWhatsAppModal = async (prospect: B2bProspect) => {
+    setWhatsAppProspect(prospect);
+    setShowWhatsAppModal(true);
+    setWhatsAppCopied(false);
+    setIsGeneratingWAPitch(true);
+    setWhatsAppCustomText("");
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "whatsapp_pitch",
+          prospectId: prospect.id,
+          agencyName: prospect.agency_name,
+          managerName: prospect.manager_name || "",
+          phone: prospect.whatsapp_contact || prospect.phone_official || "",
+          city: prospect.city,
+          pitchType: whatsAppPitchType,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        setWhatsAppCustomText(data.message);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setIsGeneratingWAPitch(false);
+    }
+  };
+
+  const handleRegenerateWAPitch = async (pitchType: "sofia_ai" | "demo" | "quick_intro") => {
+    if (!whatsAppProspect) return;
+    setWhatsAppPitchType(pitchType);
+    setIsGeneratingWAPitch(true);
+    try {
+      const res = await fetch("/api/admin/b2b", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "whatsapp_pitch",
+          prospectId: whatsAppProspect.id,
+          agencyName: whatsAppProspect.agency_name,
+          managerName: whatsAppProspect.manager_name || "",
+          phone: whatsAppProspect.whatsapp_contact || whatsAppProspect.phone_official || "",
+          city: whatsAppProspect.city,
+          pitchType,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.message) {
+        setWhatsAppCustomText(data.message);
+      }
+    } catch {
+      // Fallback
+    } finally {
+      setIsGeneratingWAPitch(false);
+    }
+  };
+
+  const handleSendWhatsApp = () => {
+    if (!whatsAppProspect) return;
+    const rawPhone = whatsAppProspect.whatsapp_contact || whatsAppProspect.phone_official || "";
+    const cleanPhone = rawPhone.replace(/[^0-9]/g, "");
+    let formattedPhone = cleanPhone;
+    if (formattedPhone.length === 8 && (formattedPhone.startsWith("6") || formattedPhone.startsWith("7"))) {
+      formattedPhone = `591${formattedPhone}`;
+    }
+    const url = formattedPhone
+      ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(whatsAppCustomText)}`
+      : `https://wa.me/?text=${encodeURIComponent(whatsAppCustomText)}`;
+
+    window.open(url, "_blank");
+
+    // Actualizar estado en Supabase y local
+    fetch("/api/admin/b2b", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "update",
+        prospectId: whatsAppProspect.id,
+        updates: { outreach_status: "CONTACTADO_WHATSAPP", last_contacted_at: new Date().toISOString() },
+      }),
+    }).then(() => {
+      setAllProspects((prev) =>
+        prev.map((p) =>
+          p.id === whatsAppProspect.id
+            ? { ...p, outreach_status: "CONTACTADO_WHATSAPP", last_contacted_at: new Date().toISOString() }
+            : p
+        )
+      );
+    });
+
+    setShowWhatsAppModal(false);
   };
 
   // ── RENDER ────────────────────────────────────────────────────────────────
@@ -784,6 +945,41 @@ export const B2bProspectingView: React.FC = () => {
                 </button>
               );
             })}
+          </div>
+
+          {/* Filtros por Segmento (Canal Bolivia) */}
+          <div className="flex flex-wrap gap-2 items-center pt-1 border-t border-slate-800/60">
+            <span className="text-[11px] text-slate-500 font-bold">Segmento:</span>
+            {[
+              { id: "all", label: "Todas", count: allProspects.length },
+              {
+                id: "phone",
+                label: "📱 Con Tel / WhatsApp",
+                count: allProspects.filter((p) => p.phone_official || p.whatsapp_contact).length,
+              },
+              {
+                id: "web",
+                label: "🌐 Con Web",
+                count: allProspects.filter((p) => p.website_url).length,
+              },
+              {
+                id: "email",
+                label: "✉️ Con Email",
+                count: allProspects.filter((p) => p.email_official).length,
+              },
+            ].map((seg) => (
+              <button
+                key={seg.id}
+                onClick={() => setFilterSegment(seg.id as any)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                  filterSegment === seg.id
+                    ? "bg-[#D4AF37] text-slate-950 border-[#D4AF37]"
+                    : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white"
+                }`}
+              >
+                {seg.label} ({seg.count})
+              </button>
+            ))}
           </div>
 
           {/* Buscador + acciones masivas */}
@@ -1062,11 +1258,21 @@ export const B2bProspectingView: React.FC = () => {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => openDetailModal(prospect, "detail")}
-                            title="Ver Detalles"
+                            title="Ver / Editar Detalles"
                             className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-800 transition cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
+                          {/* WhatsApp 1-Clic Pitch */}
+                          {(prospect.phone_official || prospect.whatsapp_contact) && (
+                            <button
+                              onClick={() => handleOpenWhatsAppModal(prospect)}
+                              title="💬 Pitch de WhatsApp 1-Clic con IA"
+                              className="p-1.5 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-400 rounded-lg border border-emerald-600/50 transition cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {/* Enrich individual: solo si tiene web y no se ha scrapeado */}
                           {prospect.website_url && prospect.web_status === "UNVERIFIED" && (
                             <button
@@ -1170,6 +1376,16 @@ export const B2bProspectingView: React.FC = () => {
                   Detalles
                 </button>
                 <button
+                  onClick={() => setModalMode("edit")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                    modalMode === "edit"
+                      ? "bg-[#D4AF37] text-slate-950"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  ✏️ Editar
+                </button>
+                <button
                   onClick={() => setModalMode("invitation")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
                     modalMode === "invitation"
@@ -1180,6 +1396,18 @@ export const B2bProspectingView: React.FC = () => {
                   <Sparkles className="w-3 h-3 inline mr-1" />
                   Invitación
                 </button>
+                {(selectedProspect.phone_official || selectedProspect.whatsapp_contact) && (
+                  <button
+                    onClick={() => {
+                      closeModal();
+                      handleOpenWhatsAppModal(selectedProspect);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-700/50 hover:bg-emerald-900 cursor-pointer transition flex items-center gap-1"
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    WhatsApp
+                  </button>
+                )}
                 <button
                   onClick={closeModal}
                   className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
@@ -1192,80 +1420,217 @@ export const B2bProspectingView: React.FC = () => {
             <div className="p-6 space-y-6">
               {/* ── MODO DETALLE ── */}
               {modalMode === "detail" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  {[
-                    {
-                      label: "Agencia",
-                      value: selectedProspect.agency_name,
-                      icon: <Building2 className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "Ciudad / Zona",
-                      value: `${selectedProspect.city} — ${selectedProspect.zone || "N/A"}`,
-                      icon: <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "Gerente",
-                      value: selectedProspect.manager_name || "—",
-                      icon: <User className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "Cargo",
-                      value: selectedProspect.manager_role || "—",
-                      icon: <User className="w-3.5 h-3.5 text-slate-400" />,
-                    },
-                    {
-                      label: "Email Oficial",
-                      value: selectedProspect.email_official || "—",
-                      icon: <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "Email Personal",
-                      value: selectedProspect.email_personal || "—",
-                      icon: <Mail className="w-3.5 h-3.5 text-slate-400" />,
-                    },
-                    {
-                      label: "Teléfono Oficial",
-                      value: selectedProspect.phone_official || "—",
-                      icon: <Phone className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "WhatsApp",
-                      value: selectedProspect.whatsapp_contact || "—",
-                      icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />,
-                    },
-                    {
-                      label: "Sitio Web",
-                      value: selectedProspect.website_url || "—",
-                      icon: <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />,
-                    },
-                    {
-                      label: "LinkedIn",
-                      value: selectedProspect.linkedin_url || "—",
-                      icon: <ExternalLink className="w-3.5 h-3.5 text-blue-400" />,
-                    },
-                  ].map((field) => (
-                    <div
-                      key={field.label}
-                      className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800"
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    {[
+                      {
+                        label: "Agencia",
+                        value: selectedProspect.agency_name,
+                        icon: <Building2 className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "Ciudad / Zona",
+                        value: `${selectedProspect.city} — ${selectedProspect.zone || "N/A"}`,
+                        icon: <MapPin className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "Gerente",
+                        value: selectedProspect.manager_name || "— (clic en Editar para agregar)",
+                        icon: <User className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "Cargo",
+                        value: selectedProspect.manager_role || "—",
+                        icon: <User className="w-3.5 h-3.5 text-slate-400" />,
+                      },
+                      {
+                        label: "Email Oficial",
+                        value: selectedProspect.email_official || "—",
+                        icon: <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "Email Personal",
+                        value: selectedProspect.email_personal || "—",
+                        icon: <Mail className="w-3.5 h-3.5 text-slate-400" />,
+                      },
+                      {
+                        label: "Teléfono Oficial",
+                        value: selectedProspect.phone_official || "—",
+                        icon: <Phone className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "WhatsApp",
+                        value: selectedProspect.whatsapp_contact || selectedProspect.phone_official || "—",
+                        icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />,
+                      },
+                      {
+                        label: "Sitio Web",
+                        value: selectedProspect.website_url || "—",
+                        icon: <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />,
+                      },
+                      {
+                        label: "Calidad de Datos",
+                        value: `${selectedProspect.data_quality_score ?? 0}% (${selectedProspect.data_source || "AI"})`,
+                        icon: <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />,
+                      },
+                    ].map((field) => (
+                      <div
+                        key={field.label}
+                        className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800"
+                      >
+                        <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+                          {field.icon}
+                          <span>{field.label}</span>
+                        </div>
+                        <div className="text-slate-200 font-medium text-[13px] break-all">
+                          {field.value}
+                        </div>
+                      </div>
+                    ))}
+                    {selectedProspect.notes && (
+                      <div className="sm:col-span-2 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+                        <div className="text-slate-400 mb-1">Notas</div>
+                        <div className="text-slate-300 text-[13px] leading-relaxed">
+                          {selectedProspect.notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setModalMode("edit")}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
                     >
-                      <div className="flex items-center gap-1.5 text-slate-400 mb-1">
-                        {field.icon}
-                        <span>{field.label}</span>
-                      </div>
-                      <div className="text-slate-200 font-medium text-[13px] break-all">
-                        {field.value}
-                      </div>
+                      ✏️ Editar Datos de Contacto
+                    </button>
+                    {(selectedProspect.phone_official || selectedProspect.whatsapp_contact) && (
+                      <button
+                        onClick={() => {
+                          closeModal();
+                          handleOpenWhatsAppModal(selectedProspect);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:brightness-110 text-white rounded-xl text-xs font-black shadow transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Abrir Pitch de WhatsApp
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── MODO EDITAR ── */}
+              {modalMode === "edit" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Nombre de Agencia</label>
+                      <input
+                        type="text"
+                        value={editFormData.agency_name || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, agency_name: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
                     </div>
-                  ))}
-                  {selectedProspect.notes && (
-                    <div className="sm:col-span-2 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 mb-1">Notas</div>
-                      <div className="text-slate-300 text-[13px] leading-relaxed">
-                        {selectedProspect.notes}
-                      </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-[#F3E5AB]">Gerente / Contacto Clave</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Lic. Carlos Mendoza"
+                        value={editFormData.manager_name || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, manager_name: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
                     </div>
-                  )}
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Cargo</label>
+                      <input
+                        type="text"
+                        placeholder="Ej. Gerente Comercial"
+                        value={editFormData.manager_role || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, manager_role: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Email Oficial</label>
+                      <input
+                        type="email"
+                        placeholder="contacto@agencia.com"
+                        value={editFormData.email_official || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, email_official: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Teléfono</label>
+                      <input
+                        type="text"
+                        placeholder="+591 7XXXXXXX"
+                        value={editFormData.phone_official || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, phone_official: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-emerald-400">WhatsApp Directo</label>
+                      <input
+                        type="text"
+                        placeholder="+591 7XXXXXXX"
+                        value={editFormData.whatsapp_contact || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, whatsapp_contact: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Sitio Web</label>
+                      <input
+                        type="url"
+                        placeholder="https://..."
+                        value={editFormData.website_url || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, website_url: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-300">Estado Pipeline</label>
+                      <select
+                        value={editFormData.outreach_status || "NUEVO"}
+                        onChange={(e) => setEditFormData({ ...editFormData, outreach_status: e.target.value as any })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none"
+                      >
+                        {Object.entries(OUTREACH_STATUS_CONFIG).map(([k, v]) => (
+                          <option key={k} value={k}>{v.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2 space-y-1">
+                      <label className="font-bold text-slate-300">Notas de Contacto</label>
+                      <textarea
+                        rows={3}
+                        placeholder="Comentarios de llamadas, interés expresado, etc..."
+                        value={editFormData.notes || ""}
+                        onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                        className="w-full bg-slate-950 text-slate-200 px-3 py-2 rounded-xl border border-slate-800 outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setModalMode("detail")}
+                      className="px-4 py-2 text-slate-400 hover:text-white rounded-xl text-xs cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={isSavingEdit}
+                      className="px-6 py-2.5 bg-[#D4AF37] hover:brightness-110 text-slate-950 rounded-xl text-xs font-black shadow transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isSavingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      💾 Guardar Cambios
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1946,6 +2311,133 @@ export const B2bProspectingView: React.FC = () => {
                   </>
                 );
               })()}
+            </div>
+          </div>
+      {/* ════════════════════════════════════════════════════════════════
+          MODAL: WHATSAPP DIRECT OUTREACH (CANAL #1 BOLIVIA)
+      ════════════════════════════════════════════════════════════════ */}
+      {showWhatsAppModal && whatsAppProspect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#111622] border border-emerald-700/50 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-[#0c121c]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base flex items-center gap-2">
+                    {whatsAppProspect.agency_name}
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                      WhatsApp Directo
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    📍 {whatsAppProspect.city} · 📞 {whatsAppProspect.whatsapp_contact || whatsAppProspect.phone_official || "Sin teléfono"}
+                    {whatsAppProspect.manager_name && ` · 👤 ${whatsAppProspect.manager_name}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWhatsAppModal(false)}
+                className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Pitch Style Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[#F3E5AB]">
+                  Enfoque del Mensaje (Especializado para Bolivia):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: "sofia_ai", label: "🤖 Sofía IA (24/7)", desc: "No perder leads de noche" },
+                    { id: "demo", label: "📅 Invitación Demo", desc: "15 min Zoom / Meet" },
+                    { id: "quick_intro", label: "🚀 Presentación", desc: "CRM Inmobiliario AI" },
+                  ].map((pt) => (
+                    <button
+                      key={pt.id}
+                      onClick={() => handleRegenerateWAPitch(pt.id as any)}
+                      disabled={isGeneratingWAPitch}
+                      className={`p-2.5 rounded-xl text-left border transition cursor-pointer ${
+                        whatsAppPitchType === pt.id
+                          ? "bg-emerald-950/80 border-emerald-500/80 text-emerald-200"
+                          : "bg-slate-950 text-slate-400 border-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{pt.label}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{pt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message preview / edit */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300">
+                    Mensaje de WhatsApp (Editable):
+                  </label>
+                  <button
+                    onClick={() => handleRegenerateWAPitch(whatsAppPitchType)}
+                    disabled={isGeneratingWAPitch}
+                    className="text-xs text-[#D4AF37] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {isGeneratingWAPitch ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Generando con IA...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        <span>Regenerar con IA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="relative">
+                  <textarea
+                    rows={8}
+                    value={whatsAppCustomText}
+                    onChange={(e) => setWhatsAppCustomText(e.target.value)}
+                    placeholder="Escribe o genera tu mensaje de WhatsApp..."
+                    className="w-full bg-slate-950 text-slate-200 p-3.5 rounded-xl border border-slate-800 outline-none focus:border-emerald-500 font-sans text-xs leading-relaxed"
+                  />
+                  {isGeneratingWAPitch && (
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2 text-emerald-400 text-xs font-bold">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Sofía IA redactando pitch personalizado para {whatsAppProspect.agency_name}...
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(whatsAppCustomText);
+                    setWhatsAppCopied(true);
+                    setTimeout(() => setWhatsAppCopied(false), 2500);
+                  }}
+                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer transition"
+                >
+                  {whatsAppCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {whatsAppCopied ? "¡Copiado al Portapapeles!" : "Copiar Texto"}
+                </button>
+
+                <button
+                  onClick={handleSendWhatsApp}
+                  className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:brightness-110 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50 cursor-pointer transition"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  💬 Abrir en WhatsApp (1-Clic)
+                </button>
+              </div>
             </div>
           </div>
         </div>
