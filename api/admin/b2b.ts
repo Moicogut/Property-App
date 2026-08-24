@@ -79,7 +79,7 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
         content: `You are a B2B Real Estate Agency Intelligence Researcher specializing in ${country}.
 Generate a realistic, research-quality list of real estate agencies in ${city}, ${country}.
 For each agency provide: agency_name, city ("${city}"), zone, address, website_url, phone_official (+591 format), whatsapp_contact, manager_name, manager_role, email_official, email_personal, linkedin_url, notes.
-Return EXACTLY ${Math.min(Number(limit), 20)} agencies as: { "prospects": [...] }`,
+Respond ONLY with valid json. Return EXACTLY ${Math.min(Number(limit), 20)} agencies as: { "prospects": [...] }`,
       },
       {
         role: "user",
@@ -175,7 +175,7 @@ async function handleInvite(req: VercelRequest, res: VercelResponse) {
           content: `Eres un especialista en B2B Sales y Cold Email Outreach para SaaS Inmobiliario en Bolivia.
 Redacta un correo ejecutivo personalizado de invitación a una demo de Property OS (CRM inmobiliario con IA).
 TONO: Profesional ejecutivo, cercano, sin lenguaje spam. Propuesta de valor: Sofía IA (WhatsApp 24/7), contratos digitales, análisis CMA con IA.
-Devuelve JSON: { "subject": "...", "html_body": "HTML completo con estilos inline y botón CTA dorado #D4AF37", "plain_text": "..." }`,
+Responde ÚNICAMENTE con json válido con esta estructura: { "subject": "...", "html_body": "HTML completo con estilos inline y botón CTA dorado #D4AF37", "plain_text": "..." }`,
         },
         {
           role: "user",
