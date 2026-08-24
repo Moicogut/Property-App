@@ -227,6 +227,7 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
     });
 
     return {
+      id: crypto.randomUUID(),
       agency_name: place.name,
       city,
       zone: extractZoneFromAddress(address || "", city),
@@ -251,30 +252,49 @@ async function handleSearch(req: VercelRequest, res: VercelResponse) {
     };
   });
 
-  // ── Step 4: Upsert a Supabase (dedup por place_id) ─────────────────────
-  const { error: upsertError } = await supabaseAdmin
-    .from("b2b_agency_prospects")
-    .upsert(prospects, { onConflict: "place_id", ignoreDuplicates: false });
+  // ── Step 4: Guardar en Supabase ────────────────────────────────────────
+  let finalProspects = prospects;
+  try {
+    const { data: upserted, error: upsertError } = await supabaseAdmin
+      .from("b2b_agency_prospects")
+      .upsert(prospects, { onConflict: "place_id" })
+      .select();
 
-  if (upsertError) {
-    console.warn("[b2b/search] Upsert warn:", upsertError.message);
+    if (upsertError) {
+      console.warn("[b2b/search] Upsert onConflict warn:", upsertError.message);
+      // Fallback: intentar insert directo ignorando duplicados o consultando existentes
+      const { data: existing } = await supabaseAdmin
+        .from("b2b_agency_prospects")
+        .select("place_id")
+        .in("place_id", prospects.map((p) => p.place_id).filter(Boolean));
+
+      const existingPlaceIds = new Set((existing || []).map((e) => e.place_id));
+      const toInsert = prospects.filter((p) => !existingPlaceIds.has(p.place_id));
+
+      if (toInsert.length > 0) {
+        const { data: inserted } = await supabaseAdmin
+          .from("b2b_agency_prospects")
+          .insert(toInsert)
+          .select();
+        if (inserted && inserted.length > 0) {
+          finalProspects = inserted;
+        }
+      }
+    } else if (upserted && upserted.length > 0) {
+      finalProspects = upserted;
+    }
+  } catch (err) {
+    console.error("[b2b/search] Supabase save error:", err);
   }
-
-  // ── Step 5: Traer los IDs recién insertados para devolverlos completos ──
-  const { data: savedProspects } = await supabaseAdmin
-    .from("b2b_agency_prospects")
-    .select("*")
-    .in("place_id", prospects.map((p) => p.place_id).filter(Boolean))
-    .order("created_at", { ascending: false });
 
   return res.status(200).json({
     success: true,
-    prospects: savedProspects || prospects,
-    total: prospects.length,
+    prospects: finalProspects,
+    total: finalProspects.length,
     source: "GOOGLE_PLACES",
     stats: {
-      with_website: prospects.filter((p) => p.website_url).length,
-      with_phone: prospects.filter((p) => p.phone_official).length,
+      with_website: finalProspects.filter((p) => p.website_url).length,
+      with_phone: finalProspects.filter((p) => p.phone_official).length,
     },
   });
 }

@@ -194,15 +194,20 @@ export const B2bProspectingView: React.FC = () => {
   ];
 
   const visibleProspects = allProspects
-    .filter((p) => filterCity === "Todas" || p.city === filterCity)
+    .filter(
+      (p) =>
+        filterCity === "Todas" ||
+        (p.city && p.city.trim().toLowerCase() === filterCity.trim().toLowerCase())
+    )
     .filter((p) => {
       if (!searchText.trim()) return true;
       const q = searchText.toLowerCase();
       return (
-        p.agency_name.toLowerCase().includes(q) ||
+        (p.agency_name || "").toLowerCase().includes(q) ||
         (p.manager_name || "").toLowerCase().includes(q) ||
         (p.email_official || "").toLowerCase().includes(q) ||
-        (p.zone || "").toLowerCase().includes(q)
+        (p.zone || "").toLowerCase().includes(q) ||
+        (p.phone_official || "").toLowerCase().includes(q)
       );
     });
 
@@ -277,17 +282,20 @@ export const B2bProspectingView: React.FC = () => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al escanear");
+      const incoming = (data.prospects || []) as B2bProspect[];
+      if (incoming.length === 0) {
+        setErrorMessage(data.error || `No se encontraron nuevas agencias en ${scanCity}.`);
+        return;
+      }
 
       setAllProspects((prev) => {
-        const existingKeys = new Set(prev.map((p) => `${p.agency_name}|${p.city}`));
-        const newOnes = (data.prospects as B2bProspect[]).filter(
-          (p) => !existingKeys.has(`${p.agency_name}|${p.city}`)
-        );
-        return [...prev, ...newOnes];
+        const map = new Map<string, B2bProspect>();
+        prev.forEach((p) => map.set(p.place_id || p.id || `${p.agency_name}|${p.city}`, p));
+        incoming.forEach((p) => map.set(p.place_id || p.id || `${p.agency_name}|${p.city}`, p));
+        return Array.from(map.values());
       });
       setFilterCity(scanCity);
-      setSuccessMessage(`✅ ${data.total} agencias detectadas en ${scanCity}`);
+      setSuccessMessage(`✅ ${incoming.length} agencias detectadas en ${scanCity}`);
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : "Error al escanear agencias");
     } finally {
